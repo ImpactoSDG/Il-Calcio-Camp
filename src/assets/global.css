@@ -1,0 +1,25 @@
+:root {
+    --color-primary: #00558c;
+    --color-secondary: #169c9f;
+    --color-accent: #ee5325;
+    --color-text-dark: #333333;
+    --color-text-light: #ffffff;
+    --color-heading: #00548cea;
+    --color-background-soft: #f8f9fa;
+    --color-border: #dee2e6;
+}
+
+body {
+    background-color: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+    color: var(--color-heading);
+}
+
+a {
+    color: var(--color-secondary);
+}
