@@ -4,7 +4,7 @@ include_once __DIR__ . '/../models/Usuario.php';
 
 class UsuarioController {
     
-    public function getAll() {
+    public function getAll(): void {
         $database = new Database();
         $db = $database->connect();
 

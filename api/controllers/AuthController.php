@@ -5,8 +5,8 @@ require_once __DIR__ . '/../models/Usuario.php';
 
 class AuthController
 {
-    private $db;
-    private $usuarioModel;
+    private PDO $db;
+    private Usuario $usuarioModel;
 
     public function __construct()
     {
@@ -15,7 +15,7 @@ class AuthController
         $this->usuarioModel = new Usuario($this->db);
     }
 
-    private function respond($status_code, $data)
+    private function respond(int $status_code, array $data): void
     {
         http_response_code($status_code);
         header('Content-Type: application/json; charset=UTF-8');
@@ -23,7 +23,7 @@ class AuthController
         exit;
     }
 
-    public function login()
+    public function login(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
 
@@ -55,7 +55,7 @@ class AuthController
         ]);
     }
 
-    public function register()
+    public function register(): void
     {
         header('Content-Type: application/json; charset=UTF-8');
 

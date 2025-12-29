@@ -18,7 +18,11 @@
                         </div>
                         <div class="mb-3">
                             <label for="reg-contrasena" class="form-label">Contraseña:</label>
-                            <input type="password" id="reg-contrasena" v-model="contrasena" class="form-control" required>
+                            <input type="password" id="reg-contrasena" v-model="contrasena" class="form-control" required minlength="6">
+                        </div>
+                        <div class="mb-4">
+                            <label for="reg-confirm-contrasena" class="form-label">Confirmar Contraseña:</label>
+                            <input type="password" id="reg-confirm-contrasena" v-model="confirmContrasena" class="form-control" required>
                         </div>
                         <div class="mb-4">
                             <label for="id_rol" class="form-label">ID de Rol (Temporal):</label>
@@ -48,11 +52,26 @@ import api from '@/services/api';
 const nombre = ref('');
 const email = ref('');
 const contrasena = ref('');
+const confirmContrasena = ref('');
 const id_rol = ref(null);
 const isLoading = ref(false);
 const toast = useToastStore();
 
 const handleRegister = async () => {
+    if (contrasena.value !== confirmContrasena.value) {
+        toast.showToast({
+            message: 'Las contraseñas no coinciden.',
+            type: 'danger'
+        });
+        return;
+    }
+    if (contrasena.value.length < 6) {
+        toast.showToast({
+            message: 'La contraseña debe tener al menos 6 caracteres.',
+            type: 'danger'
+        });
+        return;
+    }
     isLoading.value = true;
     try {
         const response = await api.post('/register', {
@@ -68,6 +87,7 @@ const handleRegister = async () => {
         nombre.value = '';
         email.value = '';
         contrasena.value = '';
+        confirmContrasena.value = '';
         id_rol.value = null;
     } catch (err) {
         const errorMessage = err.response?.data?.message || 'Error de conexión o del servidor.';

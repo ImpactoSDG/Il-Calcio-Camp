@@ -2,15 +2,15 @@
 
 class Usuario
 {
-    private $conn;
-    public $table = 'usuario';
+    private PDO $conn;
+    public string $table = 'usuario';
 
-    public function __construct($db)
+    public function __construct(PDO $db)
     {
         $this->conn = $db;
     }
 
-    public function getAll()
+    public function getAll(): array
     {
         $sql = "SELECT u.id, u.nombre, u.email, r.nombre AS rol_nombre, r.descripcion AS rol_descripcion
                 FROM {$this->table} u
@@ -21,7 +21,7 @@ class Usuario
     }
 
 
-    public function getByNameOrEmail($identificador)
+    public function getByNameOrEmail(string $identificador): ?array
     {
         $sql = "SELECT u.id, u.nombre, u.email, u.contrasena, u.id_rol, r.nombre AS rol_nombre
                 FROM {$this->table} u
@@ -35,7 +35,7 @@ class Usuario
     }
     
 
-    public function getByEmail($email)
+    public function getByEmail(string $email): ?array
     {
         $sql = "SELECT id, nombre, email, contrasena, id_rol FROM {$this->table} WHERE email = :email LIMIT 1";
         $stmt = $this->conn->prepare($sql);
@@ -45,7 +45,7 @@ class Usuario
     }
 
 
-    public function getModulos($idUsuario)
+    public function getModulos(int $idUsuario): array
     {
         $sql = "SELECT m.id, m.nombre, m.ruta
                 FROM usuario_modulo um
@@ -58,7 +58,7 @@ class Usuario
     }
 
 
-    public function register($nombre, $email, $contrasena_hash, $idRol)
+    public function register(string $nombre, string $email, string $contrasena_hash, int $idRol): int|false
     {
         $sql = "INSERT INTO {$this->table} (nombre, email, contrasena, id_rol)
                 VALUES (:nombre, :email, :contrasena, :id_rol)";
@@ -74,7 +74,7 @@ class Usuario
         return false;
     }
 
-    public function delete($id)
+    public function delete(int $id): bool
     {
         $sql = "DELETE FROM {$this->table} WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
@@ -82,7 +82,7 @@ class Usuario
         return $stmt->execute();
     }
 
-    public function update($id, $nombre, $idRol)
+    public function update(int $id, string $nombre, int $idRol): bool
     {
         $sql = "UPDATE {$this->table}
                 SET nombre = :nombre, id_rol = :id_rol

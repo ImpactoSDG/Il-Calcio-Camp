@@ -1,13 +1,13 @@
 <?php
 class Database
 {
-    private $host = '67.225.220.9';
-    private $db_name = 'impactos_proyecto_base';
-    private $username = 'impactos_dev';
-    private $password = '1IO!WprsC2)XpL3I';
-    public $conn;
+    private string $host = '67.225.220.9';
+    private string $db_name = 'impactos_proyecto_base';
+    private string $username = 'impactos_dev';
+    private string $password = '1IO!WprsC2)XpL3I';
+    public ?PDO $conn;
 
-    public function connect()
+    public function connect(): PDO
     {
         $this->conn = null;
         try {
