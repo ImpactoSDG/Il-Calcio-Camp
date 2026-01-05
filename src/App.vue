@@ -1,6 +1,5 @@
 <template>
   <div id="app">
-
     <Header v-if="userStore.isLoggedIn" />
 
     <main class="container-fluid py-4 flex-grow-1">
@@ -8,7 +7,10 @@
     </main>
     
     <footer class="bg-light text-center py-3 border-top mt-auto">
-      <p class="mb-0 text-muted">&copy; 2025. Proyecto base</p>
+      <p class="mb-0 text-muted">
+        &copy; {{ currentYear }}. ImpactoSDG | 
+        Última actualización: {{ lastUpdate }}
+      </p>
     </footer>
     
     <ToastNotification />
@@ -21,11 +23,15 @@ import ToastNotification from '@/components/ToastNotification.vue';
 import Header from '@/components/Header.vue';
 
 const userStore = useUserStore();
+
+const currentYear = new Date().getFullYear();
+const lastUpdate = __APP_UPDATE_TIMESTAMP__;
 </script>
 
 <style>
 body {
   background-color: #f8f9fa;
+  margin: 0;
 }
 
 #app {

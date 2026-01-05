@@ -41,7 +41,10 @@ class Usuario
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':email', $email);
         $stmt->execute();
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $result ?: null; 
     }
 
 
@@ -92,5 +95,51 @@ class Usuario
         $stmt->bindValue(':id_rol', $idRol, PDO::PARAM_INT);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         return $stmt->execute();
+    }
+
+    /* * --- NUEVOS MÉTODOS PARA EL GESTIONADOR DE PERMISOS --- 
+     */
+
+    /**
+     * Asigna o desasigna un módulo a un usuario (Acción del Switch)
+     */
+    public function togglePermiso(int $idUsuario, int $idModulo, bool $estado): bool
+    {
+        if ($estado) {
+            // Asignar: Usamos INSERT IGNORE para evitar errores si ya existe
+            $sql = "INSERT IGNORE INTO usuario_modulo (id_usuario, id_modulo) VALUES (:idu, :idm)";
+        } else {
+            // Desasignar
+            $sql = "DELETE FROM usuario_modulo WHERE id_usuario = :idu AND id_modulo = :idm";
+        }
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':idu', $idUsuario, PDO::PARAM_INT);
+        $stmt->bindValue(':idm', $idModulo, PDO::PARAM_INT);
+        return $stmt->execute();
+    }
+
+    /**
+     * Obtiene TODOS los módulos con su jerarquía para armar las filas de la tabla
+     */
+    public function getListaModulosCompleta(): array
+    {
+        $sql = "SELECT id, nombre, id_padre, orden_visualizacion, categoria 
+                FROM modulo 
+                ORDER BY categoria ASC, COALESCE(id_padre, id), id_padre IS NOT NULL, orden_visualizacion ASC";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Obtiene una matriz simple de qué usuario tiene qué módulo.
+     * Retorna un array donde la llave es 'usuarioid_moduloid' para búsqueda rápida.
+     */
+    public function getMapaPermisos(): array
+    {
+        $sql = "SELECT CONCAT(id_usuario, '_', id_modulo) as llave FROM usuario_modulo";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 }

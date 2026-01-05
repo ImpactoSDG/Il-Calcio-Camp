@@ -29,6 +29,7 @@ const userStore = useUserStore();
 
 const panelStyles = {
     1: { icon: 'bi bi-receipt-cutoff', bg: 'var(--color-secondary)' },
+    4: { icon: 'bi bi-shield-lock', bg: '#dc3545' },
 
 
 };

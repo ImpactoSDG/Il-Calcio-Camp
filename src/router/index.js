@@ -4,6 +4,7 @@ import { useUserStore } from '@/stores/userStore'
 import LoginView from '@/views/LoginView.vue'
 import RegisterView from '@/views/RegisterView.vue'
 import MenuView from '@/views/MenuView.vue'
+import PermisosView from '../views/PermisosView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -28,6 +29,12 @@ const router = createRouter({
       name: 'menu',
       component: MenuView,
       meta: { requiresAuth: true } 
+    },
+    {
+      path: '/permisos',
+      name: 'permisos',
+      component: PermisosView,
+      meta: { requiresAuth: true }
     }
   ]
 })
