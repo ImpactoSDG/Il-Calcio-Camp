@@ -28,10 +28,9 @@ import { useUserStore } from '@/stores/userStore';
 const userStore = useUserStore();
 
 const panelStyles = {
-    1: { icon: 'bi bi-receipt-cutoff', bg: 'var(--color-secondary)' },
+    1: { icon: 'bi bi-house-door', bg: 'var(--color-secondary)' },
+    3: { icon: 'bi bi-person-gear', bg: '#198754' },
     4: { icon: 'bi bi-shield-lock', bg: '#dc3545' },
-
-
 };
 
 const visiblePanels = computed(() => {

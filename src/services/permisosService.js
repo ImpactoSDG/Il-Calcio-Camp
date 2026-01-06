@@ -1,10 +1,6 @@
-import api from './api'; // Asumiendo que tu archivo base se llama api.js
+import api from './api';
 
 const permisosService = {
-  /**
-   * Obtiene la matriz completa: usuarios, módulos y permisos asignados.
-   * Corresponde al endpoint: GET /gestion-permisos
-   */
   getMatrizPermisos: async () => {
     try {
       const response = await api.get('/gestion-permisos');
@@ -15,13 +11,6 @@ const permisosService = {
     }
   },
 
-  /**
-   * Activa o desactiva un permiso para un usuario.
-   * Corresponde al endpoint: POST /toggle-permiso
-   * @param {number} idUsuario 
-   * @param {number} idModulo 
-   * @param {boolean} estado 
-   */
   togglePermiso: async (idUsuario, idModulo, estado) => {
     try {
       const response = await api.post('/toggle-permiso', {

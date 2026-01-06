@@ -1,78 +1,76 @@
 <template>
-  <div class="container-fluid py-4 bg-canvas min-vh-100">
-    <div class="container-xl">
-      
-      <div class="d-flex align-items-center justify-content-between mb-4 px-2">
-        <div>
-          <h4 class="fw-bold text-dark m-0">Permisos del Sistema</h4>
-          <p class="text-muted small m-0">Administra los accesos de cada integrante de forma global</p>
-        </div>
-        <button @click="cargarDatos" class="btn btn-sync ripple">
-          <i class="bi bi-arrow-clockwise me-2" :class="{'bi-spin': loading}"></i>
-          Sincronizar
-        </button>
+  <div class="container-fluid p-4 bg-white min-vh-100">
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
+      <div>
+        <h1 class="h3 fw-bold mb-0 text-primary-custom">Matriz de Permisos</h1>
       </div>
-
-      <div class="card border-0 shadow-soft rounded-4 overflow-hidden">
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0 custom-clean-table">
-            <thead>
-              <tr>
-                <th class="ps-4 py-3 sticky-header">MODULO</th>
-                <th class="text-center py-3 sticky-header border-start">ORDEN</th>
-                <th class="ps-4 py-3 sticky-header border-start">CATEGORIA</th>
-                <th v-for="user in data.usuarios" :key="user.id" class="text-center py-3 sticky-header border-start user-th">
-                  <div class="user-pill mx-auto">
-                    <span class="d-block name">{{ user.nombre.split(' ')[0] }}</span>
-                    <span class="role text-uppercase">{{ user.rol_nombre }}</span>
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="modulo in data.modulos" :key="modulo.id" :class="{'parent-row': !modulo.id_padre}">
-                <td class="ps-4 py-3">
-                  <div class="d-flex align-items-center">
-                    <div v-if="!modulo.id_padre" class="indicator-dot me-2 bg-primary"></div>
-                    <i v-else class="bi bi-arrow-return-right me-2 text-muted opacity-50 ms-3"></i>
-                    <span :class="{'fw-bold text-dark': !modulo.id_padre, 'text-secondary': modulo.id_padre}">
-                      {{ modulo.nombre }}
-                    </span>
-                  </div>
-                </td>
-
-                <td class="text-center">
-                  <span class="badge-order">{{ modulo.orden_visualizacion || '-' }}</span>
-                </td>
-
-                <td class="ps-4 text-muted small">
-                  {{ modulo.categoria || 'Sin categoría' }}
-                </td>
-
-                <td v-for="user in data.usuarios" :key="user.id" class="text-center border-start-light">
-                  <div class="form-check form-switch d-inline-block">
-                    <input 
-                      class="form-check-input clean-switch" 
-                      type="checkbox" 
-                      :checked="estaAsignado(user.id, modulo.id)"
-                      @change="handleToggle(user.id, modulo.id, $event)"
-                    >
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      
+      <div class="d-flex gap-2">
+        <router-link to="/menu" class="btn btn-outline-secondary d-flex align-items-center px-4">
+          <i class="bi bi-arrow-left-circle fs-5 me-2"></i> Volver
+        </router-link>
       </div>
     </div>
+
+    <div class="card shadow-sm border-0 rounded-lg overflow-hidden">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="bg-light">
+            <tr>
+              <th class="ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary sticky-col-first">Módulo / Funcionalidad</th>
+              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start text-center" style="width: 100px;">Orden</th>
+              <th v-for="user in data.usuarios" :key="user.id" class="text-center py-3 text-uppercase fs-xs fw-bold text-secondary border-start user-th">
+                <div class="px-2">
+                  <span class="d-block text-dark">{{ user.nombre.split(' ')[0] }}</span>
+                  <span class="badge bg-primary-soft text-primary-custom fw-normal" style="font-size: 0.6rem;">{{ user.rol_nombre }}</span>
+                </div>
+              </th>
+            </tr>
+          </thead>
+          <tbody class="bg-white">
+            <tr v-for="modulo in data.modulos" :key="modulo.id" :class="{'bg-parent': !modulo.id_padre}">
+              <td class="ps-4 py-3 sticky-col-first">
+                <div class="d-flex align-items-center">
+                  <div v-if="!modulo.id_padre" class="indicator-dot me-2"></div>
+                  <i v-else class="bi bi-arrow-return-right me-2 text-muted opacity-50 ms-3"></i>
+                  <span :class="{'fw-bold text-dark': !modulo.id_padre, 'text-secondary': modulo.id_padre}">
+                    {{ modulo.nombre }}
+                  </span>
+                </div>
+              </td>
+
+              <td class="text-center border-start border-light">
+                <span class="text-muted small fw-bold">{{ modulo.orden_visualizacion || '-' }}</span>
+              </td>
+
+              <td v-for="user in data.usuarios" :key="user.id" class="text-center border-start border-light">
+                <div class="form-check form-switch d-inline-block">
+                  <input 
+                    class="form-check-input custom-switch" 
+                    type="checkbox" 
+                    :checked="estaAsignado(user.id, modulo.id)"
+                    @change="handleToggle(user.id, modulo.id, $event)"
+                  >
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <ToastNotification />
   </div>
 </template>
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue';
 import permisosService from '@/services/permisosService';
+import ToastNotification from '@/components/ToastNotification.vue';
+import { useToastStore } from '@/stores/toastStore';
 import { useUserStore } from '@/stores/userStore';
 
+const toast = useToastStore();
 const userStore = useUserStore();
 const loading = ref(false);
 const data = reactive({ usuarios: [], modulos: [], permisos: [] });
@@ -84,8 +82,11 @@ const cargarDatos = async () => {
     data.usuarios = res.usuarios || [];
     data.modulos = res.modulos || [];
     data.permisos = res.permisos || [];
-  } catch (e) { console.error(e); }
-  finally { loading.value = false; }
+  } catch (e) {
+    toast.showToast({ message: "Error al sincronizar datos", type: "danger" });
+  } finally {
+    loading.value = false;
+  }
 };
 
 const estaAsignado = (userId, moduloId) => data.permisos.includes(`${userId}_${moduloId}`);
@@ -93,16 +94,29 @@ const estaAsignado = (userId, moduloId) => data.permisos.includes(`${userId}_${m
 const handleToggle = async (userId, moduloId, event) => {
   const nuevoEstado = event.target.checked;
   const key = `${userId}_${moduloId}`;
+  
   try {
     await permisosService.togglePermiso(userId, moduloId, nuevoEstado);
+    
     if (nuevoEstado) {
       if (!data.permisos.includes(key)) data.permisos.push(key);
     } else {
       data.permisos = data.permisos.filter(p => p !== key);
     }
-    if (Number(userId) === Number(userStore.user?.id)) await userStore.refreshModulos();
+
+    toast.showToast({ 
+      message: `Permiso ${nuevoEstado ? 'asignado' : 'retirado'} con éxito`, 
+      type: "success" 
+    });
+
+    // Si el permiso cambiado es del usuario logueado, actualizamos su menú en tiempo real
+    if (Number(userId) === Number(userStore.user?.id)) {
+        // Asumiendo que refreshModulos existe en tu store para actualizar user.modulos
+        if (userStore.refreshModulos) await userStore.refreshModulos();
+    }
   } catch (e) {
-    event.target.checked = !nuevoEstado;
+    toast.showToast({ message: "No se pudo actualizar el permiso", type: "danger" });
+    event.target.checked = !nuevoEstado; // Revertir el switch si falla la API
   }
 };
 
@@ -110,80 +124,60 @@ onMounted(cargarDatos);
 </script>
 
 <style scoped>
-.bg-canvas { background-color: #f6f8fb; }
-
-/* Sombras y Tarjetas */
-.shadow-soft { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04); }
-.card { border: 1px solid #edf2f7; background: white; }
-
-/* Tabla Estilizada */
-.custom-clean-table thead th {
-  background: #fff;
-  color: #a0aec0;
-  font-size: 0.65rem;
-  letter-spacing: 1px;
-  font-weight: 800;
-  border-bottom: 2px solid #f7fafc;
-}
-
-.sticky-header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.custom-clean-table tbody tr {
-  transition: all 0.2s;
-}
-
-.parent-row { background-color: #fcfdfe; }
+.text-primary-custom { color: var(--color-primary); }
+.fs-xs { font-size: 0.75rem; }
 
 .indicator-dot {
-  width: 6px; height: 6px;
+  width: 8px;
+  height: 8px;
+  background-color: var(--color-secondary);
   border-radius: 50%;
 }
 
-/* Info Usuario en Header */
-.user-th { min-width: 110px; }
-.user-pill .name { color: #2d3748; font-size: 0.75rem; font-weight: 700; }
-.user-pill .role { color: #4361ee; font-size: 0.6rem; font-weight: 700; opacity: 0.7; }
-
-/* Botón Sincronizar */
-.btn-sync {
-  background: white;
-  border: 1px solid #e2e8f0;
-  color: #4a5568;
-  border-radius: 10px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  padding: 8px 16px;
-}
-.btn-sync:hover { background: #f8fafc; border-color: #cbd5e0; }
-
-/* Badge de Orden */
-.badge-order {
-  background: #edf2f7;
-  color: #718096;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.75rem;
+.bg-parent {
+  background-color: rgba(248, 249, 250, 0.5);
 }
 
-/* Switch Moderno y pequeño */
-.clean-switch {
-  width: 2.2rem !important;
-  height: 1.1rem !important;
+.user-th {
+  min-width: 100px;
+}
+
+.bg-primary-soft {
+  background-color: rgba(0, 85, 140, 0.1);
+}
+
+/* Switch Estilizado */
+.custom-switch {
   cursor: pointer;
-  border-color: #e2e8f0;
-}
-.clean-switch:checked {
-  background-color: #4361ee;
-  border-color: #4361ee;
+  width: 2.5em;
+  height: 1.25em;
 }
 
-.border-start-light { border-left: 1px solid #f7fafc; }
+.custom-switch:checked {
+  background-color: var(--color-secondary);
+  border-color: var(--color-secondary);
+}
 
-/* Animaciones */
-.bi-spin { animation: rotation 2s infinite linear; display: inline-block; }
-@keyframes rotation { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.sticky-col-first {
+  position: sticky;
+  left: 0;
+  background-color: white;
+  z-index: 5;
+  box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+}
+
+.bg-parent .sticky-col-first {
+  background-color: #f8f9fa;
+}
+
+/* Animación de rotación para sincronizar */
+.bi-spin {
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 </style>
