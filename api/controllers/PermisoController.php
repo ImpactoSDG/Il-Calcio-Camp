@@ -4,11 +4,7 @@ include_once __DIR__ . '/../models/Usuario.php';
 
 class PermisoController {
 
-    /**
-     * Maneja la asignación o desasignación mediante AJAX
-     */
     public function toggle(): void {
-        // Obtenemos los datos del POST (JSON)
         $data = json_decode(file_get_contents("php://input"));
 
         if (!isset($data->id_usuario) || !isset($data->id_modulo) || !isset($data->estado)) {
@@ -21,7 +17,6 @@ class PermisoController {
         $db = $database->connect();
         $usuarioModel = new Usuario($db);
 
-        // Llamamos al método togglePermiso del modelo
         $success = $usuarioModel->togglePermiso(
             (int)$data->id_usuario, 
             (int)$data->id_modulo, 

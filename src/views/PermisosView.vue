@@ -1,23 +1,32 @@
 <template>
-  <div class="container-fluid p-4 bg-white min-vh-100">
+  <div class="container-fluid p-4 bg-white min-vh-100 position-relative">
+    
     <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
       <div>
-        <h1 class="h3 fw-bold mb-0 text-primary-custom">Matriz de Permisos</h1>
+        <h1 class="h3 fw-bold mb-0 text-primary-custom">Gestión de Permisos</h1>
       </div>
-      
       <div class="d-flex gap-2">
-        <router-link to="/menu" class="btn btn-outline-secondary d-flex align-items-center px-4">
+        <button @click="$router.back()" class="btn btn-outline-secondary d-flex align-items-center px-4 shadow-sm" style="border-radius: 10px;">
           <i class="bi bi-arrow-left-circle fs-5 me-2"></i> Volver
-        </router-link>
+        </button>
       </div>
     </div>
 
-    <div class="card shadow-sm border-0 rounded-lg overflow-hidden">
+    <div class="card shadow-sm border-0 rounded-lg overflow-hidden position-relative" :style="{ minHeight: loading ? '400px' : 'auto' }">
+      
+      <div v-if="loading" class="loading-overlay-local d-flex flex-column align-items-center justify-content-center">
+        <div class="spinner-border text-primary-custom" role="status" style="width: 3rem; height: 3rem;">
+          <span class="visually-hidden">Cargando Gestión de Permisos...</span>
+        </div>
+        <p class="mt-3 fw-bold text-primary-custom">Cargando Gestión de Permisos...</p>
+      </div>
+
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
           <thead class="bg-light">
             <tr>
               <th class="ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary sticky-col-first">Módulo / Funcionalidad</th>
+              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start text-center" style="width: 150px;">Categoría</th>
               <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start text-center" style="width: 100px;">Orden</th>
               <th v-for="user in data.usuarios" :key="user.id" class="text-center py-3 text-uppercase fs-xs fw-bold text-secondary border-start user-th">
                 <div class="px-2">
@@ -38,18 +47,22 @@
                   </span>
                 </div>
               </td>
-
+              <td class="text-center border-start border-light">
+                <span class="badge bg-light text-secondary fw-normal border text-uppercase" style="font-size: 0.65rem;">
+                  {{ modulo.categoria || 'General' }}
+                </span>
+              </td>
               <td class="text-center border-start border-light">
                 <span class="text-muted small fw-bold">{{ modulo.orden_visualizacion || '-' }}</span>
               </td>
-
               <td v-for="user in data.usuarios" :key="user.id" class="text-center border-start border-light">
                 <div class="form-check form-switch d-inline-block">
                   <input 
                     class="form-check-input custom-switch" 
                     type="checkbox" 
-                    :checked="estaAsignado(user.id, modulo.id)"
+                    :checked="estaAsignado(user.id, modulo.id)" 
                     @change="handleToggle(user.id, modulo.id, $event)"
+                    :disabled="modulo.id_padre && !estaAsignado(user.id, modulo.id_padre)"
                   >
                 </div>
               </td>
@@ -58,7 +71,6 @@
         </table>
       </div>
     </div>
-
     <ToastNotification />
   </div>
 </template>
@@ -94,29 +106,28 @@ const estaAsignado = (userId, moduloId) => data.permisos.includes(`${userId}_${m
 const handleToggle = async (userId, moduloId, event) => {
   const nuevoEstado = event.target.checked;
   const key = `${userId}_${moduloId}`;
-  
   try {
     await permisosService.togglePermiso(userId, moduloId, nuevoEstado);
-    
     if (nuevoEstado) {
       if (!data.permisos.includes(key)) data.permisos.push(key);
     } else {
       data.permisos = data.permisos.filter(p => p !== key);
+      const hijos = data.modulos.filter(m => Number(m.id_padre) === Number(moduloId));
+      for (const hijo of hijos) {
+        const hijoKey = `${userId}_${hijo.id}`;
+        if (data.permisos.includes(hijoKey)) {
+          await permisosService.togglePermiso(userId, hijo.id, false);
+          data.permisos = data.permisos.filter(p => p !== hijoKey);
+        }
+      }
     }
-
-    toast.showToast({ 
-      message: `Permiso ${nuevoEstado ? 'asignado' : 'retirado'} con éxito`, 
-      type: "success" 
-    });
-
-    // Si el permiso cambiado es del usuario logueado, actualizamos su menú en tiempo real
+    toast.showToast({ message: "Permisos actualizados con éxito", type: "success" });
     if (Number(userId) === Number(userStore.user?.id)) {
-        // Asumiendo que refreshModulos existe en tu store para actualizar user.modulos
-        if (userStore.refreshModulos) await userStore.refreshModulos();
+      if (userStore.refreshModulos) await userStore.refreshModulos();
     }
   } catch (e) {
     toast.showToast({ message: "No se pudo actualizar el permiso", type: "danger" });
-    event.target.checked = !nuevoEstado; // Revertir el switch si falla la API
+    event.target.checked = !nuevoEstado;
   }
 };
 
@@ -146,7 +157,6 @@ onMounted(cargarDatos);
   background-color: rgba(0, 85, 140, 0.1);
 }
 
-/* Switch Estilizado */
 .custom-switch {
   cursor: pointer;
   width: 2.5em;
@@ -163,14 +173,25 @@ onMounted(cargarDatos);
   left: 0;
   background-color: white;
   z-index: 5;
-  box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
 }
 
 .bg-parent .sticky-col-first {
   background-color: #f8f9fa;
 }
 
-/* Animación de rotación para sincronizar */
+/* Overlay de carga local para la tarjeta */
+.loading-overlay-local {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.85);
+  z-index: 1000;
+  display: flex;
+}
+
 .bi-spin {
   animation: spin 1s linear infinite;
   display: inline-block;

@@ -3,8 +3,10 @@ import { useUserStore } from '@/stores/userStore'
 import LoginView from '@/views/LoginView.vue'
 import RegisterView from '@/views/RegisterView.vue'
 import MenuView from '@/views/MenuView.vue'
-import PermisosView from '../views/PermisosView.vue'
-import UsuariosView from '../views/UsuariosView.vue'
+import UsuariosView from '@/views/UsuariosView.vue'
+import PermisosView from '@/views/PermisosView.vue'
+import GestionUsuariosView from '@/views/GestionUsuariosView.vue'
+import ConfiguracionesView from '../views/ConfiguracionesView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -37,6 +39,13 @@ const router = createRouter({
       meta: { requiresAuth: true, idModulo: 1 } 
     },
     { 
+      /* MÓDULO PADRE: Usuarios */
+      path: '/usuarios', 
+      name: 'usuarios', 
+      component: UsuariosView, 
+      meta: { requiresAuth: true, idModulo: 2 } 
+    },
+    { 
       path: '/permisos', 
       name: 'permisos', 
       component: PermisosView, 
@@ -45,8 +54,14 @@ const router = createRouter({
     {
       path: '/gestion',
       name: 'gestion',
-      component: UsuariosView,
+      component: GestionUsuariosView,
       meta: { requiresAuth: true, idModulo: 3 }
+    },
+    { 
+      path: '/configuraciones',
+      name: 'configuraciones',
+      component: ConfiguracionesView,
+      meta: { requiresAuth: true, idModulo: 5 }
     }
   ]
 })
@@ -56,20 +71,25 @@ router.beforeEach((to, from, next) => {
   const isLoggedIn = userStore.isLoggedIn
 
   if (to.meta.requiresAuth && !isLoggedIn) {
-    next('/login')
-  } else if (isLoggedIn && (to.name === 'login' || to.name === 'register')) {
-    next('/menu')
-  } else if (to.meta.idModulo) {
-    const tienePermiso = userStore.user?.modulos?.some(m => Number(m.id) === Number(to.meta.idModulo))
+    return next('/login')
+  }
+
+  if (isLoggedIn && (to.name === 'login' || to.name === 'register')) {
+    return next('/menu')
+  }
+
+  if (to.meta.idModulo) {
+    const tienePermiso = userStore.user?.modulos?.some(
+      m => Number(m.id) === Number(to.meta.idModulo)
+    )
+
     if (!tienePermiso) {
       alert('No tienes acceso a este módulo')
-      next('/menu')
-    } else {
-      next()
+      return next('/menu')
     }
-  } else {
-    next()
   }
+
+  next()
 })
 
 export default router

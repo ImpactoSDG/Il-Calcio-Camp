@@ -75,13 +75,22 @@ class Usuario
 
     public function getModulos(int $idUsuario): array
     {
-        $sql = "SELECT m.id, m.nombre, m.ruta
+        $sql = "SELECT 
+                    m.id, 
+                    m.nombre, 
+                    m.ruta, 
+                    m.id_padre, 
+                    m.orden_visualizacion, 
+                    m.categoria
                 FROM usuario_modulo um
                 INNER JOIN modulo m ON m.id = um.id_modulo
-                WHERE um.id_usuario = :id";
+                WHERE um.id_usuario = :id
+                ORDER BY m.categoria, m.orden_visualizacion ASC";
+
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id', $idUsuario, PDO::PARAM_INT);
         $stmt->execute();
+
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
