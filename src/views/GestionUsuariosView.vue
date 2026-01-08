@@ -78,19 +78,20 @@
             <div class="modal-body p-4">
               <div class="mb-3">
                 <label class="form-label fw-bold">Nombre Completo</label>
-                <input v-model="form.nombre" type="text" required class="form-control" placeholder="Ej: Juan Pérez" />
+                <input v-model.trim="form.nombre" type="text" class="form-control" placeholder="Ej: Juan Pérez" />
               </div>
               <div class="mb-3">
                 <label class="form-label fw-bold">Correo Electrónico</label>
-                <input v-model="form.email" type="email" required class="form-control" placeholder="juan@ejemplo.com" />
+                <input v-model.trim="form.email" type="email" class="form-control" placeholder="juan@ejemplo.com" />
               </div>
               <div v-if="!isEditing" class="mb-3">
                 <label class="form-label fw-bold">Contraseña Inicial</label>
-                <input v-model="form.contrasena" type="password" required class="form-control" />
+                <input v-model.trim="form.contrasena" type="password" class="form-control" placeholder="Mínimo 6 caracteres" />
               </div>
               <div class="mb-0">
                 <label class="form-label fw-bold">Rol</label>
-                <select v-model.number="form.id_rol" class="form-select" required>
+                <select v-model.number="form.id_rol" class="form-select">
+                  <option disabled value="">Seleccione un rol</option>
                   <option :value="1">Administrador</option>
                   <option :value="4">Usuario Estándar</option>
                 </select>
@@ -118,7 +119,7 @@
           <form @submit.prevent="handleUpdatePassword">
             <div class="modal-body p-4 text-center">
               <p class="text-muted small mb-3">Usuario: <b>{{ selectedUser?.nombre }}</b></p>
-              <input v-model="newPassword" type="password" required class="form-control text-center" placeholder="Mínimo 6 caracteres" />
+              <input v-model.trim="newPassword" type="password" class="form-control text-center" placeholder="Mínimo 6 caracteres" />
             </div>
             <div class="modal-footer bg-light justify-content-center">
               <button @click="showPasswordModal = false" type="button" class="btn btn-link text-muted text-decoration-none">Cancelar</button>
@@ -166,7 +167,10 @@ const isSavingPass = ref(false);
 const userToDelete = ref(null);
 const selectedUser = ref(null);
 const newPassword = ref('');
-const form = ref({ id: null, nombre: '', email: '', contrasena: '', id_rol: 4 });
+
+// Para comparar cambios en edición
+const originalForm = ref({});
+const form = ref({ id: null, nombre: '', email: '', contrasena: '', id_rol: '' });
 
 const fetchUsuarios = async () => {
   loading.value = true;
@@ -182,34 +186,90 @@ const fetchUsuarios = async () => {
 const openModal = (user = null) => {
   if (user) {
     isEditing.value = true;
-    form.value = { 
+    const userData = { 
       id: user.id, 
       nombre: user.nombre, 
       email: user.email, 
       id_rol: Number(user.id_rol),
       contrasena: '' 
     };
+    form.value = { ...userData };
+    originalForm.value = { ...userData };
   } else {
     isEditing.value = false;
-    form.value = { id: null, nombre: '', email: '', contrasena: '', id_rol: 4 };
+    form.value = { id: null, nombre: '', email: '', contrasena: '', id_rol: '' };
   }
   showFormModal.value = true;
 };
 
+/**
+ * Validaciones de formulario de usuario
+ */
+const validateUserForm = () => {
+  const { nombre, email, contrasena, id_rol } = form.value;
+
+  if (!nombre || nombre.length < 3) {
+    toast.showToast({ message: "El nombre es obligatorio (min. 3 caracteres)", type: "warning" });
+    return false;
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!email || !emailRegex.test(email)) {
+    toast.showToast({ message: "Ingrese un correo electrónico válido", type: "warning" });
+    return false;
+  }
+
+  if (!isEditing.value && (!contrasena || contrasena.length < 6)) {
+    toast.showToast({ message: "La contraseña es obligatoria (min. 6 caracteres)", type: "warning" });
+    return false;
+  }
+
+  if (!id_rol) {
+    toast.showToast({ message: "Debe seleccionar un rol para el usuario", type: "warning" });
+    return false;
+  }
+
+  // Verificar si hubo cambios en edición
+  if (isEditing.value) {
+    const hasChanged = JSON.stringify(form.value) !== JSON.stringify(originalForm.value);
+    if (!hasChanged) {
+      toast.showToast({ message: "No se detectaron cambios para actualizar", type: "info" });
+      showFormModal.value = false;
+      return false;
+    }
+  }
+
+  return true;
+};
+
 const saveUser = async () => {
+  if (!validateUserForm()) return;
+
   isSaving.value = true;
   try {
     if (isEditing.value) {
-      await usuariosService.update(form.value.id, form.value.nombre, form.value.email, form.value.id_rol);
+      await usuariosService.update({
+        id: form.value.id,
+        nombre: form.value.nombre,
+        email: form.value.email,
+        id_rol: form.value.id_rol
+      });
       toast.showToast({ message: "Usuario actualizado correctamente", type: "success" });
     } else {
+      // Verificación de email duplicado local (opcional, el backend lo hace igual)
+      if (usuarios.value.some(u => u.email === form.value.email)) {
+        toast.showToast({ message: "Este correo electrónico ya está registrado", type: "danger" });
+        isSaving.value = false;
+        return;
+      }
       await usuariosService.create(form.value);
       toast.showToast({ message: "Usuario creado correctamente", type: "success" });
     }
     showFormModal.value = false;
     fetchUsuarios();
   } catch (error) {
-    toast.showToast({ message: "Error al procesar la solicitud", type: "danger" });
+    const errorMsg = error.response?.data?.message || "Error al procesar la solicitud";
+    toast.showToast({ message: errorMsg, type: "danger" });
   } finally {
     isSaving.value = false;
   }
@@ -222,10 +282,11 @@ const openPasswordModal = (user) => {
 };
 
 const handleUpdatePassword = async () => {
-  if (newPassword.value.length < 6) {
+  if (!newPassword.value || newPassword.value.length < 6) {
     toast.showToast({ message: "La contraseña debe tener al menos 6 caracteres", type: "warning" });
     return;
   }
+  
   isSavingPass.value = true;
   try {
     await usuariosService.updatePassword(selectedUser.value.id, newPassword.value);
@@ -272,23 +333,14 @@ onMounted(fetchUsuarios);
 .bg-info-soft { background-color: rgba(22, 156, 159, 0.1); }
 .btn-link { text-decoration: none; border: none; background: none; }
 
-/* Overlay de carga local para la tarjeta */
 .loading-overlay-local {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  top: 0; left: 0; width: 100%; height: 100%;
   background-color: rgba(255, 255, 255, 0.85);
   z-index: 10;
   display: flex;
 }
 
-.card {
-  border-radius: 12px;
-}
-
-.table thead th {
-  border-top: none;
-}
+.card { border-radius: 12px; }
+.table thead th { border-top: none; }
 </style>

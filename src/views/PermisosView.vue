@@ -16,19 +16,19 @@
       
       <div v-if="loading" class="loading-overlay-local d-flex flex-column align-items-center justify-content-center">
         <div class="spinner-border text-primary-custom" role="status" style="width: 3rem; height: 3rem;">
-          <span class="visually-hidden">Cargando Gestión de Permisos...</span>
+          <span class="visually-hidden">Cargando...</span>
         </div>
-        <p class="mt-3 fw-bold text-primary-custom">Cargando Gestión de Permisos...</p>
+        <p class="mt-3 fw-bold text-primary-custom">Sincronizando matriz...</p>
       </div>
 
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
-          <thead class="bg-light">
+          <thead class="bg-light text-center">
             <tr>
-              <th class="ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary sticky-col-first">Módulo / Funcionalidad</th>
-              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start text-center" style="width: 150px;">Categoría</th>
-              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start text-center" style="width: 100px;">Orden</th>
-              <th v-for="user in data.usuarios" :key="user.id" class="text-center py-3 text-uppercase fs-xs fw-bold text-secondary border-start user-th">
+              <th class="ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary sticky-col-first text-start">Módulo / Funcionalidad</th>
+              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start" style="width: 180px;">Categoría</th>
+              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start" style="width: 100px;">Orden</th>
+              <th v-for="user in data.usuarios" :key="user.id" class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start user-th">
                 <div class="px-2">
                   <span class="d-block text-dark">{{ user.nombre.split(' ')[0] }}</span>
                   <span class="badge bg-primary-soft text-primary-custom fw-normal" style="font-size: 0.6rem;">{{ user.rol_nombre }}</span>
@@ -37,24 +37,55 @@
             </tr>
           </thead>
           <tbody class="bg-white">
-            <tr v-for="modulo in data.modulos" :key="modulo.id" :class="{'bg-parent': !modulo.id_padre}">
+            <tr 
+              v-for="modulo in data.modulos" 
+              :key="modulo.id" 
+              v-show="isRowVisible(modulo)"
+              :class="{'bg-parent': !modulo.id_padre}"
+            >
+              
               <td class="ps-4 py-3 sticky-col-first">
                 <div class="d-flex align-items-center">
-                  <div v-if="!modulo.id_padre" class="indicator-dot me-2"></div>
+                  <div v-if="!modulo.id_padre" class="d-flex align-items-center">
+                    <button 
+                      v-if="hasChildren(modulo.id)"
+                      @click="toggleExpand(modulo.id)"
+                      class="btn btn-link p-0 me-2 text-decoration-none text-primary-custom shadow-none"
+                    >
+                      <i class="bi" :class="isExpanded(modulo.id) ? 'bi-chevron-down' : 'bi-chevron-right'"></i>
+                    </button>
+                    <div v-else class="indicator-dot me-2"></div>
+                  </div>
+                  
                   <i v-else class="bi bi-arrow-return-right me-2 text-muted opacity-50 ms-3"></i>
+                  
                   <span :class="{'fw-bold text-dark': !modulo.id_padre, 'text-secondary': modulo.id_padre}">
                     {{ modulo.nombre }}
                   </span>
                 </div>
               </td>
-              <td class="text-center border-start border-light">
-                <span class="badge bg-light text-secondary fw-normal border text-uppercase" style="font-size: 0.65rem;">
-                  {{ modulo.categoria || 'General' }}
-                </span>
+
+              <td class="border-start p-0">
+                <input 
+                  v-model="modulo.categoria"
+                  type="text"
+                  class="form-control form-control-sm border-0 bg-transparent text-center edit-input py-3"
+                  placeholder="Sin categoría"
+                  @blur="updateModulo(modulo)"
+                  @keyup.enter="$event.target.blur()"
+                />
               </td>
-              <td class="text-center border-start border-light">
-                <span class="text-muted small fw-bold">{{ modulo.orden_visualizacion || '-' }}</span>
+
+              <td class="border-start p-0">
+                <input 
+                  v-model.number="modulo.orden_visualizacion"
+                  type="number"
+                  class="form-control form-control-sm border-0 bg-transparent text-center edit-input py-3 fw-bold"
+                  @blur="updateModulo(modulo)"
+                  @keyup.enter="$event.target.blur()"
+                />
               </td>
+
               <td v-for="user in data.usuarios" :key="user.id" class="text-center border-start border-light">
                 <div class="form-check form-switch d-inline-block">
                   <input 
@@ -78,6 +109,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue';
 import permisosService from '@/services/permisosService';
+import moduloService from '@/services/moduloService';
 import ToastNotification from '@/components/ToastNotification.vue';
 import { useToastStore } from '@/stores/toastStore';
 import { useUserStore } from '@/stores/userStore';
@@ -87,6 +119,9 @@ const userStore = useUserStore();
 const loading = ref(false);
 const data = reactive({ usuarios: [], modulos: [], permisos: [] });
 
+// Estado para controlar qué padres están expandidos
+const expandedParents = ref(new Set());
+
 const cargarDatos = async () => {
   loading.value = true;
   try {
@@ -94,10 +129,50 @@ const cargarDatos = async () => {
     data.usuarios = res.usuarios || [];
     data.modulos = res.modulos || [];
     data.permisos = res.permisos || [];
+    
+    // Opcional: Expandir todos por defecto al cargar
+    // data.modulos.filter(m => !m.id_padre).forEach(m => expandedParents.value.add(m.id));
   } catch (e) {
     toast.showToast({ message: "Error al sincronizar datos", type: "danger" });
   } finally {
     loading.value = false;
+  }
+};
+
+// --- Lógica de Acordeón ---
+const hasChildren = (moduloId) => {
+  return data.modulos.some(m => Number(m.id_padre) === Number(moduloId));
+};
+
+const toggleExpand = (moduloId) => {
+  if (expandedParents.value.has(moduloId)) {
+    expandedParents.value.delete(moduloId);
+  } else {
+    expandedParents.value.add(moduloId);
+  }
+};
+
+const isExpanded = (moduloId) => expandedParents.value.has(moduloId);
+
+const isRowVisible = (modulo) => {
+  // Si no tiene padre, es un módulo raíz y siempre es visible
+  if (!modulo.id_padre) return true;
+  // Si tiene padre, solo es visible si su padre está en el set de expandidos
+  return expandedParents.value.has(Number(modulo.id_padre));
+};
+// --------------------------
+
+const updateModulo = async (modulo) => {
+  try {
+    await moduloService.update({
+      id: modulo.id,
+      categoria: modulo.categoria,
+      orden_visualizacion: modulo.orden_visualizacion
+    });
+    toast.showToast({ message: `Módulo "${modulo.nombre}" actualizado`, type: "success" });
+    if (userStore.refreshModulos) await userStore.refreshModulos();
+  } catch (error) {
+    toast.showToast({ message: "Error al guardar cambios del módulo", type: "danger" });
   }
 };
 
@@ -121,12 +196,12 @@ const handleToggle = async (userId, moduloId, event) => {
         }
       }
     }
-    toast.showToast({ message: "Permisos actualizados con éxito", type: "success" });
+    toast.showToast({ message: "Permisos actualizados", type: "success" });
     if (Number(userId) === Number(userStore.user?.id)) {
       if (userStore.refreshModulos) await userStore.refreshModulos();
     }
   } catch (e) {
-    toast.showToast({ message: "No se pudo actualizar el permiso", type: "danger" });
+    toast.showToast({ message: "Error al actualizar permiso", type: "danger" });
     event.target.checked = !nuevoEstado;
   }
 };
@@ -138,6 +213,23 @@ onMounted(cargarDatos);
 .text-primary-custom { color: var(--color-primary); }
 .fs-xs { font-size: 0.75rem; }
 
+.edit-input {
+  border-radius: 0;
+  transition: all 0.2s;
+  font-size: 0.85rem;
+}
+
+.edit-input:hover {
+  background-color: rgba(0, 85, 140, 0.05) !important;
+  cursor: pointer;
+}
+
+.edit-input:focus {
+  background-color: #fff !important;
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+  z-index: 10;
+}
+
 .indicator-dot {
   width: 8px;
   height: 8px;
@@ -145,17 +237,10 @@ onMounted(cargarDatos);
   border-radius: 50%;
 }
 
-.bg-parent {
-  background-color: rgba(248, 249, 250, 0.5);
-}
+.bg-parent { background-color: rgba(248, 249, 250, 0.5); }
 
-.user-th {
-  min-width: 100px;
-}
-
-.bg-primary-soft {
-  background-color: rgba(0, 85, 140, 0.1);
-}
+.user-th { min-width: 110px; }
+.bg-primary-soft { background-color: rgba(0, 85, 140, 0.1); }
 
 .custom-switch {
   cursor: pointer;
@@ -176,29 +261,18 @@ onMounted(cargarDatos);
   box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
 }
 
-.bg-parent .sticky-col-first {
-  background-color: #f8f9fa;
-}
+.bg-parent .sticky-col-first { background-color: #f8f9fa; }
 
-/* Overlay de carga local para la tarjeta */
 .loading-overlay-local {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  top: 0; left: 0; width: 100%; height: 100%;
   background-color: rgba(255, 255, 255, 0.85);
   z-index: 1000;
   display: flex;
 }
 
-.bi-spin {
-  animation: spin 1s linear infinite;
-  display: inline-block;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+/* Animación suave para la aparición de filas */
+tr {
+  transition: opacity 0.2s ease-in-out;
 }
 </style>

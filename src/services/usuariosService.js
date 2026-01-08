@@ -16,11 +16,10 @@ const usuariosService = {
     return response.data;
   },
 
-  update: async (usuarioData) => {
-    const response = await api.put('/usuarios', usuarioData);
+  update: async (userData) => {
+    const response = await api.put('/usuarios', userData);
     return response.data;
   },
-
   delete: async (id) => {
     const response = await api.delete('/usuarios', { data: { id } });
     return response.data;

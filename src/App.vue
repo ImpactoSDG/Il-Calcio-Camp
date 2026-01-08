@@ -18,14 +18,29 @@
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue';
 import { useUserStore } from '@/stores/userStore';
 import ToastNotification from '@/components/ToastNotification.vue';
 import Header from '@/components/Header.vue';
+import api from '@/services/api';
 
 const userStore = useUserStore();
-
 const currentYear = new Date().getFullYear();
-const lastUpdate = __APP_UPDATE_TIMESTAMP__;
+
+const lastUpdate = ref("Cargando...");
+
+const fetchVersion = async () => {
+  try {
+    const response = await api.get(`/version?t=${new Date().getTime()}`);
+    lastUpdate.value = response.data.timestamp;
+  } catch (error) {
+    lastUpdate.value = "08/01/2026, 11:00:00";
+  }
+};
+
+onMounted(() => {
+  fetchVersion();
+});
 </script>
 
 <style>

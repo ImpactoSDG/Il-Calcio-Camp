@@ -3,7 +3,9 @@
     
     <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
       <div>
-        <h1 class="h3 fw-bold mb-0 text-primary-custom">Configuraciones</h1>
+        <h1 class="h3 fw-bold mb-0 text-primary-custom">
+          <i class="bi bi-gear-fill me-2"></i>Configuraciones
+        </h1>
       </div>
       
       <div class="d-flex gap-2">
@@ -78,23 +80,23 @@
           <form @submit.prevent="saveConfig">
             <div class="modal-body p-4">
               <div class="mb-3">
-                <label class="form-label fw-bold">Clave (Identificador único)</label>
+                <label class="form-label fw-bold">Clave (Snake case sin espacios)</label>
                 <input 
-                  v-model="form.clave" 
+                  v-model.trim="form.clave" 
                   type="text" 
-                  required 
                   class="form-control" 
                   :disabled="isEditing"
-                  placeholder="ej: path_servidor_archivos"
+                  placeholder="ej: ruta_servidor_logos"
                 />
+                <div class="form-text">Ejemplo: nombre_de_variable</div>
               </div>
               <div class="mb-3">
                 <label class="form-label fw-bold">Valor</label>
-                <textarea v-model="form.valor" required class="form-control" rows="3"></textarea>
+                <textarea v-model.trim="form.valor" class="form-control" rows="3" placeholder="Ruta o valor del parámetro"></textarea>
               </div>
               <div class="mb-0">
                 <label class="form-label fw-bold">Descripción / Nota</label>
-                <input v-model="form.descripcion" type="text" class="form-control" />
+                <input v-model.trim="form.descripcion" type="text" class="form-control" placeholder="¿Para qué se usa?" />
               </div>
             </div>
             <div class="modal-footer bg-light">
@@ -112,7 +114,7 @@
     <ConfirmModal 
       v-model="showConfirmModal"
       title="Eliminar Configuración"
-      message="¿Estás seguro de que deseas eliminar este parámetro global?"
+      message="¿Estás seguro de que deseas eliminar este parámetro global? Esta acción no se puede deshacer."
       confirmButtonText="Eliminar"
       variant="danger"
       :isLoading="isDeleting"
@@ -139,7 +141,7 @@ const isEditing = ref(false);
 const isSaving = ref(false);
 const isDeleting = ref(false);
 const configToDelete = ref(null);
-
+const originalForm = ref({});
 const form = ref({ id: null, clave: '', valor: '', descripcion: '' });
 
 const fetchConfigs = async () => {
@@ -157,6 +159,7 @@ const openModal = (conf = null) => {
   if (conf) {
     isEditing.value = true;
     form.value = { ...conf };
+    originalForm.value = { ...conf };
   } else {
     isEditing.value = false;
     form.value = { id: null, clave: '', valor: '', descripcion: '' };
@@ -164,20 +167,60 @@ const openModal = (conf = null) => {
   showFormModal.value = true;
 };
 
+/**
+ * Validaciones de Frontend
+ */
+const validateForm = () => {
+  const { clave, valor } = form.value;
+
+  if (!clave) {
+    toast.showToast({ message: "La clave es obligatoria", type: "warning" });
+    return false;
+  }
+
+  // Verificar duplicado local (solo en creación)
+  if (!isEditing.value) {
+    const exists = configs.value.some(c => c.clave.toLowerCase() === clave.toLowerCase());
+    if (exists) {
+      toast.showToast({ message: "Esta clave ya existe en el sistema", type: "danger" });
+      return false;
+    }
+  }
+
+  if (!valor) {
+    toast.showToast({ message: "El campo Valor no puede estar vacío", type: "warning" });
+    return false;
+  }
+
+  // Verificar si hubo cambios reales en edición
+  if (isEditing.value) {
+    const hasChanged = JSON.stringify(form.value) !== JSON.stringify(originalForm.value);
+    if (!hasChanged) {
+      toast.showToast({ message: "No se detectaron cambios para actualizar", type: "info" });
+      showFormModal.value = false;
+      return false;
+    }
+  }
+
+  return true;
+};
+
 const saveConfig = async () => {
+  if (!validateForm()) return;
+
   isSaving.value = true;
   try {
     if (isEditing.value) {
       await configuracionService.update(form.value);
-      toast.showToast({ message: "Configuración actualizada", type: "success" });
+      toast.showToast({ message: "Configuración actualizada con éxito", type: "success" });
     } else {
       await configuracionService.create(form.value);
-      toast.showToast({ message: "Parámetro creado", type: "success" });
+      toast.showToast({ message: "Parámetro global creado", type: "success" });
     }
     showFormModal.value = false;
     fetchConfigs();
   } catch (error) {
-    toast.showToast({ message: "Error en la operación", type: "danger" });
+    toast.showToast({ message: "Error al procesar la solicitud en el servidor", type: "danger" });
   } finally {
     isSaving.value = false;
   }
@@ -192,11 +235,11 @@ const handleDelete = async () => {
   isDeleting.value = true;
   try {
     await configuracionService.delete(configToDelete.value);
-    toast.showToast({ message: "Parámetro eliminado", type: "success" });
+    toast.showToast({ message: "Configuración eliminada correctamente", type: "success" });
     showConfirmModal.value = false;
     fetchConfigs();
   } catch (error) {
-    toast.showToast({ message: "Error al eliminar", type: "danger" });
+    toast.showToast({ message: "Error al eliminar el parámetro", type: "danger" });
   } finally {
     isDeleting.value = false;
   }
@@ -209,18 +252,13 @@ onMounted(fetchConfigs);
 .text-primary-custom { color: var(--color-primary); }
 .fs-xs { font-size: 0.75rem; }
 .btn-link { text-decoration: none; }
-
 .loading-overlay-local {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  top: 0; left: 0; width: 100%; height: 100%;
   background-color: rgba(255, 255, 255, 0.85);
   z-index: 10;
   display: flex;
 }
-
 code {
   background-color: #f8f9fa;
   padding: 0.2rem 0.4rem;

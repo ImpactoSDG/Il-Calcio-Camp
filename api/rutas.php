@@ -3,17 +3,51 @@ require_once __DIR__ . '/controllers/AuthController.php';
 require_once __DIR__ . '/controllers/UsuarioController.php';
 require_once __DIR__ . '/controllers/PermisoController.php';
 require_once __DIR__ . '/controllers/ConfiguracionController.php';
+require_once __DIR__ . '/controllers/ModuloController.php';
 
 $auth = new AuthController();
 $usuarioController = new UsuarioController();
 $permisoController = new PermisoController();
 $configController = new ConfiguracionController();
+$moduloController = new ModuloController();
 
 $parts = explode('/', trim($uri, '/'));
 $resource = $parts[0] ?? null;
 $id = $parts[1] ?? null;
 
 switch ($resource) {
+    case 'version': // obtener la última fecha de modificación del proyecto
+        if ($method === 'GET') {
+            date_default_timezone_set('America/Argentina/Cordoba');
+            clearstatcache();
+
+            $rootPath = realpath(__DIR__ . '/../');
+            $latest_mtime = 0;
+
+            $directory = new RecursiveDirectoryIterator($rootPath);
+            $iterator = new RecursiveIteratorIterator($directory);
+
+            foreach ($iterator as $fileinfo) {
+                if (str_contains($fileinfo->getPathname(), 'node_modules')) {
+                    continue;
+                }
+
+                if ($fileinfo->isFile()) {
+                    $mtime = $fileinfo->getMTime();
+                    if ($mtime > $latest_mtime) {
+                        $latest_mtime = $mtime;
+                    }
+                }
+            }
+
+            header('Content-Type: application/json');
+            echo json_encode([
+                "timestamp" => date("d/m/Y, H:i:s", $latest_mtime)
+            ]);
+        } else {
+            http_response_code(405);
+        }
+        break;
     case 'login':
         if ($method === 'POST') {
             $auth->login();
@@ -96,6 +130,13 @@ switch ($resource) {
             default:
                 http_response_code(405);
                 break;
+        }
+        break;
+    case 'modulos':
+        if ($method === 'PUT') {
+            $moduloController->update();
+        } else {
+            http_response_code(405);
         }
         break;
 

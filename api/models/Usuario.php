@@ -154,16 +154,6 @@ class Usuario
         return $stmt->execute();
     }
 
-    public function getListaModulosCompleta(): array
-    {
-        $sql = "SELECT id, nombre, id_padre, orden_visualizacion, categoria 
-                FROM modulo 
-                ORDER BY categoria ASC, COALESCE(id_padre, id), id_padre IS NOT NULL, orden_visualizacion ASC";
-        $stmt = $this->conn->prepare($sql);
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
     public function getMapaPermisos(): array
     {
         $sql = "SELECT CONCAT(id_usuario, '_', id_modulo) as llave FROM usuario_modulo";
