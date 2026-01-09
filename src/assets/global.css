@@ -103,6 +103,31 @@ a {
     border-color: var(--color-primary);
 }
 
+.btn-back-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: #6c757d;
+    transition: all 0.2s;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.btn-back-arrow:hover {
+    background-color: #f8f9fa;
+    color: var(--color-primary);
+}
+
+.btn-back-arrow i {
+    font-size: 1.25rem;
+}
+
 /* --- Form Styles (Login/Register) --- */
 .modern-card {
     background: #ffffff;

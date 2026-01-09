@@ -1,12 +1,14 @@
 <template>
   <div class="main-page-container animate-fade-in">
     <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
-      <h1 class="h5 fw-bold mb-0 text-secondary">USUARIOS</h1>
+      <div class="d-flex align-items-center">
+        <button @click="$router.back()" class="btn-back-arrow me-2" title="Volver">
+          <i class="bi bi-arrow-left"></i>
+        </button>
+        <h1 class="h5 fw-bold mb-0 text-secondary">USUARIOS</h1>
+      </div>
       
       <div class="d-flex gap-2">
-        <button @click="$router.back()" class="btn-back">
-          <i class="bi bi-arrow-left-circle fs-6"></i> Volver
-        </button>
       </div>
     </div>
 
