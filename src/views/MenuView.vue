@@ -1,21 +1,29 @@
 <template>
-  <div class="menu-container">
+  <div class="menu-container animate-in">
     
-    <div class="menu-grid">
-      <router-link
-        v-for="panel in visiblePanels"
-        :key="panel.to"
-        :to="panel.to"
-        class="menu-card"
-      >
-        <div class="icon-container" :style="`--icon-bg: ${panel.bg};`">
-          <i :class="panel.icon" class="icon"></i>
-        </div>
-        <span class="menu-label">{{ panel.label }}</span>
-      </router-link>
+    <div v-for="(modulos, categoria) in menuEstructurado" :key="categoria" class="category-section mb-5">
+      
+      <div class="category-header d-flex align-items-center gap-3 mb-4">
+        <h3 class="category-title mb-0">{{ categoria.toUpperCase() }}</h3>
+        <div class="category-line flex-grow-1"></div>
+      </div>
+
+      <div class="menu-grid">
+        <router-link
+          v-for="modulo in modulos"
+          :key="modulo.id"
+          :to="modulo.ruta"
+          class="menu-card"
+        >
+          <div class="icon-container" :style="`--icon-bg: ${getStyle(modulo.id).bg};`">
+            <i :class="getStyle(modulo.id).icon" class="icon"></i>
+          </div>
+          <span class="menu-label">{{ modulo.nombre }}</span>
+        </router-link>
+      </div>
     </div>
-    
-    <p v-if="visiblePanels.length === 0 && userStore.isLoggedIn" class="no-modules">
+
+    <p v-if="Object.keys(menuEstructurado).length === 0 && userStore.isLoggedIn" class="no-modules">
       No tienes módulos asignados. Contacta a un administrador.
     </p>
   </div>
@@ -28,30 +36,31 @@ import { useUserStore } from '@/stores/userStore';
 const userStore = useUserStore();
 
 const panelStyles = {
-    1: { icon: 'bi bi-receipt-cutoff', bg: 'var(--color-secondary)' },
-
-
+    1: { icon: 'bi bi-receipt-cutoff', bg: 'var(--color-secondary, #2f656d)' },
+    2: { icon: 'bi bi-people-fill', bg: '#ba3b21' },
+    5: { icon: 'bi bi-gear text-primary-custom me-2', bg: '#0d6efd' },
+    default: { icon: 'bi bi-app-indicator', bg: '#6c757d' }
 };
 
-const visiblePanels = computed(() => {
-    if (!userStore.user?.modulos) {
-        return [];
-    }
-  
-    return userStore.user.modulos
-        .map(modulo => {
-            const style = panelStyles[modulo.id];
-            if (style) {
-                return {
-                    label: modulo.nombre, 
-                    to: modulo.ruta,
-                    icon: style.icon,     
-                    bg: style.bg          
-                };
-            }
-            return null;
-        })
-        .filter(panel => panel !== null);
+const getStyle = (id) => panelStyles[id] || panelStyles.default;
+
+const menuEstructurado = computed(() => {
+    const modulosRaw = userStore.user?.modulos;
+    if (!modulosRaw || !Array.isArray(modulosRaw)) return {};
+
+    const tree = {};
+    
+    const padres = modulosRaw
+        .filter(m => !m.id_padre || m.id_padre == 0 || m.id_padre == "0")
+        .sort((a, b) => (Number(a.orden_visualizacion) || 0) - (Number(b.orden_visualizacion) || 0));
+
+    padres.forEach(modulo => {
+        const catNombre = modulo.categoria || 'GENERAL';
+        if (!tree[catNombre]) tree[catNombre] = [];
+        tree[catNombre].push(modulo);
+    });
+
+    return tree;
 });
 </script>
 
@@ -62,10 +71,20 @@ const visiblePanels = computed(() => {
   padding: 20px;
 }
 
-h1 {
-  color: var(--color-heading);
-  text-align: center;
-  margin-bottom: 40px;
+.category-header {
+  margin-bottom: 20px;
+}
+
+.category-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #6c757d;
+  letter-spacing: 1px;
+}
+
+.category-line {
+  height: 1px;
+  background-color: #e0e0e0;
 }
 
 .menu-grid {
@@ -83,7 +102,7 @@ h1 {
   padding: 2rem 1.5rem;
   text-align: center;
   text-decoration: none;
-  color: var(--color-text-dark);
+  color: var(--color-text-dark, #333);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -105,12 +124,13 @@ h1 {
 
 .icon {
   font-size: 2rem;
-  color: var(--color-text-light);
+  color: #ffffff;
 }
 
 .menu-label {
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 0.9rem;
+  display: block;
 }
 
 .no-modules {
@@ -118,5 +138,14 @@ h1 {
   margin-top: 40px;
   font-size: 1.1em;
   color: #6c757d;
+}
+
+.animate-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>
