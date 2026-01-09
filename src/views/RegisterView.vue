@@ -1,42 +1,50 @@
 <template>
-    <div class="row justify-content-center mt-5">
-        <div class="col-md-6 col-lg-4">
-            <div class="card shadow-lg border-0">
-                <div class="card-header text-center bg-dark text-white">
-                    <h4 class="mb-0"><i class="bi bi-person-plus-fill me-2"></i>Crear Usuario</h4>
+    <div class="row justify-content-center mt-5 pt-4">
+        <div class="col-md-6 col-lg-5">
+            <div class="modern-card animate-fade-in">
+                <div class="modern-card-header">
+                    <h2>CREAR CUENTA</h2>
+                    <p class="text-muted small">Registra un nuevo usuario en el sistema</p>
                 </div>
 
-                <div class="card-body p-4">
+                <div class="modern-card-body">
                     <form @submit.prevent="handleRegister">
-                        <div class="mb-3">
-                            <label for="reg-nombre" class="form-label">Nombre de Usuario:</label>
-                            <input type="text" id="reg-nombre" v-model="nombre" class="form-control" required>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="reg-nombre" class="form-label small fw-bold text-secondary">NOMBRE</label>
+                                <input type="text" id="reg-nombre" v-model="nombre" class="form-control" required placeholder="Nombre completo">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="reg-email" class="form-label small fw-bold text-secondary">EMAIL</label>
+                                <input type="email" id="reg-email" v-model="email" class="form-control" required placeholder="correo@ejemplo.com">
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label for="reg-email" class="form-label">Email:</label>
-                            <input type="email" id="reg-email" v-model="email" class="form-control" required>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="reg-contrasena" class="form-label small fw-bold text-secondary">CONTRASEÑA</label>
+                                <input type="password" id="reg-contrasena" v-model="contrasena" class="form-control" required minlength="6" placeholder="******">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="reg-confirm-contrasena" class="form-label small fw-bold text-secondary">REPETIR CONTRASEÑA</label>
+                                <input type="password" id="reg-confirm-contrasena" v-model="confirmContrasena" class="form-control" required placeholder="******">
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label for="reg-contrasena" class="form-label">Contraseña:</label>
-                            <input type="password" id="reg-contrasena" v-model="contrasena" class="form-control" required minlength="6">
-                        </div>
+
                         <div class="mb-4">
-                            <label for="reg-confirm-contrasena" class="form-label">Confirmar Contraseña:</label>
-                            <input type="password" id="reg-confirm-contrasena" v-model="confirmContrasena" class="form-control" required>
+                            <label for="id_rol" class="form-label small fw-bold text-secondary">ROL (ID)</label>
+                            <input type="number" id="id_rol" v-model.number="id_rol" class="form-control" required min="1" placeholder="Ej: 1">
                         </div>
-                        <div class="mb-4">
-                            <label for="id_rol" class="form-label">ID de Rol (Temporal):</label>
-                            <input type="number" id="id_rol" v-model.number="id_rol" class="form-control" required min="1">
-                        </div>
-                        <button type="submit" :disabled="isLoading" class="btn btn-dark w-100 py-2">
+
+                        <button type="submit" :disabled="isLoading" class="btn btn-primary-modern w-100 py-2">
                             <span v-if="isLoading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                            {{ isLoading ? 'Registrando...' : 'Registrar' }}
+                            {{ isLoading ? 'REGISTRANDO...' : 'REGISTRAR USUARIO' }}
                         </button>
                     </form>
                 </div>
 
-                <div class="card-footer text-center">
-                    <router-link to="/login" class=" small">¿Ya tienes cuenta? Inicia sesión</router-link>
+                <div class="card-footer text-center bg-transparent border-0 pb-4">
+                    <router-link to="/login" class="text-decoration-none small fw-bold text-primary">¿Ya tienes cuenta? Inicia sesión</router-link>
                 </div>
 
             </div>

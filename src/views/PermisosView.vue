@@ -3,11 +3,11 @@
     
     <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
       <div>
-        <h1 class="h3 fw-bold mb-0 text-primary-custom">Gestión de Permisos</h1>
+        <h1 class="h5 fw-bold mb-0 text-secondary">GESTIÓN DE PERMISOS</h1>
       </div>
       <div class="d-flex gap-2">
-        <button @click="$router.back()" class="btn btn-outline-secondary d-flex align-items-center px-4 shadow-sm" style="border-radius: 10px;">
-          <i class="bi bi-arrow-left-circle fs-5 me-2"></i> Volver
+        <button @click="$router.back()" class="btn-back">
+          <i class="bi bi-arrow-left-circle fs-6"></i> Volver
         </button>
       </div>
     </div>
@@ -18,7 +18,6 @@
         <div class="spinner-border text-primary-custom" role="status" style="width: 3rem; height: 3rem;">
           <span class="visually-hidden">Cargando...</span>
         </div>
-        <p class="mt-3 fw-bold text-primary-custom">Sincronizando matriz...</p>
       </div>
 
       <div class="table-responsive">
@@ -27,7 +26,8 @@
             <tr>
               <th class="ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary sticky-col-first text-start">Módulo / Funcionalidad</th>
               <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start" style="width: 180px;">Categoría</th>
-              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start" style="width: 100px;">Orden</th>
+              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start" style="width: 80px;">Orden</th>
+              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start" style="width: 110px;">Estilo</th>
               <th v-for="user in data.usuarios" :key="user.id" class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start user-th">
                 <div class="px-2">
                   <span class="d-block text-dark">{{ user.nombre.split(' ')[0] }}</span>
@@ -86,6 +86,35 @@
                 />
               </td>
 
+              <td class="border-start p-0">
+                <div class="d-flex align-items-center justify-content-center h-100 py-2 edit-input">
+                  <div class="icon-style-container">
+                    <!-- Círculo del Icono (abre modal de iconos) -->
+                    <div 
+                      class="icon-preview-circle" 
+                      @click="openIconModal(modulo)"
+                      :style="{ backgroundColor: modulo.bg || '#6C757D' }"
+                      title="Cambiar icono"
+                    >
+                      <i :class="modulo.icon || 'bi-app-indicator'"></i>
+                    </div>
+                    
+                    <!-- Trigger de Color (Overlay pequeño) -->
+                    <div class="color-tag-wrapper" title="Cambiar color">
+                      <input 
+                        v-model="modulo.bg"
+                        type="color"
+                        class="color-input-hidden"
+                        @change="updateModulo(modulo)"
+                      />
+                      <div class="color-indicator-dot" :style="{ backgroundColor: modulo.bg }">
+                        <i class="bi bi-pencil-fill"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </td>
+
               <td v-for="user in data.usuarios" :key="user.id" class="text-center border-start border-light">
                 <div class="form-check form-switch d-inline-block">
                   <input 
@@ -102,12 +131,45 @@
         </table>
       </div>
     </div>
+
+    <!-- Modal para Seleccionar Icono -->
+    <div v-if="showIconModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Seleccionar Icono</h5>
+            <button type="button" class="btn-close" @click="showIconModal = false"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <input v-model="searchIcon" type="text" class="form-control" placeholder="Buscar icono (ej: house, person...)" />
+            </div>
+            <div class="icon-grid">
+              <div 
+                v-for="icon in filteredIcons" 
+                :key="icon" 
+                class="icon-item" 
+                :class="{ active: selectedModuloForIcon?.icon === icon }"
+                @click="selectIcon(icon)"
+              >
+                <i :class="icon"></i>
+                <span class="icon-name">{{ icon.replace('bi-', '') }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-light" @click="showIconModal = false">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <ToastNotification />
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref, computed } from 'vue';
 import permisosService from '@/services/permisosService';
 import moduloService from '@/services/moduloService';
 import ToastNotification from '@/components/ToastNotification.vue';
@@ -118,6 +180,42 @@ const toast = useToastStore();
 const userStore = useUserStore();
 const loading = ref(false);
 const data = reactive({ usuarios: [], modulos: [], permisos: [] });
+
+// Estado para Iconos
+const showIconModal = ref(false);
+const searchIcon = ref('');
+const selectedModuloForIcon = ref(null);
+
+const commonIcons = [
+  'bi-house', 'bi-house-fill', 'bi-person', 'bi-person-fill', 'bi-people', 'bi-people-fill',
+  'bi-gear', 'bi-gear-fill', 'bi-shield-lock', 'bi-shield-lock-fill', 'bi-key', 'bi-key-fill',
+  'bi-envelope', 'bi-envelope-fill', 'bi-receipt', 'bi-receipt-cutoff', 'bi-cart', 'bi-cart-fill',
+  'bi-calendar', 'bi-calendar-event', 'bi-chat', 'bi-chat-dots', 'bi-file-earmark', 'bi-file-text',
+  'bi-search', 'bi-graph-up', 'bi-pie-chart', 'bi-bell', 'bi-bell-fill', 'bi-star', 'bi-star-fill',
+  'bi-plus-circle', 'bi-plus-circle-fill', 'bi-pencil-square', 'bi-trash', 'bi-trash-fill',
+  'bi-info-circle', 'bi-info-circle-fill', 'bi-exclamation-triangle', 'bi-exclamation-triangle-fill',
+  'bi-app-indicator', 'bi-collection', 'bi-grid', 'bi-layers', 'bi-menu-button-wide',
+  'bi-card-text', 'bi-list-ul', 'bi-speedometer2', 'bi-tools', 'bi-universal-access'
+];
+
+const filteredIcons = computed(() => {
+  if (!searchIcon.value) return commonIcons;
+  return commonIcons.filter(icon => icon.toLowerCase().includes(searchIcon.value.toLowerCase()));
+});
+
+const openIconModal = (modulo) => {
+  selectedModuloForIcon.value = modulo;
+  searchIcon.value = '';
+  showIconModal.value = true;
+};
+
+const selectIcon = (icon) => {
+  if (selectedModuloForIcon.value) {
+    selectedModuloForIcon.value.icon = icon;
+    updateModulo(selectedModuloForIcon.value);
+  }
+  showIconModal.value = false;
+};
 
 // Estado para controlar qué padres están expandidos
 const expandedParents = ref(new Set());
@@ -167,7 +265,9 @@ const updateModulo = async (modulo) => {
     await moduloService.update({
       id: modulo.id,
       categoria: modulo.categoria,
-      orden_visualizacion: modulo.orden_visualizacion
+      orden_visualizacion: modulo.orden_visualizacion,
+      icon: modulo.icon,
+      bg: modulo.bg
     });
     toast.showToast({ message: `Módulo "${modulo.nombre}" actualizado`, type: "success" });
     if (userStore.refreshModulos) await userStore.refreshModulos();
@@ -210,7 +310,6 @@ onMounted(cargarDatos);
 </script>
 
 <style scoped>
-.text-primary-custom { color: var(--color-primary); }
 .fs-xs { font-size: 0.75rem; }
 
 .edit-input {
@@ -240,7 +339,6 @@ onMounted(cargarDatos);
 .bg-parent { background-color: rgba(248, 249, 250, 0.5); }
 
 .user-th { min-width: 110px; }
-.bg-primary-soft { background-color: rgba(0, 85, 140, 0.1); }
 
 .custom-switch {
   cursor: pointer;
@@ -274,5 +372,118 @@ onMounted(cargarDatos);
 /* Animación suave para la aparición de filas */
 tr {
   transition: opacity 0.2s ease-in-out;
+}
+
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 10px;
+  max-height: 350px;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.icon-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.icon-item i {
+  font-size: 1.5rem;
+  margin-bottom: 5px;
+}
+
+.icon-name {
+  font-size: 0.65rem;
+  text-align: center;
+  color: #6c757d;
+}
+
+.icon-item:hover {
+  background-color: #f8f9fa;
+  border-color: var(--color-primary);
+}
+
+.icon-item.active {
+  background-color: rgba(0, 85, 140, 0.1);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.icon-preview-circle {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+
+.icon-preview-circle:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.icon-style-container {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.color-tag-wrapper {
+  position: absolute;
+  bottom: 0px;
+  right: 0px;
+  width: 18px;
+  height: 18px;
+  z-index: 2;
+}
+
+.color-input-hidden {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 3;
+}
+
+.color-indicator-dot {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 0.55rem;
+  pointer-events: none;
+}
+
+.mono-font {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.btn-icon-selector:hover {
+  transform: scale(1.1);
+  background-color: #f0f0f0;
 }
 </style>

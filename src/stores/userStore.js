@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import router from '@/router'
+import usuariosService from '@/services/usuariosService'
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -20,6 +21,17 @@ export const useUserStore = defineStore('user', {
       this.$reset()
       router.push('/')
     },
+    async refreshModulos() {
+      if (!this.user?.id) return;
+      try {
+        const data = await usuariosService.refreshModulos(this.user.id);
+        if (data.modulos) {
+          this.user.modulos = data.modulos;
+        }
+      } catch (e) {
+        console.error("Error refreshing modules", e);
+      }
+    }
   },
 
   persist: {

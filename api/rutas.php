@@ -100,7 +100,13 @@ switch ($resource) {
             http_response_code(405);
         }
         break;
-
+    case 'refresh-modulos':
+        if ($method === 'GET') {
+            $usuarioController->refreshModulos();
+        } else {
+            http_response_code(405);
+        }
+        break;
     case 'toggle-permiso':
         if ($method === 'POST') {
             $permisoController->toggle();

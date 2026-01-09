@@ -37,9 +37,11 @@ class ModuloController
         $id = (int)$data['id'];
         $categoria = $data['categoria'] ?? null;
         $orden = isset($data['orden_visualizacion']) ? (int)$data['orden_visualizacion'] : null;
+        $icon = $data['icon'] ?? null;
+        $bg = $data['bg'] ?? null;
 
         try {
-            $success = $this->moduloModel->updateProperties($id, $categoria, $orden);
+            $success = $this->moduloModel->updateProperties($id, $categoria, $orden, $icon, $bg);
 
             if ($success) {
                 $this->respond(200, ['message' => 'Propiedades del módulo actualizadas correctamente.']);

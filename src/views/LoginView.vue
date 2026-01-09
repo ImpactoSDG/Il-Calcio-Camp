@@ -1,22 +1,23 @@
 <template>
-  <div class="row justify-content-center mt-5">
+  <div class="row justify-content-center mt-5 pt-4">
     <div class="col-md-6 col-lg-4">
-      <div class="card shadow-lg border-0">
-        <div class="card-header text-center bg-dark text-white">
-          <h4 class="mb-0"><i class="bi bi-person-circle me-2"></i> Iniciar Sesión</h4>
+      <div class="modern-card animate-fade-in">
+        <div class="modern-card-header">
+          <h2>BIENVENIDO</h2>
+          <p class="text-muted small">Inicia sesión para continuar</p>
         </div>
-        <div class="card-body p-4">
+        <div class="modern-card-body">
           <form @submit.prevent="handleLogin">
             
             <div class="mb-3">
-              <label for="email" class="form-label">Email:</label>
-              <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+              <label for="email" class="form-label small fw-bold text-secondary">EMAIL</label>
+              <div class="input-group border-bottom">
+                <span class="input-group-text bg-transparent border-0"><i class="bi bi-envelope text-secondary"></i></span>
                 <input 
                   type="email" 
                   id="email" 
                   v-model="email" 
-                  class="form-control" 
+                  class="form-control bg-transparent border-0 shadow-none" 
                   required 
                   placeholder="tu.correo@ejemplo.com"
                 >
@@ -24,30 +25,27 @@
             </div>
 
             <div class="mb-4">
-              <label for="contrasena" class="form-label">Contraseña:</label>
-              <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-key"></i></span>
+              <label for="contrasena" class="form-label small fw-bold text-secondary">CONTRASEÑA</label>
+              <div class="input-group border-bottom">
+                <span class="input-group-text bg-transparent border-0"><i class="bi bi-key text-secondary"></i></span>
                 <input 
                   type="password" 
                   id="contrasena" 
                   v-model="contrasena" 
-                  class="form-control" 
+                  class="form-control bg-transparent border-0 shadow-none" 
                   required 
-                  placeholder="Ingresa tu contraseña"
+                  placeholder="********"
                 >
               </div>
             </div>
             
-            <button type="submit" :disabled="isLoading" class="btn btn-dark w-100 py-2">
+            <button type="submit" :disabled="isLoading" class="btn btn-primary-modern w-100 py-2 mt-2">
               <span v-if="isLoading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-              {{ isLoading ? 'Verificando...' : 'Entrar' }}
+              {{ isLoading ? 'VERIFICANDO...' : 'ENTRAR' }}
             </button>
             
           </form>
         </div>
-        <!-- <div class="card-footer text-center">
-          <router-link to="/register" class="link-custom small">¿No tienes cuenta? Regístrate aquí</router-link>
-        </div> -->
       </div>
     </div>
   </div>

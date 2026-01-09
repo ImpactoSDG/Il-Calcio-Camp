@@ -1,19 +1,17 @@
 <template>
-  <div class="container-fluid p-4 bg-white min-vh-100 position-relative">
+  <div class="container-fluid p-4 bg-white min-vh-100 position-relative animate-fade-in">
     
     <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
       <div>
-        <h1 class="h3 fw-bold mb-0 text-primary-custom">
-          <i class="bi bi-gear-fill me-2"></i>Configuraciones
-        </h1>
+        <h1 class="h5 fw-bold mb-0 text-secondary">CONFIGURACIONES</h1>
       </div>
       
       <div class="d-flex gap-2">
-        <button @click="openModal()" class="btn btn-primary d-flex align-items-center px-4 shadow-sm">
-          <i class="bi bi-plus-circle-fill fs-5 me-2"></i> Nueva
+        <button @click="openModal()" class="btn-primary-modern d-flex align-items-center">
+          <i class="bi bi-plus-circle-fill fs-6 me-2"></i> Nueva
         </button>
-        <button @click="$router.back()" class="btn btn-outline-secondary d-flex align-items-center px-4 shadow-sm" style="border-radius: 10px;">
-          <i class="bi bi-arrow-left-circle fs-5 me-2"></i> Volver
+        <button @click="$router.back()" class="btn-back">
+          <i class="bi bi-arrow-left-circle fs-6"></i> Volver
         </button>
       </div>
     </div>
@@ -24,31 +22,30 @@
         <div class="spinner-border text-primary-custom" role="status" style="width: 3rem; height: 3rem;">
           <span class="visually-hidden">Cargando...</span>
         </div>
-        <p class="mt-3 fw-bold text-primary-custom">Cargando Configuraciones...</p>
       </div>
 
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
           <thead class="bg-light">
             <tr>
-              <th class="ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary">Clave</th>
-              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary">Valor / Ruta</th>
-              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary">Descripción</th>
-              <th class="pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary text-end">Acciones</th>
+              <th class="ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary sticky-col-first">Clave</th>
+              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start">Valor / Ruta</th>
+              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start">Descripción</th>
+              <th class="pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary text-end border-start">Acciones</th>
             </tr>
           </thead>
           <tbody class="bg-white">
             <tr v-for="conf in configs" :key="conf.id">
-              <td class="ps-4 fw-bold text-primary-custom">
+              <td class="ps-4 fw-bold text-primary-custom sticky-col-first">
                 <code>{{ conf.clave }}</code>
               </td>
-              <td class="text-muted">
-                <span class="d-inline-block text-truncate" style="max-width: 300px;" :title="conf.valor">
+              <td class="text-muted border-start px-3">
+                <span class="d-inline-block text-truncate" style="max-width: 400px;" :title="conf.valor">
                   {{ conf.valor }}
                 </span>
               </td>
-              <td class="small text-secondary">{{ conf.descripcion || '-' }}</td>
-              <td class="pe-4 text-end">
+              <td class="small text-secondary border-start px-3">{{ conf.descripcion || '-' }}</td>
+              <td class="pe-4 text-end border-start">
                 <button @click="openModal(conf)" class="btn btn-link link-secondary p-1 me-2" title="Editar">
                   <i class="bi bi-pencil-square fs-4"></i>
                 </button>
@@ -67,20 +64,20 @@
       </div>
     </div>
 
-    <div v-if="showFormModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5)">
+    <div v-if="showFormModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
       <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg">
-          <div class="modal-header bg-primary text-white">
-            <h5 class="modal-title fw-bold">
-              <i class="bi me-2" :class="isEditing ? 'bi-gear-wide-connected' : 'bi-plus-circle'"></i>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi me-2" :class="isEditing ? 'bi-pencil-square' : 'bi-plus-circle'"></i>
               {{ isEditing ? 'Editar Configuración' : 'Nueva Configuración' }}
             </h5>
-            <button type="button" class="btn-close btn-close-white" @click="showFormModal = false"></button>
+            <button type="button" class="btn-close" @click="showFormModal = false"></button>
           </div>
           <form @submit.prevent="saveConfig">
-            <div class="modal-body p-4">
+            <div class="modal-body">
               <div class="mb-3">
-                <label class="form-label fw-bold">Clave (Snake case sin espacios)</label>
+                <label class="form-label">Clave (Snake case sin espacios)</label>
                 <input 
                   v-model.trim="form.clave" 
                   type="text" 
@@ -91,17 +88,17 @@
                 <div class="form-text">Ejemplo: nombre_de_variable</div>
               </div>
               <div class="mb-3">
-                <label class="form-label fw-bold">Valor</label>
+                <label class="form-label">Valor</label>
                 <textarea v-model.trim="form.valor" class="form-control" rows="3" placeholder="Ruta o valor del parámetro"></textarea>
               </div>
               <div class="mb-0">
-                <label class="form-label fw-bold">Descripción / Nota</label>
+                <label class="form-label">Descripción / Nota</label>
                 <input v-model.trim="form.descripcion" type="text" class="form-control" placeholder="¿Para qué se usa?" />
               </div>
             </div>
-            <div class="modal-footer bg-light">
-              <button @click="showFormModal = false" type="button" class="btn btn-secondary">Cancelar</button>
-              <button type="submit" class="btn btn-primary px-4" :disabled="isSaving">
+            <div class="modal-footer">
+              <button @click="showFormModal = false" type="button" class="btn btn-light px-4">Cancelar</button>
+              <button type="submit" class="btn btn-primary-modern px-4" :disabled="isSaving">
                 <span v-if="isSaving" class="spinner-border spinner-border-sm me-2"></span>
                 {{ isEditing ? 'Actualizar' : 'Guardar' }}
               </button>
@@ -249,7 +246,6 @@ onMounted(fetchConfigs);
 </script>
 
 <style scoped>
-.text-primary-custom { color: var(--color-primary); }
 .fs-xs { font-size: 0.75rem; }
 .btn-link { text-decoration: none; }
 .loading-overlay-local {

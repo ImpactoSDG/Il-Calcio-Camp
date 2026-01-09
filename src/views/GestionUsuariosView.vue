@@ -2,14 +2,14 @@
   <div class="container-fluid p-4 bg-white min-vh-100 position-relative">
     
     <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
-      <h1 class="h3 fw-bold mb-0 text-primary-custom">Gestión de Usuarios</h1>
+      <h1 class="h5 fw-bold mb-0 text-secondary">GESTIÓN DE USUARIOS</h1>
       
       <div class="d-flex gap-2">
-        <button @click="openModal()" class="btn btn-primary d-flex align-items-center px-4 shadow-sm">
-          <i class="bi bi-person-plus-fill fs-5 me-2"></i> Nuevo Usuario
+        <button @click="openModal()" class="btn-primary-modern d-flex align-items-center">
+          <i class="bi bi-person-plus-fill fs-6 me-2"></i> Nuevo
         </button>
-        <button @click="$router.back()" class="btn btn-outline-secondary d-flex align-items-center px-4 shadow-sm" style="border-radius: 10px;">
-          <i class="bi bi-arrow-left-circle fs-5 me-2"></i> Volver
+        <button @click="$router.back()" class="btn-back">
+          <i class="bi bi-arrow-left-circle fs-6"></i> Volver
         </button>
       </div>
     </div>
@@ -20,7 +20,6 @@
         <div class="spinner-border text-primary-custom" role="status" style="width: 3rem; height: 3rem;">
           <span class="visually-hidden">Cargando...</span>
         </div>
-        <p class="mt-3 fw-bold text-primary-custom">Cargando Gestión de Usuarios...</p>
       </div>
 
       <div class="table-responsive">
@@ -64,32 +63,32 @@
       </div>
     </div>
 
-    <div v-if="showFormModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5)">
+    <div v-if="showFormModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
       <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg">
-          <div class="modal-header bg-primary text-white">
-            <h5 class="modal-title fw-bold">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
               <i class="bi me-2" :class="isEditing ? 'bi-person-gear' : 'bi-person-plus'"></i>
               {{ isEditing ? 'Editar Usuario' : 'Crear Nuevo Usuario' }}
             </h5>
-            <button type="button" class="btn-close btn-close-white" @click="showFormModal = false"></button>
+            <button type="button" class="btn-close" @click="showFormModal = false"></button>
           </div>
           <form @submit.prevent="saveUser">
-            <div class="modal-body p-4">
+            <div class="modal-body">
               <div class="mb-3">
-                <label class="form-label fw-bold">Nombre Completo</label>
+                <label class="form-label">Nombre Completo</label>
                 <input v-model.trim="form.nombre" type="text" class="form-control" placeholder="Ej: Juan Pérez" />
               </div>
               <div class="mb-3">
-                <label class="form-label fw-bold">Correo Electrónico</label>
+                <label class="form-label">Correo Electrónico</label>
                 <input v-model.trim="form.email" type="email" class="form-control" placeholder="juan@ejemplo.com" />
               </div>
               <div v-if="!isEditing" class="mb-3">
-                <label class="form-label fw-bold">Contraseña Inicial</label>
+                <label class="form-label">Contraseña Inicial</label>
                 <input v-model.trim="form.contrasena" type="password" class="form-control" placeholder="Mínimo 6 caracteres" />
               </div>
               <div class="mb-0">
-                <label class="form-label fw-bold">Rol</label>
+                <label class="form-label">Rol</label>
                 <select v-model.number="form.id_rol" class="form-select">
                   <option disabled value="">Seleccione un rol</option>
                   <option :value="1">Administrador</option>
@@ -97,9 +96,9 @@
                 </select>
               </div>
             </div>
-            <div class="modal-footer bg-light">
-              <button @click="showFormModal = false" type="button" class="btn btn-secondary">Cancelar</button>
-              <button type="submit" class="btn btn-primary px-4" :disabled="isSaving">
+            <div class="modal-footer">
+              <button @click="showFormModal = false" type="button" class="btn btn-light px-4">Cancelar</button>
+              <button type="submit" class="btn btn-primary-modern px-4" :disabled="isSaving">
                 <span v-if="isSaving" class="spinner-border spinner-border-sm me-2"></span>
                 {{ isEditing ? 'Actualizar' : 'Registrar' }}
               </button>
@@ -109,21 +108,36 @@
       </div>
     </div>
 
-    <div v-if="showPasswordModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5)">
-      <div class="modal-dialog modal-dialog-centered modal-sm">
-        <div class="modal-content border-0 shadow-lg">
-          <div class="modal-header bg-warning text-dark">
-            <h5 class="modal-title fw-bold"><i class="bi bi-key me-2"></i>Nueva Contraseña</h5>
+    <div v-if="showPasswordModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-shield-lock-fill me-2"></i> Actualizar Seguridad
+            </h5>
             <button type="button" class="btn-close" @click="showPasswordModal = false"></button>
           </div>
           <form @submit.prevent="handleUpdatePassword">
-            <div class="modal-body p-4 text-center">
-              <p class="text-muted small mb-3">Usuario: <b>{{ selectedUser?.nombre }}</b></p>
-              <input v-model.trim="newPassword" type="password" class="form-control text-center" placeholder="Mínimo 6 caracteres" />
+            <div class="modal-body">
+              <div class="alert alert-info py-2 px-3 mb-3 border-0 bg-primary-soft">
+                <p class="mb-0 small text-primary-custom">
+                  Actualizando accesos para: <b>{{ selectedUser?.nombre }}</b>
+                </p>
+              </div>
+              <div class="mb-0">
+                <label class="form-label">Nueva Contraseña</label>
+                <input 
+                  v-model.trim="newPassword" 
+                  type="password" 
+                  class="form-control" 
+                  placeholder="Mínimo 6 caracteres" 
+                  required
+                />
+              </div>
             </div>
-            <div class="modal-footer bg-light justify-content-center">
-              <button @click="showPasswordModal = false" type="button" class="btn btn-link text-muted text-decoration-none">Cancelar</button>
-              <button type="submit" class="btn btn-warning px-4" :disabled="isSavingPass">
+            <div class="modal-footer">
+              <button @click="showPasswordModal = false" type="button" class="btn btn-light px-4">Cancelar</button>
+              <button type="submit" class="btn btn-primary-modern px-4" :disabled="isSavingPass">
                 <span v-if="isSavingPass" class="spinner-border spinner-border-sm me-2"></span>
                 Actualizar
               </button>
@@ -326,11 +340,7 @@ onMounted(fetchUsuarios);
 </script>
 
 <style scoped>
-.text-primary-custom { color: var(--color-primary); }
 .fs-xs { font-size: 0.75rem; }
-.bg-primary-soft { background-color: rgba(0, 85, 140, 0.1); }
-.text-info-custom { color: var(--color-secondary); }
-.bg-info-soft { background-color: rgba(22, 156, 159, 0.1); }
 .btn-link { text-decoration: none; border: none; background: none; }
 
 .loading-overlay-local {

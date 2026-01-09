@@ -145,4 +145,13 @@ class UsuarioController
             $this->respond(500, ['message' => 'Error al procesar permiso.']);
         }
     }
+
+    public function refreshModulos(): void
+    {
+        $id = $_GET['id'] ?? null;
+        if (!$id) $this->respond(400, ['message' => 'ID requerido.']);
+
+        $modulos = $this->usuarioModel->getModulos((int)$id);
+        $this->respond(200, ['modulos' => $modulos]);
+    }
 }

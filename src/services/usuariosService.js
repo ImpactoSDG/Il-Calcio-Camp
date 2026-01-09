@@ -31,6 +31,11 @@ const usuariosService = {
       contrasena: nuevaContrasena
     });
     return response.data;
+  },
+
+  refreshModulos: async (userId) => {
+    const response = await api.get(`/refresh-modulos?id=${userId}`);
+    return response.data;
   }
 };
 

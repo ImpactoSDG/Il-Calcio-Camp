@@ -81,7 +81,9 @@ class Usuario
                     m.ruta, 
                     m.id_padre, 
                     m.orden_visualizacion, 
-                    m.categoria
+                    m.categoria,
+                    m.icon,
+                    m.bg
                 FROM usuario_modulo um
                 INNER JOIN modulo m ON m.id = um.id_modulo
                 WHERE um.id_usuario = :id

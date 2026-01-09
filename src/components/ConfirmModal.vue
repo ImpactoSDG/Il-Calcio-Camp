@@ -2,19 +2,19 @@
   <div class="modal fade" tabindex="-1" ref="modalElement">
     <div class="modal-dialog">
       <div class="modal-content">
-        <div class="modal-header text-white" :class="headerClass">
+        <div class="modal-header" :class="headerClass">
           <h5 class="modal-title">
             <i :class="iconClass" class="me-2"></i>{{ title }}
           </h5>
-          <button type="button" class="btn-close btn-close-white" @click="closeModal" aria-label="Close"></button>
+          <button type="button" class="btn-close" @click="closeModal" aria-label="Close"></button>
         </div>
-        <div class="modal-body">
+        <div class="modal-body text-center py-4">
           <slot>
-            <p>{{ message }}</p>
+            <p class="mb-0 fs-5">{{ message }}</p>
           </slot>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" @click="closeModal" :disabled="isLoading">
+        <div class="modal-footer justify-content-center">
+          <button type="button" class="btn btn-light px-4" @click="closeModal" :disabled="isLoading">
             Cancelar
           </button>
           <button type="button" class="btn" :class="confirmButtonClass" @click="onConfirm" :disabled="isLoading">
@@ -85,8 +85,8 @@ const onConfirm = () => {
   emit('confirm');
 };
 
-const headerClass = computed(() => `bg-${props.variant}`);
-const confirmButtonClass = computed(() => `btn-${props.variant}`);
+const headerClass = computed(() => `variant-${props.variant}`);
+const confirmButtonClass = computed(() => props.variant === 'danger' ? 'btn-danger px-4' : 'btn-primary-modern px-4');
 const iconClass = computed(() => {
   if (props.variant === 'danger') return 'bi bi-exclamation-triangle-fill';
   if (props.variant === 'warning') return 'bi bi-exclamation-circle-fill';
