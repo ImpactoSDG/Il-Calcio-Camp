@@ -87,7 +87,7 @@
               </div>
               <div v-if="!isEditing" class="mb-3">
                 <label class="form-label">Contraseña Inicial</label>
-                <input v-model.trim="form.contrasena" type="password" class="form-control" placeholder="Mínimo 6 caracteres" />
+                <input v-model.trim="form.contrasena" type="password" class="form-control" placeholder="Contraseña segura" />
               </div>
               <div class="mb-0">
                 <label class="form-label">Rol</label>
@@ -132,7 +132,7 @@
                   v-model.trim="newPassword" 
                   type="password" 
                   class="form-control" 
-                  placeholder="Mínimo 6 caracteres" 
+                  placeholder="Ingrese nueva contraseña" 
                   required
                 />
               </div>
@@ -235,8 +235,8 @@ const validateUserForm = () => {
     return false;
   }
 
-  if (!isEditing.value && (!contrasena || contrasena.length < 6)) {
-    toast.showToast({ message: "La contraseña es obligatoria (min. 6 caracteres)", type: "warning" });
+  if (!isEditing.value && !contrasena) {
+    toast.showToast({ message: "La contraseña es obligatoria", type: "warning" });
     return false;
   }
 
@@ -298,8 +298,8 @@ const openPasswordModal = (user) => {
 };
 
 const handleUpdatePassword = async () => {
-  if (!newPassword.value || newPassword.value.length < 6) {
-    toast.showToast({ message: "La contraseña debe tener al menos 6 caracteres", type: "warning" });
+  if (!newPassword.value) {
+    toast.showToast({ message: "Debe ingresar una nueva contraseña", type: "warning" });
     return;
   }
   

@@ -3,10 +3,10 @@ import { useUserStore } from '@/stores/userStore'
 import LoginView from '@/views/LoginView.vue'
 import RegisterView from '@/views/RegisterView.vue'
 import MenuView from '@/views/MenuView.vue'
-import UsuariosView from '@/views/UsuariosView.vue'
 import PermisosView from '@/views/PermisosView.vue'
 import GestionUsuariosView from '@/views/GestionUsuariosView.vue'
 import ConfiguracionesView from '../views/ConfiguracionesView.vue'
+import SubmenuView from '@/views/SubmenuView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -33,19 +33,6 @@ const router = createRouter({
       meta: { requiresAuth: true } 
     },
     { 
-      path: '/principal', 
-      name: 'principal', 
-      component: MenuView, 
-      meta: { requiresAuth: true, idModulo: 1 } 
-    },
-    { 
-      /* MÓDULO PADRE: Usuarios */
-      path: '/usuarios', 
-      name: 'usuarios', 
-      component: UsuariosView, 
-      meta: { requiresAuth: true, idModulo: 2 } 
-    },
-    { 
       path: '/permisos', 
       name: 'permisos', 
       component: PermisosView, 
@@ -62,6 +49,12 @@ const router = createRouter({
       name: 'configuraciones',
       component: ConfiguracionesView,
       meta: { requiresAuth: true, idModulo: 5 }
+    },
+    {
+      path: '/submenu/:id',
+      name: 'submenu',
+      component: SubmenuView,
+      meta: { requiresAuth: true, useParamId: true }
     }
   ]
 })
@@ -78,9 +71,10 @@ router.beforeEach((to, from, next) => {
     return next('/menu')
   }
 
-  if (to.meta.idModulo) {
+  const idModulo = to.meta.useParamId ? to.params.id : to.meta.idModulo
+  if (idModulo) {
     const tienePermiso = userStore.user?.modulos?.some(
-      m => Number(m.id) === Number(to.meta.idModulo)
+      m => Number(m.id) === Number(idModulo)
     )
 
     if (!tienePermiso) {

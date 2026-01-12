@@ -23,7 +23,7 @@
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="reg-contrasena" class="form-label small fw-bold text-secondary">CONTRASEÑA</label>
-                                <input type="password" id="reg-contrasena" v-model="contrasena" class="form-control" required minlength="6" placeholder="******">
+                                <input type="password" id="reg-contrasena" v-model="contrasena" class="form-control" required placeholder="******">
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label for="reg-confirm-contrasena" class="form-label small fw-bold text-secondary">REPETIR CONTRASEÑA</label>
@@ -69,13 +69,6 @@ const handleRegister = async () => {
     if (contrasena.value !== confirmContrasena.value) {
         toast.showToast({
             message: 'Las contraseñas no coinciden.',
-            type: 'danger'
-        });
-        return;
-    }
-    if (contrasena.value.length < 6) {
-        toast.showToast({
-            message: 'La contraseña debe tener al menos 6 caracteres.',
             type: 'danger'
         });
         return;

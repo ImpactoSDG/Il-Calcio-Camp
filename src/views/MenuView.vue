@@ -1,5 +1,5 @@
 <template>
-  <div class="main-page-container animate-fade-in">
+  <div class="container py-4 animate-fade-in">
     
     <div v-for="(modulos, categoria) in menuEstructurado" :key="categoria" class="category-section mb-5">
       
@@ -9,18 +9,34 @@
       </div>
 
       <div class="card-grid">
-        <router-link
-          v-for="modulo in modulos"
-          :key="modulo.id"
-          :to="modulo.ruta"
-          class="action-card"
-          :style="`--card-color: ${modulo.bg || '#6c757d'};`"
-        >
-          <div class="icon-container" style="background-color: var(--card-color);">
-            <i :class="modulo.icon || 'bi bi-app-indicator'"></i>
-          </div>
-          <span class="card-label">{{ modulo.nombre }}</span>
-        </router-link>
+        <template v-for="modulo in modulos" :key="modulo.id">
+          <!-- Link Externo -->
+          <a
+            v-if="modulo.ruta && (modulo.ruta.startsWith('http://') || modulo.ruta.startsWith('https://'))"
+            :href="modulo.ruta"
+            target="_blank"
+            class="action-card"
+            :style="`--card-color: ${modulo.bg || '#6c757d'};`"
+          >
+            <div class="icon-container" style="background-color: var(--card-color);">
+              <i :class="modulo.icon || 'bi bi-app-indicator'"></i>
+            </div>
+            <span class="card-label">{{ modulo.nombre }}</span>
+          </a>
+
+          <!-- Link Interno -->
+          <router-link
+            v-else
+            :to="modulo.ruta"
+            class="action-card"
+            :style="`--card-color: ${modulo.bg || '#6c757d'};`"
+          >
+            <div class="icon-container" style="background-color: var(--card-color);">
+              <i :class="modulo.icon || 'bi bi-app-indicator'"></i>
+            </div>
+            <span class="card-label">{{ modulo.nombre }}</span>
+          </router-link>
+        </template>
       </div>
     </div>
 
