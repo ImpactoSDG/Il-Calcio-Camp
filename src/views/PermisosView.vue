@@ -217,7 +217,7 @@ const selectIcon = (icon) => {
   showIconModal.value = false;
 };
 
-// Estado para controlar qué padres están expandidos
+// Estado para controlar qué padres están expandidos (siempre como Number)
 const expandedParents = ref(new Set());
 
 const cargarDatos = async () => {
@@ -239,22 +239,25 @@ const cargarDatos = async () => {
 
 // --- Lógica de Acordeón ---
 const hasChildren = (moduloId) => {
+  // Normaliza a número para evitar problemas de tipo
   return data.modulos.some(m => Number(m.id_padre) === Number(moduloId));
 };
 
+
 const toggleExpand = (moduloId) => {
-  if (expandedParents.value.has(moduloId)) {
-    expandedParents.value.delete(moduloId);
+  const id = Number(moduloId);
+  if (expandedParents.value.has(id)) {
+    expandedParents.value.delete(id);
   } else {
-    expandedParents.value.add(moduloId);
+    expandedParents.value.add(id);
   }
 };
 
-const isExpanded = (moduloId) => expandedParents.value.has(moduloId);
+const isExpanded = (moduloId) => expandedParents.value.has(Number(moduloId));
 
 const isRowVisible = (modulo) => {
-  // Si no tiene padre, es un módulo raíz y siempre es visible
-  if (!modulo.id_padre) return true;
+  // Si no tiene padre o el id_padre es 0/null, es un módulo raíz y siempre es visible
+  if (!modulo.id_padre || Number(modulo.id_padre) === 0) return true;
   // Si tiene padre, solo es visible si su padre está en el set de expandidos
   return expandedParents.value.has(Number(modulo.id_padre));
 };
