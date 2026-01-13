@@ -88,4 +88,10 @@ class AuthController
             $this->respond(500, ['message' => 'Error al intentar registrar el usuario.']);
         }
     }
+
+    public function getRoles(): void
+    {
+        $roles = $this->usuarioModel->getRoles();
+        $this->respond(200, $roles);
+    }
 }

@@ -161,4 +161,12 @@ class Usuario
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
+
+    public function getRoles(): array
+    {
+        $sql = "SELECT id, nombre FROM rol";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }

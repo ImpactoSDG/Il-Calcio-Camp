@@ -63,6 +63,13 @@ switch ($resource) {
             http_response_code(405);
         }
         break;
+    case 'roles':
+        if ($method === 'GET') {
+            $auth->getRoles();
+        } else {
+            http_response_code(405);
+        }
+        break;
 
     case 'usuarios':
         switch ($method) {

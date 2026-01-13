@@ -24,10 +24,17 @@
                             <label for="reg-confirm-contrasena" class="form-label">Confirmar Contraseña:</label>
                             <input type="password" id="reg-confirm-contrasena" v-model="confirmContrasena" class="form-control" required>
                         </div>
+                        
                         <div class="mb-4">
-                            <label for="id_rol" class="form-label">ID de Rol (Temporal):</label>
-                            <input type="number" id="id_rol" v-model.number="id_rol" class="form-control" required min="1">
+                            <label for="id_rol" class="form-label">Tipo de Usuario (Rol):</label>
+                            <select id="id_rol" v-model="id_rol" class="form-select" required>
+                                <option :value="null" disabled>Seleccione un rol...</option>
+                                <option v-for="rol in filteredRoles" :key="rol.id" :value="rol.id">
+                                    {{ rol.nombre }}
+                                </option>
+                            </select>
                         </div>
+
                         <button type="submit" :disabled="isLoading" class="btn btn-dark w-100 py-2">
                             <span v-if="isLoading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                             {{ isLoading ? 'Registrando...' : 'Registrar' }}
@@ -36,26 +43,44 @@
                 </div>
 
                 <div class="card-footer text-center">
-                    <router-link to="/login" class=" small">¿Ya tienes cuenta? Inicia sesión</router-link>
+                    <router-link to="/login" class="small">¿Ya tienes cuenta? Inicia sesión</router-link>
                 </div>
-
             </div>
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted, computed } from 'vue';
+import { useRouter } from 'vue-router'; 
 import { useToastStore } from '@/stores/toastStore';
 import api from '@/services/api';
 
+const router = useRouter();
 const nombre = ref('');
 const email = ref('');
 const contrasena = ref('');
 const confirmContrasena = ref('');
 const id_rol = ref(null);
+const roles = ref([]);
+const filteredRoles = computed(() => {
+    return roles.value.filter(role => role.nombre.toLowerCase() !== 'admin');
+});
 const isLoading = ref(false);
 const toast = useToastStore();
+
+onMounted(async () => {
+    try {
+        const response = await api.get('/roles');
+        roles.value = response.data;
+    } catch (err) {
+        console.error('Error al cargar roles:', err);
+        toast.showToast({
+            message: 'No se pudieron cargar los roles.',
+            type: 'danger'
+        });
+    }
+});
 
 const handleRegister = async () => {
     if (contrasena.value !== confirmContrasena.value) {
@@ -65,6 +90,7 @@ const handleRegister = async () => {
         });
         return;
     }
+    
     if (contrasena.value.length < 6) {
         toast.showToast({
             message: 'La contraseña debe tener al menos 6 caracteres.',
@@ -72,6 +98,7 @@ const handleRegister = async () => {
         });
         return;
     }
+
     isLoading.value = true;
     try {
         const response = await api.post('/register', {
@@ -80,15 +107,16 @@ const handleRegister = async () => {
             contrasena: contrasena.value,
             id_rol: id_rol.value,
         });
+
         toast.showToast({
-            message: response.data.message + '. Puedes iniciar sesión.',
+            message: response.data.message + '. Redirigiendo...',
             type: 'success'
         });
-        nombre.value = '';
-        email.value = '';
-        contrasena.value = '';
-        confirmContrasena.value = '';
-        id_rol.value = null;
+
+        setTimeout(() => {
+            router.push('/login');
+        }, 1500);
+
     } catch (err) {
         const errorMessage = err.response?.data?.message || 'Error de conexión o del servidor.';
         toast.showToast({
@@ -102,7 +130,3 @@ const handleRegister = async () => {
     }
 }
 </script>
-
-<style scoped>
-
-</style>
