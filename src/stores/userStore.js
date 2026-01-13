@@ -9,7 +9,7 @@ export const useUserStore = defineStore('user', {
 
   getters: {
     isLoggedIn: (state) => !!state.user,
-    userRole: (state) => state.user?.rol_nombre || null,
+    userRole: (state) => state.user?.rol_nombre ? state.user.rol_nombre.toLowerCase() : null,
     userRoleId: (state) => Number(state.user?.id_rol) || null,
   },
 

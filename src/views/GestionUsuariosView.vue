@@ -44,7 +44,12 @@
                 </span>
               </td>
               <td class="pe-4 text-end">
-                <button @click="openPasswordModal(user)" class="btn btn-link link-warning p-1 me-2" title="Cambiar Contraseña">
+                <button 
+                  v-if="userStore.userRole === 'admin' || userStore.user?.id === user.id"
+                  @click="openPasswordModal(user)" 
+                  class="btn btn-link link-warning p-1 me-2" 
+                  title="Cambiar Contraseña"
+                >
                   <i class="bi bi-key-fill fs-4"></i>
                 </button>
                 <button @click="openModal(user)" class="btn btn-link link-secondary p-1 me-2" title="Editar Usuario">
@@ -90,12 +95,20 @@
                 <input v-model.trim="form.contrasena" type="password" class="form-control" placeholder="Contraseña segura" />
               </div>
               <div class="mb-0">
-                <label class="form-label">Rol</label>
-                <select v-model.number="form.id_rol" class="form-select">
+                <label class="form-label fw-bold">Rol</label>
+                <select 
+                  v-model.number="form.id_rol" 
+                  class="form-select" 
+                  :disabled="currentUser.id_rol != 1"
+                >
                   <option disabled value="">Seleccione un rol</option>
-                  <option :value="1">Administrador</option>
-                  <option :value="4">Usuario Estándar</option>
+                  <option v-for="rol in filteredRoles" :key="rol.id" :value="rol.id">
+                    {{ rol.nombre }}
+                  </option>
                 </select>
+                <small v-if="currentUser.id_rol != 1" class="text-muted mt-1 d-block">
+                  Solo un administrador puede modificar permisos.
+                </small>
               </div>
             </div>
             <div class="modal-footer">
@@ -164,14 +177,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import usuariosService from '@/services/usuariosService';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
 import { useToastStore } from '@/stores/toastStore';
+import { useUserStore } from '@/stores/userStore';
 
 const toast = useToastStore();
+const userStore = useUserStore();
 const usuarios = ref([]);
+const roles = ref([]);
 const loading = ref(false);
 const showFormModal = ref(false);
 const showConfirmModal = ref(false);
@@ -199,6 +215,22 @@ const fetchUsuarios = async () => {
   }
 };
 
+  // Si no es admin, no puede asignar el rol admin
+const fetchRoles = async () => {
+  try {
+    roles.value = await usuariosService.getRoles();
+  } catch (error) {
+    console.error("Error al cargar roles", error);
+  }
+};
+
+const filteredRoles = computed(() => {
+  if (userStore.userRole === 'admin') {
+    return roles.value;
+  }
+  return roles.value.filter(role => role.nombre.toLowerCase() !== 'admin');
+});
+
 const openModal = (user = null) => {
   if (user) {
     isEditing.value = true;
@@ -209,18 +241,20 @@ const openModal = (user = null) => {
       id_rol: Number(user.id_rol),
       contrasena: '' 
     };
-    form.value = { ...userData };
+    // Si el usuario a editar es admin y el usuario logueado no es admin, bloquear el cambio de rol
+    if (user.rol_nombre && user.rol_nombre.toLowerCase() === 'admin' && userStore.userRole !== 'admin') {
+      form.value = { ...userData, _lockRole: true };
+    } else {
+      form.value = { ...userData, _lockRole: false };
+    }
     originalForm.value = { ...userData };
   } else {
     isEditing.value = false;
-    form.value = { id: null, nombre: '', email: '', contrasena: '', id_rol: '' };
+    form.value = { id: null, nombre: '', email: '', contrasena: '', id_rol: '', _lockRole: false };
   }
   showFormModal.value = true;
 };
 
-/**
- * Validaciones de formulario de usuario
- */
 const validateUserForm = () => {
   const { nombre, email, contrasena, id_rol } = form.value;
 
@@ -245,7 +279,6 @@ const validateUserForm = () => {
     return false;
   }
 
-  // Verificar si hubo cambios en edición
   if (isEditing.value) {
     const hasChanged = JSON.stringify(form.value) !== JSON.stringify(originalForm.value);
     if (!hasChanged) {
@@ -338,7 +371,10 @@ const roleBadgeClass = (roleId) => {
   return Number(roleId) === 1 ? 'bg-primary-soft text-primary-custom' : 'bg-info-soft text-info-custom';
 };
 
-onMounted(fetchUsuarios);
+onMounted(() => {
+  fetchUsuarios();
+  fetchRoles();
+});
 </script>
 
 <style scoped>

@@ -25,6 +25,11 @@ const usuariosService = {
     return response.data;
   },
 
+  getRoles: async () => {
+    const response = await api.get('/roles');
+    return response.data;
+  },
+
   updatePassword: async (id, nuevaContrasena) => {
     const response = await api.post('/usuarios?action=password', {
       id: id,
