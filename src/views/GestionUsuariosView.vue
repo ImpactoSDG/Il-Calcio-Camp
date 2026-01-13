@@ -44,18 +44,33 @@
                 </span>
               </td>
               <td class="pe-4 text-end">
+                <!-- Cambiar contraseña: Admin puede a todos, otros solo a no-admins o a sí mismos -->
                 <button 
-                  v-if="userStore.userRole === 'admin' || userStore.user?.id === user.id"
+                  v-if="userStore.userRole === 'admin' || user.rol_nombre?.toLowerCase() !== 'admin' || userStore.user?.id === user.id"
                   @click="openPasswordModal(user)" 
                   class="btn btn-link link-warning p-1 me-2" 
                   title="Cambiar Contraseña"
                 >
                   <i class="bi bi-key-fill fs-4"></i>
                 </button>
-                <button @click="openModal(user)" class="btn btn-link link-secondary p-1 me-2" title="Editar Usuario">
+                
+                <!-- Editar: Admin puede a todos, otros solo a no-admins o a sí mismos -->
+                <button 
+                  v-if="userStore.userRole === 'admin' || user.rol_nombre?.toLowerCase() !== 'admin' || userStore.user?.id === user.id"
+                  @click="openModal(user)" 
+                  class="btn btn-link link-secondary p-1 me-2" 
+                  title="Editar Usuario"
+                >
                   <i class="bi bi-pencil-square fs-4"></i>
                 </button>
-                <button @click="prepareDelete(user.id)" class="btn btn-link link-danger p-1" title="Eliminar Usuario">
+
+                <!-- Eliminar: Admin puede a todos, otros solo a no-admins -->
+                <button 
+                  v-if="userStore.userRole === 'admin' || user.rol_nombre?.toLowerCase() !== 'admin'"
+                  @click="prepareDelete(user.id)" 
+                  class="btn btn-link link-danger p-1" 
+                  title="Eliminar Usuario"
+                >
                   <i class="bi bi-trash3 fs-4"></i>
                 </button>
               </td>
@@ -99,15 +114,15 @@
                 <select 
                   v-model.number="form.id_rol" 
                   class="form-select" 
-                  :disabled="currentUser.id_rol != 1"
+                  :disabled="form._lockRole"
                 >
                   <option disabled value="">Seleccione un rol</option>
                   <option v-for="rol in filteredRoles" :key="rol.id" :value="rol.id">
                     {{ rol.nombre }}
                   </option>
                 </select>
-                <small v-if="currentUser.id_rol != 1" class="text-muted mt-1 d-block">
-                  Solo un administrador puede modificar permisos.
+                <small v-if="form._lockRole" class="text-muted mt-1 d-block">
+                  No tienes permisos para modificar el rol de un administrador.
                 </small>
               </div>
             </div>
@@ -215,7 +230,6 @@ const fetchUsuarios = async () => {
   }
 };
 
-  // Si no es admin, no puede asignar el rol admin
 const fetchRoles = async () => {
   try {
     roles.value = await usuariosService.getRoles();
