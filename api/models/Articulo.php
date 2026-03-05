@@ -29,18 +29,42 @@ class Articulo
     }
 
     /**
-     * Obtiene solo los artículos activos
+     * Obtiene solo los artículos activos con su stock disponible actual
      */
     public function getActivos(): array
     {
         $sql = "SELECT a.id, a.nombre, a.precio_actual, a.costo_actual, a.cod_barra, 
                        a.id_categoria_articulo, a.activo,
-                       ca.descripcion AS categoria_descripcion
+                       ca.descripcion AS categoria_descripcion,
+                       (SELECT COALESCE(SUM(ia.cantidad), 0) FROM ingreso_articulo ia WHERE ia.id_articulo = a.id) - 
+                       (SELECT COALESCE(SUM(avia.cantidad), 0) 
+                        FROM articulo_venta_ingreso_articulo avia 
+                        JOIN ingreso_articulo ia2 ON avia.ingreso_articulo_id = ia2.id
+                        WHERE ia2.id_articulo = a.id) as stock_actual
                 FROM {$this->table} a
                 LEFT JOIN categoria_articulo ca ON a.id_categoria_articulo = ca.id
                 WHERE a.activo = 1
                 ORDER BY a.nombre ASC";
         $stmt = $this->conn->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Obtiene los lotes (ingresos) disponibles con stock para un artículo específico (FIFO)
+     */
+    public function getLotesDisponibles(int $idArticulo): array
+    {
+        $sql = "SELECT ia.id, ia.cantidad, ia.fecha_ingreso, ia.vencimiento,
+                       (ia.cantidad - COALESCE((SELECT SUM(avia.cantidad) 
+                                                FROM articulo_venta_ingreso_articulo avia 
+                                                WHERE avia.ingreso_articulo_id = ia.id), 0)) as disponible
+                FROM ingreso_articulo ia
+                WHERE ia.id_articulo = :id_articulo
+                HAVING disponible > 0
+                ORDER BY ia.fecha_ingreso ASC, ia.id ASC";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':id_articulo', $idArticulo, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }

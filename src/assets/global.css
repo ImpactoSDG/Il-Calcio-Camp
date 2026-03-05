@@ -234,6 +234,11 @@ a {
 .modal-header.variant-warning { background-color: rgba(255, 193, 7, 0.03) !important; }
 .modal-header.variant-warning .modal-title { color: #997404 !important; }
 
+.modal-backdrop {
+  z-index: 1049 !important; /* justo debajo del modal */
+  /* sin pointer-events: none */
+}
+
 /* --- Form Elements --- */
 .form-control, .form-select {
     border-radius: 10px !important;

@@ -1,30 +1,32 @@
 <template>
-  <div class="modal fade" tabindex="-1" ref="modalElement">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <div class="modal-header" :class="headerClass">
-          <h5 class="modal-title">
-            <i :class="iconClass" class="me-2"></i>{{ title }}
-          </h5>
-          <button type="button" class="btn-close" @click="closeModal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body text-center py-4">
-          <slot>
-            <p class="mb-0 fs-5">{{ message }}</p>
-          </slot>
-        </div>
-        <div class="modal-footer justify-content-center">
-          <button type="button" class="btn btn-light px-4" @click="closeModal" :disabled="isLoading">
-            Cancelar
-          </button>
-          <button type="button" class="btn" :class="confirmButtonClass" @click="onConfirm" :disabled="isLoading">
-            <span v-if="isLoading" class="spinner-border spinner-border-sm me-2"></span>
-            {{ isLoading ? 'Procesando...' : confirmButtonText }}
-          </button>
+  <Teleport to="body">
+    <div class="modal fade" tabindex="-1" ref="modalElement">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header" :class="headerClass">
+            <h5 class="modal-title">
+              <i :class="iconClass" class="me-2"></i>{{ title }}
+            </h5>
+            <button type="button" class="btn-close" @click="closeModal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body text-center py-4">
+            <slot>
+              <p class="mb-0 fs-5">{{ message }}</p>
+            </slot>
+          </div>
+          <div class="modal-footer justify-content-center">
+            <button type="button" class="btn btn-light px-4" @click="closeModal" :disabled="isLoading">
+              Cancelar
+            </button>
+            <button type="button" class="btn" :class="confirmButtonClass" @click="onConfirm" :disabled="isLoading">
+              <span v-if="isLoading" class="spinner-border spinner-border-sm me-2"></span>
+              {{ isLoading ? 'Procesando...' : confirmButtonText }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -93,3 +95,9 @@ const iconClass = computed(() => {
   return 'bi bi-question-circle-fill';
 });
 </script>
+
+<style scoped>
+.modal {
+  z-index: 1055 !important; /* era 1050 */
+}
+</style>

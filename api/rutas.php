@@ -250,105 +250,41 @@ switch ($resource) {
 
     case 'estados-venta':
         verifyAuth();
-        switch ($method) {
-            case 'GET':
-                if ($id) {
-                    $_GET['id'] = $id;
-                    $estadoVentaController->getById();
-                } else {
-                    $estadoVentaController->getAll();
-                }
-                break;
-            case 'POST':
-                $estadoVentaController->store();
-                break;
-            case 'PUT':
-                $estadoVentaController->update();
-                break;
-            case 'DELETE':
-                $estadoVentaController->delete();
-                break;
-            default:
-                http_response_code(405);
-                break;
+        if ($method === 'GET') {
+            if ($id) { $_GET['id'] = $id; $estadoVentaController->getById(); }
+            else { $estadoVentaController->getAll(); }
+        } else {
+            http_response_code(405);
         }
         break;
 
     case 'condiciones-iva':
         verifyAuth();
-        switch ($method) {
-            case 'GET':
-                if ($id) {
-                    $_GET['id'] = $id;
-                    $condicionIvaReceptorController->getById();
-                } else {
-                    $condicionIvaReceptorController->getAll();
-                }
-                break;
-            case 'POST':
-                $condicionIvaReceptorController->store();
-                break;
-            case 'PUT':
-                $condicionIvaReceptorController->update();
-                break;
-            case 'DELETE':
-                $condicionIvaReceptorController->delete();
-                break;
-            default:
-                http_response_code(405);
-                break;
+        if ($method === 'GET') {
+            if ($id) { $_GET['id'] = $id; $condicionIvaReceptorController->getById(); }
+            else { $condicionIvaReceptorController->getAll(); }
+        } else {
+            http_response_code(405);
         }
         break;
 
     case 'provincias':
         verifyAuth();
-        switch ($method) {
-            case 'GET':
-                if ($id) {
-                    $_GET['id'] = $id;
-                    $provinciaController->getById();
-                } else {
-                    $provinciaController->getAll();
-                }
-                break;
-            case 'POST':
-                $provinciaController->store();
-                break;
-            case 'PUT':
-                $provinciaController->update();
-                break;
-            case 'DELETE':
-                $provinciaController->delete();
-                break;
-            default:
-                http_response_code(405);
-                break;
+        if ($method === 'GET') {
+            if ($id) { $_GET['id'] = $id; $provinciaController->getById(); }
+            else { $provinciaController->getAll(); }
+        } else {
+            http_response_code(405);
         }
         break;
 
     case 'medios-cobro':
         verifyAuth();
-        switch ($method) {
-            case 'GET':
-                if ($id) {
-                    $_GET['id'] = $id;
-                    $medioCobroController->getById();
-                } else {
-                    $medioCobroController->getAll();
-                }
-                break;
-            case 'POST':
-                $medioCobroController->store();
-                break;
-            case 'PUT':
-                $medioCobroController->update();
-                break;
-            case 'DELETE':
-                $medioCobroController->delete();
-                break;
-            default:
-                http_response_code(405);
-                break;
+        if ($method === 'GET') {
+            if ($id) { $_GET['id'] = $id; $medioCobroController->getById(); }
+            else { $medioCobroController->getAll(); }
+        } else {
+            http_response_code(405);
         }
         break;
 

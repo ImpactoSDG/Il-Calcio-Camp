@@ -75,7 +75,7 @@ class VentaController extends BaseController
     }
 
     /**
-     * Crea una nueva venta
+     * Crea una nueva venta con sus artículos de manera atómica
      */
     public function store(): void
     {
@@ -86,25 +86,17 @@ class VentaController extends BaseController
                 $this->respond(400, ['message' => 'Fecha, estado de venta y símbolo requeridos.']);
             }
 
-            $idEquipo = $data['id_equipo'] ?? null;
-            $descripcionCliente = $data['descripcion_cliente'] ?? null;
-            $idCliente = $data['id_cliente'] ?? null;
-            $tipoVta = $data['tipo_vta'] ?? null;
+            if (empty($data['articulos']) || !is_array($data['articulos'])) {
+                $this->respond(400, ['message' => 'La venta debe contener artículos.']);
+            }
 
-            $id = $this->model->create(
-                $data['fecha'],
-                $idEquipo,
-                $descripcionCliente,
-                (int)$data['id_estado_venta'],
-                $data['simbolo'],
-                $idCliente,
-                $tipoVta
-            );
+            // Llamamos al nuevo método transaccional
+            $result = $this->model->createWithDetails($data, $data['articulos']);
 
-            if ($id) {
-                $this->respond(201, ['message' => 'Venta creada exitosamente.', 'id' => $id]);
+            if ($result['success']) {
+                $this->respond(201, ['message' => 'Venta creada exitosamente y stock actualizado.', 'id' => $result['id']]);
             } else {
-                $this->respond(500, ['message' => 'Error al crear venta.']);
+                $this->respond(400, ['message' => $result['error']]);
             }
         } catch (Throwable $e) {
             $this->handleError($e, 'Error al crear venta');

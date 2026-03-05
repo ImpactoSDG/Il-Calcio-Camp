@@ -45,7 +45,10 @@ class ClienteEquipoController extends BaseController
     {
         try {
             $id = $_GET['id'] ?? null;
-            if (!$id) $this->respond(400, ['message' => 'ID requerido.']);
+            if (!$id) {
+                $this->getAll();
+                return;
+            }
 
             $result = $this->model->getById((int)$id);
             $result ? $this->respond(200, $result) : $this->respond(404, ['message' => 'Relación cliente-equipo no encontrada.']);
@@ -62,12 +65,15 @@ class ClienteEquipoController extends BaseController
         try {
             $data = json_decode(file_get_contents("php://input"), true);
 
-            if (empty($data['id_cliente_equipo']) || empty($data['id_cliente']) || empty($data['id_equipo'])) {
-                $this->respond(400, ['message' => 'ID, id_cliente e id_equipo requeridos.']);
+            if (empty($data['id_cliente']) || empty($data['id_equipo'])) {
+                $this->respond(400, ['message' => 'id_cliente e id_equipo requeridos.']);
             }
 
+            // Si el ID de la relación no viene, se autoincrementa o se busca el siguiente (o se omite si el modelo lo permite)
+            $id = $data['id_cliente_equipo'] ?? null;
+            
             if ($this->model->create(
-                (int)$data['id_cliente_equipo'],
+                $id ? (int)$id : null,
                 (int)$data['id_cliente'],
                 (int)$data['id_equipo']
             )) {

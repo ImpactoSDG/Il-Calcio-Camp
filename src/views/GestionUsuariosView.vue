@@ -26,16 +26,14 @@
 
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
-          <thead class="bg-light">
-            <tr>
-              <th class="ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary">Nombre</th>
-              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary">Email</th>
-              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary">Rol</th>
-              <th class="pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary text-end">Acciones</th>
-            </tr>
-          </thead>
+          <SortableTableHead
+            :columns="columns"
+            :sort-key="sortKey"
+            :sort-dir="sortDir"
+            @sort="handleSort"
+          />
           <tbody class="bg-white">
-            <tr v-for="user in usuarios" :key="user.id">
+            <tr v-for="user in sortedUsuarios" :key="user.id">
               <td class="ps-4 fw-medium text-dark">{{ user.nombre }}</td>
               <td class="text-muted">{{ user.email }}</td>
               <td>
@@ -195,13 +193,26 @@
 import { ref, onMounted, computed } from 'vue';
 import usuariosService from '@/services/usuariosService';
 import ConfirmModal from '@/components/ConfirmModal.vue';
+import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
 import { useToastStore } from '@/stores/toastStore';
 import { useUserStore } from '@/stores/userStore';
 
 const toast = useToastStore();
 const userStore = useUserStore();
+
+const { sortKey, sortDir, handleSort, sortItems } = useSorting()
+
+const columns = [
+  { key: 'nombre',    label: 'Nombre',   sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'email',     label: 'Email',    sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'rol_nombre',label: 'Rol',      sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'acciones',  label: 'Acciones', sortable: false, thClass: 'pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary text-end' },
+]
+
 const usuarios = ref([]);
+
+const sortedUsuarios = computed(() => sortItems(usuarios.value))
 const roles = ref([]);
 const loading = ref(false);
 const showFormModal = ref(false);

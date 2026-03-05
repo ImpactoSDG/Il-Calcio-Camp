@@ -85,12 +85,19 @@ class ClienteEquipo
     /**
      * Crea una nueva relación cliente-equipo
      */
-    public function create(int $id, int $idCliente, int $idEquipo): bool
+    public function create(?int $id, int $idCliente, int $idEquipo): bool
     {
-        $sql = "INSERT INTO {$this->table} (id_cliente_equipo, id_cliente, id_equipo) 
-                VALUES (:id, :id_cliente, :id_equipo)";
-        $stmt = $this->conn->prepare($sql);
-        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+        if ($id) {
+            $sql = "INSERT INTO {$this->table} (id_cliente_equipo, id_cliente, id_equipo) 
+                    VALUES (:id, :id_cliente, :id_equipo)";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+        } else {
+            $sql = "INSERT INTO {$this->table} (id_cliente, id_equipo) 
+                    VALUES (:id_cliente, :id_equipo)";
+            $stmt = $this->conn->prepare($sql);
+        }
+        
         $stmt->bindValue(':id_cliente', $idCliente, PDO::PARAM_INT);
         $stmt->bindValue(':id_equipo', $idEquipo, PDO::PARAM_INT);
         return $stmt->execute();

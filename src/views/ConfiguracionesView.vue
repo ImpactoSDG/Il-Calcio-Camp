@@ -26,16 +26,14 @@
 
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
-          <thead class="bg-light">
-            <tr>
-              <th class="ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary sticky-col-first">Clave</th>
-              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start">Valor / Ruta</th>
-              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start">Descripción</th>
-              <th class="pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary text-end border-start">Acciones</th>
-            </tr>
-          </thead>
+          <SortableTableHead
+            :columns="columns"
+            :sort-key="sortKey"
+            :sort-dir="sortDir"
+            @sort="handleSort"
+          />
           <tbody class="bg-white">
-            <tr v-for="conf in configs" :key="conf.id">
+            <tr v-for="conf in sortedConfigs" :key="conf.id">
               <td class="ps-4 fw-bold text-primary-custom sticky-col-first">
                 <code>{{ conf.clave }}</code>
               </td>
@@ -123,14 +121,27 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import configuracionService from '@/services/configuracionService';
 import ConfirmModal from '@/components/ConfirmModal.vue';
+import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
 import { useToastStore } from '@/stores/toastStore';
 
 const toast = useToastStore();
+
+const { sortKey, sortDir, handleSort, sortItems } = useSorting()
+
+const columns = [
+  { key: 'clave',       label: 'Clave',       sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary sticky-col-first' },
+  { key: 'valor',       label: 'Valor / Ruta',sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary border-start' },
+  { key: 'descripcion', label: 'Descripción', sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary border-start' },
+  { key: 'acciones',    label: 'Acciones',    sortable: false, thClass: 'pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary text-end border-start' },
+]
+
 const configs = ref([]);
+
+const sortedConfigs = computed(() => sortItems(configs.value))
 const loading = ref(false);
 const showFormModal = ref(false);
 const showConfirmModal = ref(false);

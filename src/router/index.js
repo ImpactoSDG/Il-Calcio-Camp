@@ -5,8 +5,15 @@ import RegisterView from '@/views/RegisterView.vue'
 import MenuView from '@/views/MenuView.vue'
 import PermisosView from '@/views/PermisosView.vue'
 import GestionUsuariosView from '@/views/GestionUsuariosView.vue'
-import ConfiguracionesView from '../views/ConfiguracionesView.vue'
+import ConfiguracionesView from '@/views/ConfiguracionesView.vue'
 import SubmenuView from '@/views/SubmenuView.vue'
+import CategoriasArticuloView from '@/views/CategoriasArticuloView.vue'
+import EquiposView from '@/views/EquiposView.vue'
+import ArticulosView from '@/views/ArticulosView.vue'
+import IngresoArticuloView from '@/views/IngresoArticuloView.vue'
+import ClientesView from '@/views/ClientesView.vue'
+import ClienteEquipoView from '@/views/ClienteEquipoView.vue'
+import VentasView from '@/views/VentasView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -55,7 +62,57 @@ const router = createRouter({
       name: 'submenu',
       component: SubmenuView,
       meta: { requiresAuth: true, useParamId: true }
-    }
+    },
+
+    // --- Datos Maestros ---
+    {
+      path: '/datos-maestros/categorias-articulo',
+      name: 'categorias-articulo',
+      component: CategoriasArticuloView,
+      meta: { requiresAuth: true, idModulo: 9 }
+    },
+    {
+      path: '/datos-maestros/equipos',
+      name: 'equipos',
+      component: EquiposView,
+      meta: { requiresAuth: true, idModulo: 10 }
+    },
+
+    // --- Artículos & Stock ---
+    {
+      path: '/articulos',
+      name: 'articulos',
+      component: ArticulosView,
+      meta: { requiresAuth: true, idModulo: 11 }
+    },
+    {
+      path: '/articulos/ingresos',
+      name: 'ingresos-articulo',
+      component: IngresoArticuloView,
+      meta: { requiresAuth: true, idModulo: 12 }
+    },
+
+    // --- Clientes & Equipos ---
+    {
+      path: '/clientes',
+      name: 'clientes',
+      component: ClientesView,
+      meta: { requiresAuth: true, idModulo: 13 }
+    },
+    {
+      path: '/clientes/equipos',
+      name: 'cliente-equipo',
+      component: ClienteEquipoView,
+      meta: { requiresAuth: true, idModulo: 14 }
+    },
+
+    // --- Ventas ---
+    {
+      path: '/ventas',
+      name: 'ventas',
+      component: VentasView,
+      meta: { requiresAuth: true, idModulo: 15 }
+    },
   ]
 })
 
