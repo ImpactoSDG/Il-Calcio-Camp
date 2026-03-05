@@ -74,7 +74,8 @@ const handleLogin = async () => {
     });
     
     const userData = response.data.usuario;
-    userStore.login(userData);
+    const token = response.data.token;
+    userStore.login(userData, token);
     
     toast.showToast({
       message: '¡Bienvenido! Has iniciado sesión correctamente.',

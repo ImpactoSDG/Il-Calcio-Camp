@@ -3,25 +3,16 @@
 require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../models/Usuario.php';
 require_once __DIR__ . '/../core/JwtHandler.php';
+require_once __DIR__ . '/../core/BaseController.php';
 
-class AuthController
+class AuthController extends BaseController
 {
-    private PDO $db;
     private Usuario $usuarioModel;
 
-    public function __construct()
+    public function __construct(PDO $db)
     {
-        $database = new Database();
-        $this->db = $database->connect();
+        parent::__construct($db);
         $this->usuarioModel = new Usuario($this->db);
-    }
-
-    private function respond(int $status_code, array $data): void
-    {
-        http_response_code($status_code);
-        header('Content-Type: application/json; charset=UTF-8');
-        echo json_encode($data);
-        exit;
     }
 
     public function login(): void
@@ -37,29 +28,33 @@ class AuthController
         $email = $data->email;
         $contrasena = $data->contrasena;
 
-        $usuario = $this->usuarioModel->getByEmail($email);
+        try {
+            $usuario = $this->usuarioModel->getByEmail($email);
 
-        if (!$usuario || !password_verify($contrasena, $usuario['contrasena'])) {
-            $this->respond(401, ['message' => 'Credenciales inválidas. Verifique su email y contraseña.']);
+            if (!$usuario || !password_verify($contrasena, $usuario['contrasena'])) {
+                $this->respond(401, ['message' => 'Credenciales inválidas. Verifique su email y contraseña.']);
+            }
+
+            $usuarioCompleto = $this->usuarioModel->getByNameOrEmail($email);
+
+            $modulos = $this->usuarioModel->getModulos($usuarioCompleto['id']);
+            $usuarioCompleto['modulos'] = $modulos;
+            
+            unset($usuarioCompleto['contrasena']);
+
+            $token = JwtHandler::encode([
+                'id' => $usuarioCompleto['id'],
+                'email' => $usuarioCompleto['email']
+            ]);
+
+            $this->respond(200, [
+                'message' => 'Inicio de sesión exitoso.',
+                'usuario' => $usuarioCompleto,
+                'token' => $token
+            ]);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al procesar el inicio de sesión.');
         }
-
-        $usuarioCompleto = $this->usuarioModel->getByNameOrEmail($email);
-
-        $modulos = $this->usuarioModel->getModulos($usuarioCompleto['id']);
-        $usuarioCompleto['modulos'] = $modulos;
-        
-        unset($usuarioCompleto['contrasena']);
-
-        $token = JwtHandler::encode([
-            'id' => $usuarioCompleto['id'],
-            'email' => $usuarioCompleto['email']
-        ]);
-
-        $this->respond(200, [
-            'message' => 'Inicio de sesión exitoso.',
-            'usuario' => $usuarioCompleto,
-            'token' => $token
-        ]);
     }
 
     public function register(): void

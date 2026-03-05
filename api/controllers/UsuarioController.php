@@ -5,27 +5,18 @@ declare(strict_types=1);
 include_once __DIR__ . '/../core/Database.php';
 include_once __DIR__ . '/../models/Usuario.php';
 include_once __DIR__ . '/../models/Modulo.php';
+require_once __DIR__ . '/../core/BaseController.php';
 
-class UsuarioController
+class UsuarioController extends BaseController
 {
-    private PDO $db;
     private Usuario $usuarioModel;
     private Modulo $moduloModel;
 
-    public function __construct()
+    public function __construct(PDO $db)
     {
-        $database = new Database();
-        $this->db = $database->connect();
+        parent::__construct($db);
         $this->usuarioModel = new Usuario($this->db);
         $this->moduloModel = new Modulo($this->db);
-    }
-
-    private function respond(int $code, array $data): void
-    {
-        http_response_code($code);
-        header('Content-Type: application/json');
-        echo json_encode($data);
-        exit;
     }
 
     public function getAll(): void

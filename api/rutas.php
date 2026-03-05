@@ -5,9 +5,18 @@ require_once __DIR__ . '/controllers/PermisoController.php';
 require_once __DIR__ . '/controllers/ConfiguracionController.php';
 require_once __DIR__ . '/controllers/ModuloController.php';
 require_once __DIR__ . '/core/JwtHandler.php';
+require_once __DIR__ . '/core/BaseController.php';
+require_once __DIR__ . '/core/Database.php';
 
-$auth = new AuthController();
-// ... (rest of controllers instantiation)
+// Conexión única compartida
+$database = new Database();
+$db = $database->connect();
+
+$auth = new AuthController($db);
+$usuarioController = new UsuarioController($db);
+$permisoController = new PermisoController($db);
+$configController = new ConfiguracionController($db);
+$moduloController = new ModuloController($db);
 
 function verifyAuth(): array {
     $headers = getallheaders();

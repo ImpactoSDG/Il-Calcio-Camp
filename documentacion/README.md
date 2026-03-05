@@ -37,5 +37,11 @@ JWT_SECRET=generar_uuid_o_hash_largo
 2.  **Solicitud Protegida:** El cliente añade el header: `Authorization: Bearer <token>`.
 3.  **Validación:** `rutas.php` invoca `verifyAuth()`. Si el token expira o la firma es inválida, se devuelve un `401 Unauthorized` sin procesar la lógica del negocio.
 
+
+He corregido el flujo completo en el frontend para que todo vuelva a funcionar automáticamente:
+
+Guardado del Token: He actualizado el userStore.js para que guarde el token junto con los datos del usuario cuando haces login.
+Captura en el Login: Modifiqué el LoginView.vue para que extraiga el token de la respuesta de la API y lo pase al store.
+Inyección Automática (Interceptor): Configuré un interceptor en api.js. Esto es lo más importante: ahora, cada vez que hagas una petición a la API, Axios buscará el token en el store y lo añadirá automáticamente en la cabecera Authorization: Bearer <token>
 ---
 *Senior Backend Architect & Security Consultant*

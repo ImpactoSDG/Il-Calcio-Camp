@@ -5,17 +5,19 @@ import usuariosService from '@/services/usuariosService'
 export const useUserStore = defineStore('user', {
   state: () => ({
     user: null,
+    token: null,
   }),
 
   getters: {
-    isLoggedIn: (state) => !!state.user,
+    isLoggedIn: (state) => !!state.user && !!state.token,
     userRole: (state) => state.user?.rol_nombre ? state.user.rol_nombre.toLowerCase() : null,
     userRoleId: (state) => Number(state.user?.id_rol) || null,
   },
 
   actions: {
-    login(userData) {
+    login(userData, token) {
       this.user = userData
+      this.token = token
     },
     logout() {
       this.$reset()
