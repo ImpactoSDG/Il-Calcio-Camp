@@ -15,4 +15,7 @@ $uri = '/' . ltrim(str_replace($script_name, '', $uri), '/');
 
 $method = $_SERVER['REQUEST_METHOD'];
 
+require_once __DIR__ . '/core/Env.php';
+Env::load(__DIR__ . '/.env');
+
 require_once 'rutas.php';

@@ -4,12 +4,32 @@ require_once __DIR__ . '/controllers/UsuarioController.php';
 require_once __DIR__ . '/controllers/PermisoController.php';
 require_once __DIR__ . '/controllers/ConfiguracionController.php';
 require_once __DIR__ . '/controllers/ModuloController.php';
+require_once __DIR__ . '/core/JwtHandler.php';
 
 $auth = new AuthController();
-$usuarioController = new UsuarioController();
-$permisoController = new PermisoController();
-$configController = new ConfiguracionController();
-$moduloController = new ModuloController();
+// ... (rest of controllers instantiation)
+
+function verifyAuth(): array {
+    $headers = getallheaders();
+    $authHeader = $headers['Authorization'] ?? '';
+
+    if (!str_starts_with($authHeader, 'Bearer ')) {
+        http_response_code(401);
+        echo json_encode(['message' => 'No autorizado: Cabecera Authorization no encontrada.']);
+        exit;
+    }
+
+    $token = substr($authHeader, 7);
+    $payload = JwtHandler::decode($token);
+
+    if (!$payload) {
+        http_response_code(401);
+        echo json_encode(['message' => 'No autorizado: Token inválido o expirado.']);
+        exit;
+    }
+
+    return $payload;
+}
 
 $parts = explode('/', trim($uri, '/'));
 $resource = $parts[0] ?? null;
@@ -72,6 +92,7 @@ switch ($resource) {
         break;
 
     case 'usuarios':
+        verifyAuth();
         switch ($method) {
             case 'GET':
                 if ($id) {
@@ -101,6 +122,7 @@ switch ($resource) {
         break;
 
     case 'gestion-permisos':
+        verifyAuth();
         if ($method === 'GET') {
             $usuarioController->getGestionPermisos();
         } else {
@@ -122,6 +144,7 @@ switch ($resource) {
         }
         break;
     case 'configuraciones':
+        verifyAuth();
         switch ($method) {
             case 'GET':
                 if ($id) {

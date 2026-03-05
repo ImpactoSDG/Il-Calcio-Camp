@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../models/Usuario.php';
+require_once __DIR__ . '/../core/JwtHandler.php';
 
 class AuthController
 {
@@ -49,9 +50,15 @@ class AuthController
         
         unset($usuarioCompleto['contrasena']);
 
+        $token = JwtHandler::encode([
+            'id' => $usuarioCompleto['id'],
+            'email' => $usuarioCompleto['email']
+        ]);
+
         $this->respond(200, [
             'message' => 'Inicio de sesión exitoso.',
             'usuario' => $usuarioCompleto,
+            'token' => $token
         ]);
     }
 
