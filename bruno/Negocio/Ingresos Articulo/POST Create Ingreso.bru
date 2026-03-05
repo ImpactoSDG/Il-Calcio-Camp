@@ -1,0 +1,36 @@
+meta {
+  name: POST Create Ingreso
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/ingresos-articulo
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "fecha_ingreso": "2026-03-05",
+    "vencimiento": null,
+    "es_ajuste": false,
+    "cantidad": 12,
+    "id_articulo": 1,
+    "precio_unitario": 9500.00,
+    "total": 114000.00,
+    "es_perecedero": false
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    console.log("Ingreso creado con ID:", res.body.id);
+  } else {
+    console.log("Error:", res.status, res.body);
+  }
+}

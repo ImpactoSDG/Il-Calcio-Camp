@@ -1,0 +1,29 @@
+meta {
+  name: DELETE Articulo Venta Ingreso
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{base_url}}/articulos-venta-ingresos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "id_articulo_venta_ingreso_articulo": "AVI-001"
+  }
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log("Relación eliminada exitosamente");
+  } else {
+    console.log("Error:", res.status, res.body);
+  }
+}

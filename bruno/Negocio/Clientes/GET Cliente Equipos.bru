@@ -1,0 +1,23 @@
+meta {
+  name: GET Cliente Equipos
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/clientes/27123456?action=equipos
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log("Equipos del cliente:", res.body.length);
+  } else {
+    console.log("Error:", res.status);
+  }
+}

@@ -1,0 +1,32 @@
+meta {
+  name: POST Create Equipo
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/equipos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "id": 1,
+    "nombre": "Juveniles Sub-16",
+    "disciplina": "Fútbol",
+    "activo": true
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    console.log("Equipo creado exitosamente");
+  } else {
+    console.log("Error:", res.status, res.body);
+  }
+}

@@ -4,6 +4,24 @@ require_once __DIR__ . '/controllers/UsuarioController.php';
 require_once __DIR__ . '/controllers/PermisoController.php';
 require_once __DIR__ . '/controllers/ConfiguracionController.php';
 require_once __DIR__ . '/controllers/ModuloController.php';
+
+// Nuevos controladores
+require_once __DIR__ . '/controllers/CategoriaArticuloController.php';
+require_once __DIR__ . '/controllers/ArticuloController.php';
+require_once __DIR__ . '/controllers/IngresoArticuloController.php';
+require_once __DIR__ . '/controllers/EstadoVentaController.php';
+require_once __DIR__ . '/controllers/CondicionIvaReceptorController.php';
+require_once __DIR__ . '/controllers/ProvinciaController.php';
+require_once __DIR__ . '/controllers/ClienteController.php';
+require_once __DIR__ . '/controllers/VentaController.php';
+require_once __DIR__ . '/controllers/ArticuloVentaController.php';
+require_once __DIR__ . '/controllers/MedioCobroController.php';
+require_once __DIR__ . '/controllers/CobroController.php';
+require_once __DIR__ . '/controllers/VentaCobroController.php';
+require_once __DIR__ . '/controllers/EquipoController.php';
+require_once __DIR__ . '/controllers/ClienteEquipoController.php';
+require_once __DIR__ . '/controllers/ArticuloVentaIngresoArticuloController.php';
+
 require_once __DIR__ . '/core/JwtHandler.php';
 require_once __DIR__ . '/core/BaseController.php';
 require_once __DIR__ . '/core/Database.php';
@@ -17,6 +35,23 @@ $usuarioController = new UsuarioController($db);
 $permisoController = new PermisoController($db);
 $configController = new ConfiguracionController($db);
 $moduloController = new ModuloController($db);
+
+// Nuevos controladores
+$categoriaArticuloController = new CategoriaArticuloController($db);
+$articuloController = new ArticuloController($db);
+$ingresoArticuloController = new IngresoArticuloController($db);
+$estadoVentaController = new EstadoVentaController($db);
+$condicionIvaReceptorController = new CondicionIvaReceptorController($db);
+$provinciaController = new ProvinciaController($db);
+$clienteController = new ClienteController($db);
+$ventaController = new VentaController($db);
+$articuloVentaController = new ArticuloVentaController($db);
+$medioCobroController = new MedioCobroController($db);
+$cobroController = new CobroController($db);
+$ventaCobroController = new VentaCobroController($db);
+$equipoController = new EquipoController($db);
+$clienteEquipoController = new ClienteEquipoController($db);
+$articuloVentaIngresoArticuloController = new ArticuloVentaIngresoArticuloController($db);
 
 function verifyAuth(): array {
     $headers = getallheaders();
@@ -182,6 +217,411 @@ switch ($resource) {
             $moduloController->update();
         } else {
             http_response_code(405);
+        }
+        break;
+
+    // ============ NUEVAS RUTAS - ENTIDADES DE CATÁLOGO ============
+    
+    case 'categorias-articulo':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $categoriaArticuloController->getById();
+                } else {
+                    $categoriaArticuloController->getAll();
+                }
+                break;
+            case 'POST':
+                $categoriaArticuloController->store();
+                break;
+            case 'PUT':
+                $categoriaArticuloController->update();
+                break;
+            case 'DELETE':
+                $categoriaArticuloController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'estados-venta':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $estadoVentaController->getById();
+                } else {
+                    $estadoVentaController->getAll();
+                }
+                break;
+            case 'POST':
+                $estadoVentaController->store();
+                break;
+            case 'PUT':
+                $estadoVentaController->update();
+                break;
+            case 'DELETE':
+                $estadoVentaController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'condiciones-iva':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $condicionIvaReceptorController->getById();
+                } else {
+                    $condicionIvaReceptorController->getAll();
+                }
+                break;
+            case 'POST':
+                $condicionIvaReceptorController->store();
+                break;
+            case 'PUT':
+                $condicionIvaReceptorController->update();
+                break;
+            case 'DELETE':
+                $condicionIvaReceptorController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'provincias':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $provinciaController->getById();
+                } else {
+                    $provinciaController->getAll();
+                }
+                break;
+            case 'POST':
+                $provinciaController->store();
+                break;
+            case 'PUT':
+                $provinciaController->update();
+                break;
+            case 'DELETE':
+                $provinciaController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'medios-cobro':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $medioCobroController->getById();
+                } else {
+                    $medioCobroController->getAll();
+                }
+                break;
+            case 'POST':
+                $medioCobroController->store();
+                break;
+            case 'PUT':
+                $medioCobroController->update();
+                break;
+            case 'DELETE':
+                $medioCobroController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'equipos':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $equipoController->getById();
+                } else {
+                    $equipoController->getAll();
+                }
+                break;
+            case 'POST':
+                $equipoController->store();
+                break;
+            case 'PUT':
+                $equipoController->update();
+                break;
+            case 'DELETE':
+                $equipoController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    // ============ ENTIDADES DE NEGOCIO ============
+
+    case 'articulos':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $articuloController->getById();
+                } else {
+                    $articuloController->getAll();
+                }
+                break;
+            case 'POST':
+                $articuloController->store();
+                break;
+            case 'PUT':
+                $articuloController->update();
+                break;
+            case 'DELETE':
+                $articuloController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'clientes':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    if (isset($_GET['action']) && $_GET['action'] === 'equipos') {
+                        $clienteController->getEquipos();
+                    } else {
+                        $_GET['id'] = $id;
+                        $clienteController->getById();
+                    }
+                } else {
+                    $clienteController->getAll();
+                }
+                break;
+            case 'POST':
+                $clienteController->store();
+                break;
+            case 'PUT':
+                $clienteController->update();
+                break;
+            case 'DELETE':
+                $clienteController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'ingresos-articulo':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $ingresoArticuloController->getById();
+                } else {
+                    $ingresoArticuloController->getAll();
+                }
+                break;
+            case 'POST':
+                $ingresoArticuloController->store();
+                break;
+            case 'PUT':
+                $ingresoArticuloController->update();
+                break;
+            case 'DELETE':
+                $ingresoArticuloController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'ventas':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    if (isset($_GET['action']) && $_GET['action'] === 'articulos') {
+                        $ventaController->getArticulos();
+                    } else {
+                        $_GET['id'] = $id;
+                        $ventaController->getById();
+                    }
+                } else {
+                    $ventaController->getAll();
+                }
+                break;
+            case 'POST':
+                $ventaController->store();
+                break;
+            case 'PUT':
+                $ventaController->update();
+                break;
+            case 'DELETE':
+                $ventaController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'cobros':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    if (isset($_GET['action']) && $_GET['action'] === 'ventas') {
+                        $cobroController->getVentas();
+                    } else {
+                        $_GET['id'] = $id;
+                        $cobroController->getById();
+                    }
+                } else {
+                    $cobroController->getAll();
+                }
+                break;
+            case 'POST':
+                $cobroController->store();
+                break;
+            case 'PUT':
+                $cobroController->update();
+                break;
+            case 'DELETE':
+                $cobroController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    // ============ ENTIDADES RELACIONALES ============
+
+    case 'articulos-venta':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $articuloVentaController->getById();
+                } else {
+                    $articuloVentaController->getAll();
+                }
+                break;
+            case 'POST':
+                $articuloVentaController->store();
+                break;
+            case 'PUT':
+                $articuloVentaController->update();
+                break;
+            case 'DELETE':
+                $articuloVentaController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'ventas-cobro':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $ventaCobroController->getById();
+                } else {
+                    $ventaCobroController->getAll();
+                }
+                break;
+            case 'POST':
+                $ventaCobroController->store();
+                break;
+            case 'PUT':
+                $ventaCobroController->update();
+                break;
+            case 'DELETE':
+                $ventaCobroController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'clientes-equipos':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $clienteEquipoController->getById();
+                } else {
+                    $clienteEquipoController->getAll();
+                }
+                break;
+            case 'POST':
+                $clienteEquipoController->store();
+                break;
+            case 'DELETE':
+                $clienteEquipoController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'articulos-venta-ingresos':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $articuloVentaIngresoArticuloController->getById();
+                } else {
+                    $articuloVentaIngresoArticuloController->getAll();
+                }
+                break;
+            case 'POST':
+                $articuloVentaIngresoArticuloController->store();
+                break;
+            case 'PUT':
+                $articuloVentaIngresoArticuloController->update();
+                break;
+            case 'DELETE':
+                $articuloVentaIngresoArticuloController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
         }
         break;
 

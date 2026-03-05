@@ -1,0 +1,30 @@
+meta {
+  name: PUT Update Cobro
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{base_url}}/cobros
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "id": 1,
+    "cliente_id": 27123456
+  }
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log("Cobro actualizado exitosamente");
+  } else {
+    console.log("Error:", res.status, res.body);
+  }
+}

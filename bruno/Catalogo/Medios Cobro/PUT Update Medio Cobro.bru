@@ -1,0 +1,31 @@
+meta {
+  name: PUT Update Medio Cobro
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{base_url}}/medios-cobro
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "id": 1,
+    "descripcion": "Efectivo - Pesos",
+    "activo": true
+  }
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log("Medio de cobro actualizado exitosamente");
+  } else {
+    console.log("Error:", res.status, res.body);
+  }
+}

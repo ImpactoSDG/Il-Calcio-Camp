@@ -1,0 +1,33 @@
+meta {
+  name: POST Create Venta Cobro
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/ventas-cobro
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "id_venta_cobro": 1,
+    "id_venta": 1,
+    "id_cobro": 1,
+    "id_medio_pago": 1,
+    "monto": 75000.00
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    console.log("Relación venta-cobro creada exitosamente");
+  } else {
+    console.log("Error:", res.status, res.body);
+  }
+}

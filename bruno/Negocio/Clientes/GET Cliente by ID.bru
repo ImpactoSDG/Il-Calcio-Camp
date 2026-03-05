@@ -1,0 +1,25 @@
+meta {
+  name: GET Cliente by ID
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/clientes/27123456
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log("Cliente encontrado:", res.body);
+  } else if (res.status === 404) {
+    console.log("Cliente no encontrado");
+  } else {
+    console.log("Error:", res.status);
+  }
+}

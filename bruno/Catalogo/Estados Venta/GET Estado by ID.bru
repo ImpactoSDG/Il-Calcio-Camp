@@ -1,0 +1,25 @@
+meta {
+  name: GET Estado by ID
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/estados-venta/1
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log("Estado encontrado:", res.body);
+  } else if (res.status === 404) {
+    console.log("Estado no encontrado");
+  } else {
+    console.log("Error:", res.status);
+  }
+}

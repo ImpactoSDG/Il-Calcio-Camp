@@ -1,0 +1,33 @@
+meta {
+  name: POST Create Articulo Venta
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/articulos-venta
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "id_articulo": 1,
+    "id_venta": 1,
+    "cantidad": 5,
+    "precio_unitario": 15000.00,
+    "total": 75000.00
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    console.log("Artículo agregado a venta con ID:", res.body.id);
+  } else {
+    console.log("Error:", res.status, res.body);
+  }
+}

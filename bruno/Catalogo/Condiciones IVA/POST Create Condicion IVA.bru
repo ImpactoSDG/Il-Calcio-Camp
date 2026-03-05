@@ -1,0 +1,30 @@
+meta {
+  name: POST Create Condicion IVA
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/condiciones-iva
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "id": 1,
+    "descripcion_condicion": "Responsable Inscripto"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    console.log("Condición IVA creada exitosamente");
+  } else {
+    console.log("Error:", res.status, res.body);
+  }
+}

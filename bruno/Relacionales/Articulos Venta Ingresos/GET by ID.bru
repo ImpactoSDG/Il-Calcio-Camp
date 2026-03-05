@@ -1,0 +1,25 @@
+meta {
+  name: GET by ID
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/articulos-venta-ingresos/AVI-001
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log("Relación encontrada:", res.body);
+  } else if (res.status === 404) {
+    console.log("Relación no encontrada");
+  } else {
+    console.log("Error:", res.status);
+  }
+}

@@ -1,0 +1,34 @@
+meta {
+  name: PUT Update Articulo Venta
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{base_url}}/articulos-venta
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "id": 1,
+    "id_articulo": 1,
+    "id_venta": 1,
+    "cantidad": 8,
+    "precio_unitario": 15000.00,
+    "total": 120000.00
+  }
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log("Artículo de venta actualizado exitosamente");
+  } else {
+    console.log("Error:", res.status, res.body);
+  }
+}

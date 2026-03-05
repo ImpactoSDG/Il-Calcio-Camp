@@ -1,0 +1,36 @@
+meta {
+  name: PUT Update Venta
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{base_url}}/ventas
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "id": 1,
+    "fecha": "2026-03-05",
+    "id_equipo": 1,
+    "descripcion_cliente": "Venta equipamiento completo Juveniles Sub-16",
+    "id_estado_venta": 2,
+    "simbolo": "$",
+    "id_cliente": 27123456,
+    "tipo_vta": "A"
+  }
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log("Venta actualizada exitosamente");
+  } else {
+    console.log("Error:", res.status, res.body);
+  }
+}

@@ -1,0 +1,23 @@
+meta {
+  name: GET Cobro Ventas
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{base_url}}/cobros/1?action=ventas
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+script:post-response {
+  if (res.status === 200) {
+    console.log("Ventas del cobro:", res.body.length);
+  } else {
+    console.log("Error:", res.status);
+  }
+}
