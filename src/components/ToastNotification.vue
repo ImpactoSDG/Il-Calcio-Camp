@@ -43,7 +43,7 @@ const iconClass = computed(() => typeMap[toast.type]?.icon || 'bi-info-circle-fi
   position: fixed;
   top: 10px;
   right: 10px;
-  z-index: 9999;
+  z-index: 999999;
   width: 350px;
   max-width: 90%;
   transition: all 0.3s ease-in-out;

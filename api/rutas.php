@@ -21,6 +21,7 @@ require_once __DIR__ . '/controllers/VentaCobroController.php';
 require_once __DIR__ . '/controllers/EquipoController.php';
 require_once __DIR__ . '/controllers/ClienteEquipoController.php';
 require_once __DIR__ . '/controllers/ArticuloVentaIngresoArticuloController.php';
+require_once __DIR__ . '/controllers/TicketVentaController.php';
 
 require_once __DIR__ . '/core/JwtHandler.php';
 require_once __DIR__ . '/core/BaseController.php';
@@ -52,6 +53,7 @@ $ventaCobroController = new VentaCobroController($db);
 $equipoController = new EquipoController($db);
 $clienteEquipoController = new ClienteEquipoController($db);
 $articuloVentaIngresoArticuloController = new ArticuloVentaIngresoArticuloController($db);
+$ticketVentaController = new TicketVentaController($db);
 
 function verifyAuth(): array {
     $headers = getallheaders();
@@ -403,10 +405,10 @@ switch ($resource) {
         switch ($method) {
             case 'GET':
                 if ($id) {
+                    $_GET['id'] = $id; // Asegurar que el ID de la URL sea capturado en $_GET
                     if (isset($_GET['action']) && $_GET['action'] === 'articulos') {
                         $ventaController->getArticulos();
                     } else {
-                        $_GET['id'] = $id;
                         $ventaController->getById();
                     }
                 } else {
@@ -558,6 +560,15 @@ switch ($resource) {
             default:
                 http_response_code(405);
                 break;
+        }
+        break;
+
+    case 'ticket-venta':
+        verifyAuth();
+        if ($method === 'GET') {
+            $ticketVentaController->generar();
+        } else {
+            http_response_code(405);
         }
         break;
 

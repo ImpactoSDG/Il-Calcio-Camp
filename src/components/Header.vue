@@ -13,7 +13,9 @@
 
 <script setup>
 import { useUserStore } from '@/stores/userStore';
+
 const userStore = useUserStore();
+
 const handleLogout = () => {
   userStore.logout();
 };
@@ -27,6 +29,9 @@ const handleLogout = () => {
   padding: 1rem 2rem;
   background-color: var(--color-background-soft);
   border-bottom: 1px solid var(--color-border);
+  position: relative;
+  z-index: 100; /* CAMBIO: de 1000 a 100 (menos que 9999 del modal) */
+  flex-shrink: 0; /* Evitar que se comprima */
 }
 
 .user-info {

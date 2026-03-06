@@ -104,7 +104,7 @@ class VentaController extends BaseController
     }
 
     /**
-     * Actualiza una venta existente
+     * Actualiza una venta existente y sus artículos asociados (Transaccional)
      */
     public function update(): void
     {
@@ -115,24 +115,16 @@ class VentaController extends BaseController
                 $this->respond(400, ['message' => 'ID, fecha, estado de venta y símbolo requeridos.']);
             }
 
-            $idEquipo = $data['id_equipo'] ?? null;
-            $descripcionCliente = $data['descripcion_cliente'] ?? null;
-            $idCliente = $data['id_cliente'] ?? null;
-            $tipoVta = $data['tipo_vta'] ?? null;
+            if (empty($data['articulos']) || !is_array($data['articulos'])) {
+                $this->respond(400, ['message' => 'La venta debe contener artículos.']);
+            }
 
-            if ($this->model->update(
-                (int)$data['id'],
-                $data['fecha'],
-                $idEquipo,
-                $descripcionCliente,
-                (int)$data['id_estado_venta'],
-                $data['simbolo'],
-                $idCliente,
-                $tipoVta
-            )) {
+            $result = $this->model->updateWithDetails($data, $data['articulos']);
+
+            if ($result['success']) {
                 $this->respond(200, ['message' => 'Venta actualizada exitosamente.']);
             } else {
-                $this->respond(500, ['message' => 'Error al actualizar venta.']);
+                $this->respond(400, ['message' => $result['error']]);
             }
         } catch (Throwable $e) {
             $this->handleError($e, 'Error al actualizar venta');

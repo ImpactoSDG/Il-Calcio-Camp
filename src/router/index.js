@@ -11,9 +11,10 @@ import CategoriasArticuloView from '@/views/CategoriasArticuloView.vue'
 import EquiposView from '@/views/EquiposView.vue'
 import ArticulosView from '@/views/ArticulosView.vue'
 import IngresoArticuloView from '@/views/IngresoArticuloView.vue'
+import StockView from '@/views/articulos/StockView.vue'
 import ClientesView from '@/views/ClientesView.vue'
 import ClienteEquipoView from '@/views/ClienteEquipoView.vue'
-import VentasView from '@/views/VentasView.vue'
+import VentasView from '@/views/ventas/VentasView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -90,6 +91,12 @@ const router = createRouter({
       name: 'ingresos-articulo',
       component: IngresoArticuloView,
       meta: { requiresAuth: true, idModulo: 12 }
+    },
+    {
+      path: '/articulos/stock',
+      name: 'stock',
+      component: StockView,
+      meta: { requiresAuth: true, idModulo: 16 }
     },
 
     // --- Clientes & Equipos ---

@@ -6,6 +6,13 @@ const configuracionService = {
     return response.data;
   },
 
+  getSimbolo: async () => {
+    const response = await api.get('/configuraciones');
+    const configs = response.data;
+    const entry = configs.find(c => c.clave === 'simbolo_dia');
+    return entry ? entry.valor : '$';
+  },
+
   getById: async (id) => {
     const response = await api.get(`/configuraciones?id=${id}`);
     return response.data;
