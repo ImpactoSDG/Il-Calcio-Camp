@@ -346,8 +346,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
-import * as qz from 'qz-tray';
-import { KJUR, hextob64 } from 'jsrsasign';
+import { setupQzSecurity, ensureQzConnected, imprimirTicketEscPos, QZ_CERT, QZ_PK } from '@/composables/usePrinterConfig';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import FuzzySearch from '@/components/FuzzySearch.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
@@ -362,79 +361,10 @@ import { useToastStore } from '@/stores/toastStore';
 const toast = useToastStore();
 const { sortKey, sortDir, handleSort, sortItems } = useSorting('id', 'desc');
 
-// Configuración de seguridad para que QZ Tray habilite el "Recordar"
-qz.security.setCertificatePromise((resolve) => {
-    resolve("-----BEGIN CERTIFICATE-----\n" +
-            "MIIECzCCAvOgAwIBAgIGAZzT1LtVMA0GCSqGSIb3DQEBCwUAMIGiMQswCQYDVQQG\n" +
-            "EwJVUzELMAkGA1UECAwCTlkxEjAQBgNVBAcMCUNhbmFzdG90YTEbMBkGA1UECgwS\n" +
-            "UVogSW5kdXN0cmllcywgTExDMRswGQYDVQQLDBJRWiBJbmR1c3RyaWVzLCBMTEMx\n" +
-            "HDAaBgkqhkiG9w0BCQEWDXN1cHBvcnRAcXouaW8xGjAYBgNVBAMMEVFaIFRyYXkg\n" +
-            "RGVtbyBDZXJ0MB4XDTI2MDMwODE4MjEwMFoXDTQ2MDMwODE4MjEwMFowgaIxCzAJ\n" +
-            "BgNVBAYTAlVTMQswCQYDVQQIDAJOWTESMBAGA1UEBwwJQ2FuYXN0b3RhMRswGQYD\n" +
-            "VQQKDBJRWiBJbmR1c3RyaWVzLCBMTEMxGzAZBgNVBAsMElFaIEluZHVzdHJpZXMs\n" +
-            "IExMQzEcMBoGCSqGSIb3DQEJARYNc3VwcG9ydEBxei5pbzEaMBgGA1UEAwwRUVog\n" +
-            "VHJheSBEZW1vIENlcnQwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC7\n" +
-            "BPga2LBxlozHJJ4cXUMYnoP4K2GT9+5yk1GVp+T59GtS8wN32i1TSh1XBzPtJi2i\n" +
-            "18AKrGpcuLXPlGo4qtdeXn4goXVd70d1Y7Q/mgyFFVi0G+uYvEyXaMbbAUBHV6i0\n" +
-            "JJ/2Os5zbPUbEla1vPEv0J4iPxMYvn2iDpneycX6VKlrPXQNwGcVTtsG0xF9JI/u\n" +
-            "A5lxrhqeIYdl6kQ7sTzyCNBdpJLcoCn7RL0K4ntc8aQ4aM+2Ob6IyFDzt83orOdQ\n" +
-            "e945BX9/2NbOPhts67fRgf2H4BgIe9xagc0nguR82wrCcqt2RASziQ19C2FozIrF\n" +
-            "XAeB8R/4LKHkD+qzmFbvAgMBAAGjRTBDMBIGA1UdEwEB/wQIMAYBAf8CAQEwDgYD\n" +
-            "VR0PAQH/BAQDAgEGMB0GA1UdDgQWBBT9y3FGXDjXVpdzoIEQZM3xLotUyDANBgkq\n" +
-            "hkiG9w0BAQsFAAOCAQEAHelzhR5AFTYfGxklytf3MqbsM04ZkMn1cie6c0iWGwBG\n" +
-            "DJUQy+7pYEjAUMYZdSQhVmcceH/Ab/d/1tKtW8HvzBQvKe6gtD+DhLd7YZtPVQbz\n" +
-            "dsOTutGGhDrg2CM0mAfs2gA0ZNT66k1INPUJLuShRwMO9CqrMLh/Ykr+2c/XGW4i\n" +
-            "JKYUCwdpBYTqgPS5gstawIgeBWQ+qx/Pjy8NjJUv9CxZcplTjwTDPjtrR2kOghPO\n" +
-            "HdCX9yx+nFOCRx9TVHZ3XuBZJuD/I5/z4zBfsYAYeuJYrt41AoOX4AJ4+HutQN4Y\n" +
-            "0msH99Pi4m5ZdGFToZ5kayfCSsxwdUqFHzPrv0Z1XQ==\n" +
-            "-----END CERTIFICATE-----");
-});
+// Inicializar seguridad de QZ Tray (una única vez para toda la app)
+setupQzSecurity(QZ_CERT, QZ_PK);
 
-qz.security.setSignaturePromise((toSign) => {
-    return (resolve, reject) => {
-        try {
-            const pk = "-----BEGIN PRIVATE KEY-----\n" +
-                "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7BPga2LBxlozH\n" +
-                "JJ4cXUMYnoP4K2GT9+5yk1GVp+T59GtS8wN32i1TSh1XBzPtJi2i18AKrGpcuLXP\n" +
-                "lGo4qtdeXn4goXVd70d1Y7Q/mgyFFVi0G+uYvEyXaMbbAUBHV6i0JJ/2Os5zbPUb\n" +
-                "Ela1vPEv0J4iPxMYvn2iDpneycX6VKlrPXQNwGcVTtsG0xF9JI/uA5lxrhqeIYdl\n" +
-                "6kQ7sTzyCNBdpJLcoCn7RL0K4ntc8aQ4aM+2Ob6IyFDzt83orOdQe945BX9/2NbO\n" +
-                "Phts67fRgf2H4BgIe9xagc0nguR82wrCcqt2RASziQ19C2FozIrFXAeB8R/4LKHk\n" +
-                "D+qzmFbvAgMBAAECggEAJCMcK9fWFETCdBKDyLhOqDmtB22ef8CHHzWPLKtSB+hu\n" +
-                "OouBjo2md3MZQ0E9i+P2KoKk9YsGTF9WpkMn2UZNskrw9S4tpxZ+yNSYtjd2ltqe\n" +
-                "lsLUXeF4rUMONbBCsuZhz1lKXYJUdSJHJFGBVsGpGxOlErn8XyojzYYjvlRfwHR5\n" +
-                "7TeaVg3gOS1r8GVCGPFE7bi0kBDxKRVSN0VqsS0togRaotcD1zf7l5t8hkYx5kHv\n" +
-                "3WGUbDrivz4EfSx9Qj7r9+Vhdfa10aXuqokMAHXVf5QsxNxXX5vdPENMF7ofJy5u\n" +
-                "A59DmDMoG8cOkE+m6KDrxvlG7G/fZ/f836pVOiMVHQKBgQDdWrsBsKn/NioPOVFz\n" +
-                "LgquGQ4zdD2tFLwKI1Ioz5Z3XRKXTpmcj2wJEFDYYMWltttqATpMcrj2RYbZCaWc\n" +
-                "IYNoONLQ4pRNvbMZHWmsbNsoR9uVNZ+8QtnTWA+b9c0t2yFPjZDn174m7UZ2CR8C\n" +
-                "bMcTXlcfgSwKl7N633nxVFSfAwKBgQDYSn9ShVpIt+cBPHnLjCJ3XeBB2/jg4uQk\n" +
-                "2wRXkmU/9ors9Aq3Q8GkN1XvpXqUr91HE4rxPYNUdIafCaiKAQ5NWw1TA4jccP87\n" +
-                "6t/ijWe9wJUV+O/OBXgM8vM9wfa/1XScOaMU03E1uUIW5P6r+tzGPDYp4Zn/Rjm4\n" +
-                "F4ik5E6epQKBgEZ/5Dm4k5wmGyU4Iznk+x/R+RToO9CJXw53i25WF10y9n3cWc5k\n" +
-                "W4tTd/xCbhDGeYF8nJ3GmCRPppAvo2BjyB+EoZhH4eYUuhsQpBx3myFsKYKPTq2+\n" +
-                "OPQ4AtiwY8XsGeLlerZsnzJ0tdFYPFkgXhNMI8Fz+ZvyDwbecE8thboTAoGBAIVt\n" +
-                "Z6ATjb+gW0xC72um9jgm3EokliK9NTqbNdGECRvtToSgg9/MV6+jR0tADR+eYeYP\n" +
-                "4z2w0cyO2eFQRv1ja1xDGDQm0Q4UUw+2dAjBbMb8/7t/RwgUDZwHYBCwEDUFTBt3\n" +
-                "3ufhDEy1DVUsTQLxDbLowA0UFDkLLF4pfm0iPnHVAoGAdoKELYjpDNE1rpr8BNIf\n" +
-                "6q1qCr50tvNkyEXwIsqsq0/B6v7RZqyzApJx+sI2CNI1LYvxwn3wiX2ORB3W8dYF\n" +
-                "mwJgd8gI0eI4m12TFHzyQfASJuIW8/OaS59UmSOlF2anow4u3RDQeZHGWf3HFq0f\n" +
-                "CQpbR8VVgM0tLd17KTfWkKQ=\n" +
-                "-----END PRIVATE KEY-----";
-
-            const sig = new KJUR.crypto.Signature({ alg: 'SHA1withRSA' });
-            sig.init(pk);
-            sig.updateString(toSign);
-            const hex = sig.sign();
-            resolve(hextob64(hex));
-        } catch (err) {
-            console.error('Error signing request:', err);
-            reject(err);
-        }
-    };
-});
-
-// Estados para impresión
+// Estados para impresión (solo para ticket HTML visible en pantalla, si aplica)
 const ventaParaImprimir = ref(null);
 const articulosDeVentaParaImprimir = ref([]);
 const totalVentaParaImprimir = computed(() =>
@@ -741,65 +671,16 @@ const descargarTicketVenta = async (idVenta) => {
 };
 
 const imprimirTicketDirecto = async (idVenta) => {
+  const venta = ventas.value.find(v => v.id === idVenta);
+  if (!venta) return;
+
   try {
-    const venta = ventas.value.find(v => v.id === idVenta);
-    if (!venta) return;
-
-    const articulos = await ventasService.getArticulosDeVenta(idVenta);
-    
-    // Conectar a QZ Tray si no está activo
-    if (!qz.websocket.isActive()) {
-      try {
-        await qz.websocket.connect();
-      } catch (err) {
-        toast.showToast({ 
-          message: 'QZ Tray no detectado. Asegúrate de que la aplicación esté abierta.', 
-          type: 'danger' 
-        });
-        return;
-      }
-    }
-
-    const config = qz.configs.create("POS-80C");
-    
-    // Comandos ESC/POS para papel de 80mm
-    const data = [
-      '\x1B\x40',          // Inicializar impresora
-      '\x1B\x61\x01',      // Centrar
-      '\x1B\x21\x30',      // Texto grande (doble ancho y alto)
-      'IL CALCIO CAMP\x0A',
-      '\x1B\x21\x00',      // Texto normal
-      `Venta #${venta.id}-${venta.simbolo}\x0A`,
-      `Fecha: ${formatFecha(venta.fecha)}\x0A`,
-      '------------------------------------------------\x0A', // 48 guiones (aprox 80mm)
-      '\x1B\x61\x00',      // Alinear a la izquierda
-      'CANT  DESCRIPCION                     TOTAL\x0A',
-      '------------------------------------------------\x0A',
-      ...articulos.map(a => {
-        const cant = String(a.cantidad).padEnd(6, ' ');
-        const desc = String(a.articulo_nombre).substring(0, 26).padEnd(27, ' ');
-        const total = `$${Number(a.total).toFixed(2)}`.padStart(15, ' ');
-        return `${cant}${desc}${total}\x0A`;
-      }),
-      '------------------------------------------------\x0A',
-      '\x1B\x61\x02',      // Alinear a la derecha
-      '\x1B\x21\x18',      // Negrita + Doble alto
-      `TOTAL: $${Number(totalDetalleVenta.value || 0).toFixed(2)}\x0A`,
-      '\x1B\x21\x00',      // Normal
-      `Pago: ${venta.medio_cobro_nombre || 'Efectivo'}\x0A\x0A`,
-      '\x1B\x61\x01',      // Centrar
-      '¡Gracias por su compra!\x0A',
-      '\x1B\x64\x05',      // Feed (avance de 5 líneas)
-      '\x1D\x56\x00'       // Comando alternativo de corte (Full Cut)
-    ];
-
-    await qz.print(config, data);
+    const articulosVenta = await ventasService.getArticulosDeVenta(idVenta);
+    await imprimirTicketEscPos({ venta, articulos: articulosVenta });
     toast.showToast({ message: 'Ticket enviado a la tiquetera.', type: 'success' });
-
   } catch (err) {
     console.error('Error al imprimir ticket:', err);
-    const errorMsg = err.message || 'Error desconocido';
-    toast.showToast({ message: `Error en la impresora: ${errorMsg}`, type: 'danger' });
+    toast.showToast({ message: err.message || 'Error en la comunicación con la impresora.', type: 'danger' });
   }
 };
 
@@ -881,26 +762,15 @@ const onKeydown = (e) => {
   if (e.key === 'n' || e.key === 'N') { e.preventDefault(); openVentaModal(); }
 };
 
-onMounted(async () => { 
-    fetchData(); 
-    window.addEventListener('keydown', onKeydown);
-    
-    // Configurar QZ Tray para que use la seguridad
-    try {
-        if (!qz.websocket.isActive()) {
-            await qz.websocket.connect();
-        }
-        // Al conectar con las promesas de seguridad ya seteadas, 
-        // QZ debería pedir permiso una única vez.
-    } catch (e) {
-        console.warn("QZ Tray no detectado al inicio.");
-    }
+onMounted(async () => {
+  fetchData();
+  window.addEventListener('keydown', onKeydown);
+  // Pre-conectar a QZ Tray en segundo plano (silencioso)
+  ensureQzConnected().catch(() => console.warn('QZ Tray no disponible al inicio.'));
 });
 
-onUnmounted(() => { 
-    window.removeEventListener('keydown', onKeydown); 
-    // Opcional: desconectar para limpiar
-    // if (qz.websocket.isActive()) qz.websocket.disconnect();
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown);
 });
 </script>
 

@@ -119,16 +119,190 @@
     />
 
     <ToastNotification />
+
+    <!-- ── SECCIÓN IMPRESORAS TIQUETERA (CRUD) ──────────────────────── -->
+    <div class="mt-5 pt-4 border-top">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-printer-fill fs-4 text-secondary"></i>
+          <h2 class="h5 fw-bold mb-0 text-secondary">IMPRESORAS TIQUETERA</h2>
+        </div>
+        <button @click="openImpresoraModal()" class="btn-primary-modern d-flex align-items-center">
+          <i class="bi bi-plus-circle-fill fs-6 me-2"></i> Nueva
+        </button>
+      </div>
+
+      <div class="card shadow-sm border-0 rounded-lg overflow-hidden position-relative" :style="{ minHeight: loadingImpresoras ? '200px' : 'auto' }">
+        <div v-if="loadingImpresoras" class="loading-overlay-local d-flex flex-column align-items-center justify-content-center">
+          <div class="spinner-border text-primary-custom" role="status" style="width: 3rem; height: 3rem;">
+            <span class="visually-hidden">Cargando...</span>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th class="ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary">Nombre de la impresora</th>
+                <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start">Cmd. Corte</th>
+                <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start">Avance</th>
+                <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start">Estado</th>
+                <th class="pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary border-start text-end">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white">
+              <tr v-for="imp in impresoras" :key="imp.id">
+                <td class="ps-4 fw-semibold">
+                  <i class="bi bi-printer me-2 text-secondary"></i>{{ imp.nombre }}
+                  <div v-if="imp.descripcion" class="small text-muted fw-normal">{{ imp.descripcion }}</div>
+                </td>
+                <td class="border-start px-3"><code>{{ getCutLabel(imp.comando_corte) }}</code></td>
+                <td class="border-start px-3 text-muted">{{ imp.lineas_avance }} líneas</td>
+                <td class="border-start px-3">
+                  <span v-if="imp.es_default == 1" class="badge bg-success">
+                    <i class="bi bi-check-circle-fill me-1"></i>Predeterminada
+                  </span>
+                  <button v-else @click="setDefaultImpresora(imp)" class="btn btn-sm btn-outline-secondary py-0 px-2">
+                    Usar esta
+                  </button>
+                </td>
+                <td class="pe-4 text-end border-start">
+                  <button @click="openImpresoraModal(imp)" class="btn btn-link link-secondary p-1 me-2" title="Editar">
+                    <i class="bi bi-pencil-square fs-4"></i>
+                  </button>
+                  <button @click="prepareDeleteImpresora(imp.id)" class="btn btn-link link-danger p-1" title="Eliminar">
+                    <i class="bi bi-trash3 fs-4"></i>
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="impresoras.length === 0 && !loadingImpresoras">
+                <td colspan="5" class="text-center py-5 text-muted">
+                  No hay impresoras registradas. Agregá una con el botón "Nueva".
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Impresora -->
+    <Teleport to="body">
+    <div v-if="showImpresoraModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi me-2" :class="isEditingImpresora ? 'bi-pencil-square' : 'bi-plus-circle'"></i>
+              {{ isEditingImpresora ? 'Editar Impresora' : 'Nueva Impresora Tiquetera' }}
+            </h5>
+            <button type="button" class="btn-close" @click="showImpresoraModal = false"></button>
+          </div>
+          <form @submit.prevent="saveImpresora">
+            <div class="modal-body">
+
+              <!-- Nombre + Detectar -->
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Nombre de la impresora</label>
+                <div class="input-group">
+                  <input
+                    v-model.trim="impresoraForm.nombre"
+                    type="text"
+                    class="form-control"
+                    placeholder="Ej: POS-80C, EPSON TM-T20, Genérica 80mm..."
+                    required
+                  />
+                  <button @click.prevent="detectarImpresorasEnModal" class="btn btn-outline-secondary" type="button" :disabled="detectando" title="Detectar impresoras vía QZ Tray">
+                    <span v-if="detectando" class="spinner-border spinner-border-sm"></span>
+                    <span v-else><i class="bi bi-search me-1"></i>Detectar</span>
+                  </button>
+                </div>
+                <div v-if="impresorasDetectadas.length > 0" class="mt-2 p-2 border rounded-3 bg-light">
+                  <p class="small text-muted mb-1 fw-bold">Hacé click para seleccionar:</p>
+                  <button
+                    v-for="nombre in impresorasDetectadas"
+                    :key="nombre"
+                    type="button"
+                    class="btn btn-sm me-1 mb-1"
+                    :class="impresoraForm.nombre === nombre ? 'btn-primary' : 'btn-outline-secondary'"
+                    @click="impresoraForm.nombre = nombre"
+                  >
+                    <i class="bi bi-printer me-1"></i>{{ nombre }}
+                  </button>
+                </div>
+                <div class="form-text">El nombre debe coincidir exactamente con el dispositivo en Windows.</div>
+              </div>
+
+              <div class="row g-3">
+                <!-- Comando corte -->
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Comando de corte (ESC/POS)</label>
+                  <select v-model="impresoraForm.comando_corte" class="form-select" required>
+                    <option v-for="v in CUT_VARIANTS" :key="v.value" :value="v.value">{{ v.label }}</option>
+                  </select>
+                  <div class="form-text">Si el papel no se corta, probá otra opción.</div>
+                </div>
+                <!-- Líneas avance -->
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Líneas de avance</label>
+                  <input v-model.number="impresoraForm.lineas_avance" type="number" min="0" max="20" class="form-control" />
+                  <div class="form-text">Antes del corte (0–20).</div>
+                </div>
+                <!-- Predeterminada -->
+                <div class="col-md-3 d-flex flex-column justify-content-center">
+                  <div class="form-check mt-4">
+                    <input v-model="impresoraForm.es_default" class="form-check-input" type="checkbox" id="esDefaultCheck" />
+                    <label class="form-check-label fw-semibold" for="esDefaultCheck">Predeterminada</label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Descripción -->
+              <div class="mt-3">
+                <label class="form-label">Descripción (opcional)</label>
+                <input v-model.trim="impresoraForm.descripcion" type="text" class="form-control" placeholder="Ej: Impresora del mostrador principal" />
+              </div>
+
+            </div>
+            <div class="modal-footer">
+              <button @click="showImpresoraModal = false" type="button" class="btn btn-light px-4">Cancelar</button>
+              <button type="submit" class="btn btn-primary-modern px-4" :disabled="isSavingImpresora">
+                <span v-if="isSavingImpresora" class="spinner-border spinner-border-sm me-2"></span>
+                {{ isEditingImpresora ? 'Actualizar' : 'Guardar' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    </Teleport>
+
+    <ConfirmModal
+      v-model="showConfirmImpresoraModal"
+      title="Eliminar Impresora"
+      message="¿Estás seguro de que deseas eliminar esta impresora tiquetera? Esta acción no se puede deshacer."
+      confirmButtonText="Eliminar"
+      variant="danger"
+      :isLoading="isDeletingImpresora"
+      @confirm="handleDeleteImpresora"
+    />
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import configuracionService from '@/services/configuracionService';
+import impresoraTiqueteraService from '@/services/impresoraTiqueteraService';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
 import { useToastStore } from '@/stores/toastStore';
+import {
+  setupQzSecurity, listarImpresoras,
+  savePrinterName, saveCutCmd, saveFeedLines,
+  CUT_VARIANTS,
+  QZ_CERT, QZ_PK,
+} from '@/composables/usePrinterConfig';
 
 const toast = useToastStore();
 
@@ -255,7 +429,134 @@ const handleDelete = async () => {
   }
 };
 
-onMounted(fetchConfigs);
+// ──── CRUD Impresoras Tiquetera ───────────────────────────────
+const impresoras                = ref([]);
+const loadingImpresoras         = ref(false);
+const showImpresoraModal        = ref(false);
+const isEditingImpresora        = ref(false);
+const isSavingImpresora         = ref(false);
+const showConfirmImpresoraModal = ref(false);
+const isDeletingImpresora       = ref(false);
+const impresoraToDelete         = ref(null);
+const impresorasDetectadas      = ref([]);
+const detectando                = ref(false);
+
+const emptyImpresoraForm = () => ({
+  id: null,
+  nombre: '',
+  comando_corte: '\x1D\x56\x00',
+  lineas_avance: 5,
+  es_default: false,
+  descripcion: '',
+});
+const impresoraForm = ref(emptyImpresoraForm());
+
+const getCutLabel = (val) => CUT_VARIANTS.find(v => v.value === val)?.label ?? val;
+
+const fetchImpresoras = async () => {
+  loadingImpresoras.value = true;
+  try {
+    impresoras.value = await impresoraTiqueteraService.getAll();
+  } catch {
+    toast.showToast({ message: 'Error al cargar las impresoras', type: 'danger' });
+  } finally {
+    loadingImpresoras.value = false;
+  }
+};
+
+const openImpresoraModal = (imp = null) => {
+  impresorasDetectadas.value = [];
+  if (imp) {
+    isEditingImpresora.value = true;
+    impresoraForm.value = { ...imp, es_default: imp.es_default == 1 };
+  } else {
+    isEditingImpresora.value = false;
+    impresoraForm.value = emptyImpresoraForm();
+  }
+  showImpresoraModal.value = true;
+};
+
+const detectarImpresorasEnModal = async () => {
+  detectando.value = true;
+  try {
+    setupQzSecurity(QZ_CERT, QZ_PK);
+    impresorasDetectadas.value = await listarImpresoras();
+    if (!impresorasDetectadas.value.length) {
+      toast.showToast({ message: 'No se encontraron impresoras vía QZ Tray.', type: 'warning' });
+    }
+  } catch {
+    toast.showToast({ message: 'No se pudo conectar a QZ Tray.', type: 'danger' });
+  } finally {
+    detectando.value = false;
+  }
+};
+
+const syncLocalStorage = (imp) => {
+  if (imp.es_default || imp.es_default == 1) {
+    savePrinterName(imp.nombre);
+    saveCutCmd(imp.comando_corte);
+    saveFeedLines(imp.lineas_avance);
+  }
+};
+
+const saveImpresora = async () => {
+  if (!impresoraForm.value.nombre) {
+    toast.showToast({ message: 'El nombre de la impresora es obligatorio.', type: 'warning' });
+    return;
+  }
+  isSavingImpresora.value = true;
+  try {
+    if (isEditingImpresora.value) {
+      await impresoraTiqueteraService.update(impresoraForm.value);
+      toast.showToast({ message: 'Impresora actualizada.', type: 'success' });
+    } else {
+      await impresoraTiqueteraService.create(impresoraForm.value);
+      toast.showToast({ message: 'Impresora registrada.', type: 'success' });
+    }
+    syncLocalStorage(impresoraForm.value);
+    showImpresoraModal.value = false;
+    fetchImpresoras();
+  } catch {
+    toast.showToast({ message: 'Error al guardar la impresora.', type: 'danger' });
+  } finally {
+    isSavingImpresora.value = false;
+  }
+};
+
+const setDefaultImpresora = async (imp) => {
+  try {
+    await impresoraTiqueteraService.update({ ...imp, es_default: true });
+    syncLocalStorage({ ...imp, es_default: true });
+    toast.showToast({ message: `"${imp.nombre}" establecida como predeterminada.`, type: 'success' });
+    fetchImpresoras();
+  } catch {
+    toast.showToast({ message: 'Error al actualizar la impresora.', type: 'danger' });
+  }
+};
+
+const prepareDeleteImpresora = (id) => {
+  impresoraToDelete.value = id;
+  showConfirmImpresoraModal.value = true;
+};
+
+const handleDeleteImpresora = async () => {
+  isDeletingImpresora.value = true;
+  try {
+    await impresoraTiqueteraService.delete(impresoraToDelete.value);
+    toast.showToast({ message: 'Impresora eliminada.', type: 'success' });
+    showConfirmImpresoraModal.value = false;
+    fetchImpresoras();
+  } catch {
+    toast.showToast({ message: 'Error al eliminar la impresora.', type: 'danger' });
+  } finally {
+    isDeletingImpresora.value = false;
+  }
+};
+
+onMounted(() => {
+  fetchConfigs();
+  fetchImpresoras();
+});
 </script>
 
 <style scoped>

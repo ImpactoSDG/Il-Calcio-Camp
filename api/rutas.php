@@ -22,6 +22,7 @@ require_once __DIR__ . '/controllers/EquipoController.php';
 require_once __DIR__ . '/controllers/ClienteEquipoController.php';
 require_once __DIR__ . '/controllers/ArticuloVentaIngresoArticuloController.php';
 require_once __DIR__ . '/controllers/TicketVentaController.php';
+require_once __DIR__ . '/controllers/ImpresoraTiqueteraController.php';
 
 require_once __DIR__ . '/core/JwtHandler.php';
 require_once __DIR__ . '/core/BaseController.php';
@@ -54,6 +55,7 @@ $equipoController = new EquipoController($db);
 $clienteEquipoController = new ClienteEquipoController($db);
 $articuloVentaIngresoArticuloController = new ArticuloVentaIngresoArticuloController($db);
 $ticketVentaController = new TicketVentaController($db);
+$impresoraTiqueteraController = new ImpresoraTiqueteraController($db);
 
 function verifyAuth(): array {
     $headers = getallheaders();
@@ -589,6 +591,34 @@ switch ($resource) {
             $ticketVentaController->generar();
         } else {
             http_response_code(405);
+        }
+        break;
+
+    case 'impresoras-tiquetera':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if (isset($_GET['default'])) {
+                    $impresoraTiqueteraController->getDefault();
+                } elseif ($id) {
+                    $_GET['id'] = $id;
+                    $impresoraTiqueteraController->getById();
+                } else {
+                    $impresoraTiqueteraController->getAll();
+                }
+                break;
+            case 'POST':
+                $impresoraTiqueteraController->store();
+                break;
+            case 'PUT':
+                $impresoraTiqueteraController->update();
+                break;
+            case 'DELETE':
+                $impresoraTiqueteraController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
         }
         break;
 
