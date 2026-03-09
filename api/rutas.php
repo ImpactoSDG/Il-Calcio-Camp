@@ -442,11 +442,28 @@ switch ($resource) {
                         $cobroController->getById();
                     }
                 } else {
-                    $cobroController->getAll();
+                    $action = $_GET['action'] ?? null;
+                    if ($action === 'sin-cliente') {
+                        $cobroController->getSinCliente();
+                    } elseif ($action === 'con-cliente') {
+                        $cobroController->getConCliente();
+                    } elseif ($action === 'ventas-pendientes') {
+                        $cobroController->getVentasPendientes();
+                    } else {
+                        $cobroController->getAll();
+                    }
                 }
                 break;
             case 'POST':
-                $cobroController->store();
+                // Primero revisamos si el action viene en el body (JSON)
+                $postData = json_decode(file_get_contents("php://input"), true);
+                $action = $_GET['action'] ?? ($postData['action'] ?? null);
+
+                if ($action === 'registrar-pago') {
+                    $cobroController->registrarPagoVenta();
+                } else {
+                    $cobroController->store();
+                }
                 break;
             case 'PUT':
                 $cobroController->update();

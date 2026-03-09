@@ -131,4 +131,92 @@ class CobroController extends BaseController
             $this->handleError($e, 'Error al eliminar cobro');
         }
     }
+
+    /**
+     * Obtiene cobros sin cliente asociado, con filtros opcionales.
+     */
+    public function getSinCliente(): void
+    {
+        try {
+            $filtros = [
+                'fecha_desde'  => $_GET['fecha_desde'] ?? null,
+                'fecha_hasta'  => $_GET['fecha_hasta'] ?? null,
+                'medio_pago_id' => $_GET['medio_pago_id'] ?? null,
+            ];
+            $result = $this->model->getSinCliente(array_filter($filtros));
+            $this->respond(200, $result);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al obtener cobros sin cliente');
+        }
+    }
+
+    /**
+     * Obtiene cobros con cliente asociado, con filtros opcionales.
+     */
+    public function getConCliente(): void
+    {
+        try {
+            $filtros = [
+                'fecha_desde'  => $_GET['fecha_desde'] ?? null,
+                'fecha_hasta'  => $_GET['fecha_hasta'] ?? null,
+                'medio_pago_id' => $_GET['medio_pago_id'] ?? null,
+            ];
+            $result = $this->model->getConCliente(array_filter($filtros));
+            $this->respond(200, $result);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al obtener cobros con cliente');
+        }
+    }
+
+    /**
+     * Obtiene ventas con saldo pendiente de cobro, con filtros opcionales.
+     */
+    public function getVentasPendientes(): void
+    {
+        try {
+            $filtros = [
+                'fecha_desde'  => $_GET['fecha_desde'] ?? null,
+                'fecha_hasta'  => $_GET['fecha_hasta'] ?? null,
+                'medio_pago_id' => $_GET['medio_pago_id'] ?? null,
+            ];
+            $result = $this->model->getVentasPendientes(array_filter($filtros));
+            $this->respond(200, $result);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al obtener ventas con cobros pendientes');
+        }
+    }
+
+    /**
+     * Registra un pago para una venta específica.
+     */
+    public function registrarPagoVenta(): void
+    {
+        try {
+            $data = json_decode(file_get_contents("php://input"), true);
+            
+            if (empty($data['id_venta']) || empty($data['id_medio_pago']) || empty($data['monto'])) {
+                $this->respond(400, ['message' => 'Faltan datos requeridos (id_venta, id_medio_pago, monto).']);
+                return;
+            }
+
+            require_once __DIR__ . '/../models/Venta.php';
+            $ventaModel = new Venta($this->db);
+            
+            $fecha = $data['fecha'] ?? date('Y-m-d H:i:s');
+            $success = $ventaModel->registrarPago(
+                (int)$data['id_venta'], 
+                (int)$data['id_medio_pago'], 
+                (float)$data['monto'], 
+                $fecha
+            );
+
+            if ($success) {
+                $this->respond(201, ['message' => 'Cobro registrado exitosamente.']);
+            } else {
+                $this->respond(500, ['message' => 'Error al registrar el cobro.']);
+            }
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al registrar pago');
+        }
+    }
 }

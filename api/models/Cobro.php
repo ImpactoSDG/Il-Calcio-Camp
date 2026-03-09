@@ -17,12 +17,157 @@ class Cobro
      */
     public function getAll(): array
     {
-        $sql = "SELECT c.id, c.cliente_id,
+        $sql = "SELECT c.id, c.cliente_id, c.fecha,
                        cl.nombre_cliente AS cliente_nombre
                 FROM {$this->table} c
-                INNER JOIN cliente cl ON c.cliente_id = cl.id
-                ORDER BY c.id DESC";
+                LEFT JOIN cliente cl ON c.cliente_id = cl.id
+                ORDER BY c.fecha DESC, c.id DESC";
         $stmt = $this->conn->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Obtiene cobros SIN cliente asociado, agrupados con info de pagos.
+     * Soporta filtros opcionales: fecha_desde, fecha_hasta, medio_pago_id.
+     */
+    public function getSinCliente(array $filtros = []): array
+    {
+        $conditions = ["c.cliente_id IS NULL"];
+        $params = [];
+
+        if (!empty($filtros['fecha_desde'])) {
+            $conditions[] = "DATE(c.fecha) >= :fecha_desde";
+            $params[':fecha_desde'] = $filtros['fecha_desde'];
+        }
+        if (!empty($filtros['fecha_hasta'])) {
+            $conditions[] = "DATE(c.fecha) <= :fecha_hasta";
+            $params[':fecha_hasta'] = $filtros['fecha_hasta'];
+        }
+        if (!empty($filtros['medio_pago_id'])) {
+            $conditions[] = "vc.id_medio_pago = :medio_pago_id";
+            $params[':medio_pago_id'] = (int)$filtros['medio_pago_id'];
+        }
+
+        $where = implode(' AND ', $conditions);
+
+        $sql = "SELECT c.id, c.fecha, c.cliente_id,
+                       COALESCE(SUM(vc.monto), 0) AS monto_total,
+                       GROUP_CONCAT(DISTINCT mc.descripcion ORDER BY mc.descripcion SEPARATOR ', ') AS medios_pago
+                FROM {$this->table} c
+                LEFT JOIN venta_cobro vc ON vc.id_cobro = c.id
+                LEFT JOIN medio_cobro mc ON vc.id_medio_pago = mc.id
+                WHERE {$where}
+                GROUP BY c.id, c.fecha, c.cliente_id
+                ORDER BY c.fecha DESC, c.id DESC";
+
+        $stmt = $this->conn->prepare($sql);
+        foreach ($params as $key => $val) {
+            $stmt->bindValue($key, $val);
+        }
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Obtiene cobros CON cliente asociado, agrupados con info de pagos.
+     * Soporta filtros opcionales: fecha_desde, fecha_hasta, medio_pago_id.
+     */
+    public function getConCliente(array $filtros = []): array
+    {
+        $conditions = ["c.cliente_id IS NOT NULL"];
+        $params = [];
+
+        if (!empty($filtros['fecha_desde'])) {
+            $conditions[] = "DATE(c.fecha) >= :fecha_desde";
+            $params[':fecha_desde'] = $filtros['fecha_desde'];
+        }
+        if (!empty($filtros['fecha_hasta'])) {
+            $conditions[] = "DATE(c.fecha) <= :fecha_hasta";
+            $params[':fecha_hasta'] = $filtros['fecha_hasta'];
+        }
+        if (!empty($filtros['medio_pago_id'])) {
+            $conditions[] = "vc.id_medio_pago = :medio_pago_id";
+            $params[':medio_pago_id'] = (int)$filtros['medio_pago_id'];
+        }
+
+        $where = implode(' AND ', $conditions);
+
+        $sql = "SELECT c.id, c.fecha, c.cliente_id,
+                       cl.nombre_cliente AS cliente_nombre,
+                       COALESCE(SUM(vc.monto), 0) AS monto_total,
+                       GROUP_CONCAT(DISTINCT mc.descripcion ORDER BY mc.descripcion SEPARATOR ', ') AS medios_pago
+                FROM {$this->table} c
+                INNER JOIN cliente cl ON c.cliente_id = cl.id
+                LEFT JOIN venta_cobro vc ON vc.id_cobro = c.id
+                LEFT JOIN medio_cobro mc ON vc.id_medio_pago = mc.id
+                WHERE {$where}
+                GROUP BY c.id, c.fecha, c.cliente_id, cl.nombre_cliente
+                ORDER BY c.fecha DESC, c.id DESC";
+
+        $stmt = $this->conn->prepare($sql);
+        foreach ($params as $key => $val) {
+            $stmt->bindValue($key, $val);
+        }
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Obtiene ventas con saldo pendiente de cobro.
+     * Soporta filtros opcionales: fecha_desde, fecha_hasta, medio_pago_id.
+     */
+    public function getVentasPendientes(array $filtros = []): array
+    {
+        $conditions = [];
+        $params = [];
+
+        if (!empty($filtros['fecha_desde'])) {
+            $conditions[] = "DATE(v.fecha) >= :fecha_desde";
+            $params[':fecha_desde'] = $filtros['fecha_desde'];
+        }
+        if (!empty($filtros['fecha_hasta'])) {
+            $conditions[] = "DATE(v.fecha) <= :fecha_hasta";
+            $params[':fecha_hasta'] = $filtros['fecha_hasta'];
+        }
+        if (!empty($filtros['medio_pago_id'])) {
+            $conditions[] = "vc_filter.id_medio_pago = :medio_pago_id";
+            $params[':medio_pago_id'] = (int)$filtros['medio_pago_id'];
+        }
+
+        $where = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
+
+        $havingMedioPago = !empty($filtros['medio_pago_id'])
+            ? "HAVING saldo_pendiente > 0 AND COUNT(DISTINCT vc_filter.id_venta_cobro) > 0"
+            : "HAVING saldo_pendiente > 0";
+
+        // Para el filtro de medio_pago se usa LEFT JOIN adicional con alias
+        $joinMedioPago = !empty($filtros['medio_pago_id'])
+            ? "LEFT JOIN venta_cobro vc_filter ON vc_filter.id_venta = v.id"
+            : "";
+
+        $sql = "SELECT v.id, v.fecha, v.id_cliente, v.descripcion_cliente,
+                       v.simbolo,
+                       cl.nombre_cliente AS cliente_nombre,
+                       e.nombre AS equipo_nombre,
+                       (SELECT COALESCE(SUM(total), 0) FROM articulo_venta WHERE id_venta = v.id) AS total_venta,
+                       (SELECT COALESCE(SUM(monto), 0) FROM venta_cobro WHERE id_venta = v.id) AS total_cobrado,
+                       ((SELECT COALESCE(SUM(total), 0) FROM articulo_venta WHERE id_venta = v.id) - 
+                        (SELECT COALESCE(SUM(monto), 0) FROM venta_cobro WHERE id_venta = v.id)) AS saldo_pendiente
+                FROM venta v
+                LEFT JOIN cliente cl ON v.id_cliente = cl.id
+                LEFT JOIN equipo e ON v.id_equipo = e.id
+                {$joinMedioPago}
+                {$where}
+                GROUP BY v.id, v.fecha, v.id_cliente, v.descripcion_cliente, v.simbolo,
+                         cl.nombre_cliente, e.nombre
+                {$havingMedioPago}
+                ORDER BY v.fecha DESC, v.id DESC";
+
+        $stmt = $this->conn->prepare($sql);
+        foreach ($params as $key => $val) {
+            $stmt->bindValue($key, $val);
+        }
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }

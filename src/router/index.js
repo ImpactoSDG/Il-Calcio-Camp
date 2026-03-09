@@ -15,6 +15,7 @@ import StockView from '@/views/articulos/StockView.vue'
 import ClientesView from '@/views/ClientesView.vue'
 import ClienteEquipoView from '@/views/ClienteEquipoView.vue'
 import VentasView from '@/views/ventas/VentasView.vue'
+import CobroView from '@/views/CobroView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -119,6 +120,14 @@ const router = createRouter({
       name: 'ventas',
       component: VentasView,
       meta: { requiresAuth: true, idModulo: 15 }
+    },
+
+    // --- Cobros ---
+    {
+      path: '/cobros',
+      name: 'cobros',
+      component: CobroView,
+      meta: { requiresAuth: true }
     },
   ]
 })

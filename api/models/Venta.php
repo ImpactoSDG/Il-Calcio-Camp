@@ -333,7 +333,13 @@ class Venta
             // Nota: En un sistema real, se debería revertir el stock de los eliminados
             // Para este caso, asumimos que el modal envía la lista completa y actualizada.
             
-            // a. Obtener artículos actuales para revertir stock si fuera necesario (Omitido por simplicidad en esta fase)
+            // a. Limpiar las relaciones de stock (articulos_venta_ingreso_articulo) antes de borrar articulo_venta
+            $sqlDelRel = "DELETE FROM articulo_venta_ingreso_articulo 
+                          WHERE articulo_venta_id_articulo_venta IN (SELECT id_articulo_venta FROM articulo_venta WHERE id_venta = :id_v)";
+            $stmtDelRel = $this->conn->prepare($sqlDelRel);
+            $stmtDelRel->bindValue(':id_v', $idVenta, PDO::PARAM_INT);
+            $stmtDelRel->execute();
+
             $sqlDel = "DELETE FROM articulo_venta WHERE id_venta = :id_v";
             $stmtDel = $this->conn->prepare($sqlDel);
             $stmtDel->bindValue(':id_v', $idVenta, PDO::PARAM_INT);
@@ -353,8 +359,28 @@ class Venta
                 $stmtAV->bindValue(':precio_unitario', $art['precio_unitario']);
                 $stmtAV->bindValue(':total', $art['total']);
                 $stmtAV->execute();
-                
-                // (Opcional) Actualizar stock aquí si la cantidad cambió
+                $idArticuloVenta = (int)$this->conn->lastInsertId();
+
+                // Lógica de Descuento de Stock (FIFO) similar a la de creación
+                $lotes = $articuloModel->getLotesDisponibles((int)$art['id_articulo']);
+                $cantidadPendiente = (float)$art['cantidad'];
+
+                foreach ($lotes as $lote) {
+                    if ($cantidadPendiente <= 0) break;
+
+                    $disponibleEnLote = (float)$lote['disponible'];
+                    $aDescontar = min($cantidadPendiente, $disponibleEnLote);
+
+                    $sqlAVIA = "INSERT INTO articulo_venta_ingreso_articulo (articulo_venta_id_articulo_venta, ingreso_articulo_id, cantidad) 
+                               VALUES (:id_av, :id_ingreso, :cant)";
+                    $stmtAVIA = $this->conn->prepare($sqlAVIA);
+                    $stmtAVIA->bindValue(':id_av', $idArticuloVenta, PDO::PARAM_INT);
+                    $stmtAVIA->bindValue(':id_ingreso', $lote['id'], PDO::PARAM_INT);
+                    $stmtAVIA->bindValue(':cant', (float)$aDescontar); 
+                    $stmtAVIA->execute();
+
+                    $cantidadPendiente -= $aDescontar;
+                }
             }
 
             // 3. Registrar Pago si se está cerrando y hay datos de cobro
