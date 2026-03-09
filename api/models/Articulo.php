@@ -178,4 +178,50 @@ class Articulo
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         return $stmt->execute();
     }
+
+    /**
+     * Actualización masiva de precio_actual o costo_actual en una lista de IDs.
+     * $campo debe ser 'precio_actual' o 'costo_actual' (validado en el controlador).
+     */
+    public function bulkUpdatePrecios(array $ids, string $campo, array $precios): int
+    {
+        if (empty($ids)) return 0;
+
+        $affected = 0;
+        $this->conn->beginTransaction();
+        try {
+            $sql = "UPDATE {$this->table} SET {$campo} = :precio WHERE id = :id";
+            $stmt = $this->conn->prepare($sql);
+            foreach ($ids as $id) {
+                if (!isset($precios[$id])) continue;
+                $stmt->bindValue(':precio', $precios[$id]);
+                $stmt->bindValue(':id', (int)$id, PDO::PARAM_INT);
+                $stmt->execute();
+                $affected += $stmt->rowCount();
+            }
+            $this->conn->commit();
+        } catch (Throwable $e) {
+            $this->conn->rollBack();
+            throw $e;
+        }
+        return $affected;
+    }
+
+    /**
+     * Actualización masiva de estado (activar/desactivar) en una lista de IDs.
+     */
+    public function bulkUpdateStatus(array $ids, bool $activo): int
+    {
+        if (empty($ids)) return 0;
+
+        $in = implode(',', array_fill(0, count($ids), '?'));
+        $sql = "UPDATE {$this->table} SET activo = ? WHERE id IN ({$in})";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(1, $activo ? 1 : 0, PDO::PARAM_INT);
+        foreach ($ids as $k => $id) {
+            $stmt->bindValue($k + 2, (int)$id, PDO::PARAM_INT);
+        }
+        $stmt->execute();
+        return $stmt->rowCount();
+    }
 }

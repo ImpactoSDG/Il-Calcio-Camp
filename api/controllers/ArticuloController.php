@@ -154,4 +154,62 @@ class ArticuloController extends BaseController
             $this->handleError($e, 'Error al eliminar artículo');
         }
     }
+
+    /**
+     * Actualización masiva de precios o estados para múltiples artículos.
+     * Body (Precios): { campo: 'precio_actual'|'costo_actual', precios: { [id]: valor } }
+     * Body (Estado):  { action: 'bulk-status', ids: [], activo: boolean }
+     */
+    public function bulkUpdate(): void
+    {
+        try {
+            $data = json_decode(file_get_contents("php://input"), true);
+            $action = $data['action'] ?? null;
+
+            // Caso 1: Actualizar estado (activar/desactivar) en lote
+            if ($action === 'bulk-status') {
+                $ids    = $data['ids']    ?? [];
+                $activo = $data['activo'] ?? false;
+
+                if (empty($ids) || !is_array($ids)) {
+                    $this->respond(400, ['message' => 'Se requieren IDs de artículos.']);
+                    return;
+                }
+
+                $affected = $this->model->bulkUpdateStatus($ids, (bool)$activo);
+                $this->respond(200, ['message' => "{$affected} artículo(s) actualizado(s).", 'affected' => $affected]);
+                return;
+            }
+
+            // Caso 2: Actualizar precios en lote
+            $campo  = $data['campo']   ?? null;
+            $precios = $data['precios'] ?? [];
+
+            $camposPermitidos = ['precio_actual', 'costo_actual'];
+            if (!in_array($campo, $camposPermitidos, true)) {
+                $this->respond(400, ['message' => 'Campo inválido o acción no especificada.']);
+                return;
+            }
+
+            if (empty($precios) || !is_array($precios)) {
+                $this->respond(400, ['message' => 'Se requiere al menos un precio.']);
+                return;
+            }
+
+            // Validar que todos los valores sean numéricos y no negativos
+            foreach ($precios as $id => $valor) {
+                if (!is_numeric($valor) || (float)$valor < 0) {
+                    $this->respond(400, ['message' => "Valor inválido para el artículo ID {$id}."]);
+                    return;
+                }
+            }
+
+            $ids = array_keys($precios);
+            $affected = $this->model->bulkUpdatePrecios($ids, $campo, $precios);
+
+            $this->respond(200, ['message' => "{$affected} artículo(s) actualizado(s).", 'affected' => $affected]);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error en actualización masiva');
+        }
+    }
 }

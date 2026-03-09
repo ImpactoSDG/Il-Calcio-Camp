@@ -185,6 +185,7 @@
     <!-- ==========================================
          MODAL DE DETALLE
          ========================================== -->
+    <Teleport to="body">
     <div
       v-if="showDetalle && detalleItem"
       class="modal fade show d-block"
@@ -320,6 +321,7 @@
         </div>
       </div>
     </div>
+    </Teleport>
 
   </div>
 </template>

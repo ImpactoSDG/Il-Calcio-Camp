@@ -32,8 +32,7 @@
           />
           <tbody class="bg-white">
             <tr v-for="item in sortedCategorias" :key="item.id">
-              <td class="ps-4 text-muted">{{ item.id }}</td>
-              <td class="fw-medium text-dark">{{ item.descripcion }}</td>
+              <td class="ps-4 fw-medium text-dark">{{ item.descripcion }}</td>
               <td class="pe-4 text-end">
                 <button @click="openModal(item)" class="btn btn-link link-secondary p-1 me-2" title="Editar">
                   <i class="bi bi-pencil-square fs-4"></i>
@@ -44,7 +43,7 @@
               </td>
             </tr>
             <tr v-if="categorias.length === 0 && !loading">
-              <td colspan="3" class="text-center py-5 text-muted">
+              <td colspan="2" class="text-center py-5 text-muted">
                 No hay categorías de artículo registradas.
               </td>
             </tr>
@@ -54,6 +53,7 @@
     </div>
 
     <!-- Modal Formulario -->
+    <Teleport to="body">
     <div v-if="showFormModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -82,6 +82,7 @@
         </div>
       </div>
     </div>
+    </Teleport>
 
     <!-- Modal Confirmación Eliminación -->
     <ConfirmModal
@@ -108,8 +109,7 @@ const toast = useToastStore();
 const { sortKey, sortDir, handleSort, sortItems } = useSorting()
 
 const columns = [
-  { key: 'id',          label: 'ID',          sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 80px' },
-  { key: 'descripcion', label: 'Descripción', sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'descripcion', label: 'Descripción', sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'acciones',    label: 'Acciones',    sortable: false, thClass: 'pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary text-end' },
 ]
 

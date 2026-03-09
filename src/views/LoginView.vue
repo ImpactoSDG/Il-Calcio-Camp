@@ -1,9 +1,10 @@
 <template>
   <div class="row justify-content-center mt-5 pt-4">
     <div class="col-md-6 col-lg-4">
-      <div class="modern-card animate-fade-in">
-        <div class="modern-card-header">
-          <h2>BIENVENIDO</h2>
+      <div class="modern-card animate-fade-in shadow-lg">
+        <div class="modern-card-header text-center pt-4">
+          <img src="/il-calcio-camp-logo.jpg" alt="Logo Il Calcio Camp" class="mb-3" style="max-height: 120px; border-radius: 50%;">
+          <h2 class="fw-bold">IL CALCIO CAMP</h2>
           <p class="text-muted small">Inicia sesión para continuar</p>
         </div>
         <div class="modern-card-body">

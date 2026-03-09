@@ -8,6 +8,10 @@ const articulosService = {
   crearArticulo: (data) => api.post('/articulos', data).then(r => r.data),
   actualizarArticulo: (data) => api.put('/articulos', data).then(r => r.data),
   eliminarArticulo: (id) => api.delete('/articulos', { data: { id } }).then(r => r.data),
+  // campo: 'precio_actual' | 'costo_actual', precios: { [id]: valor }
+  bulkUpdatePrecios: (campo, precios) => api.patch('/articulos', { campo, precios }).then(r => r.data),
+  // ids: [id1, id2, ...], activo: boolean
+  bulkUpdateStatus: (ids, activo) => api.patch('/articulos', { action: 'bulk-status', ids, activo }).then(r => r.data),
 
   // --- Ingresos de Artículo (/ingresos-articulo) ---
   getIngresos: () => api.get('/ingresos-articulo').then(r => r.data),

@@ -21,11 +21,17 @@ class Venta
                        v.simbolo, v.id_cliente, v.tipo_vta,
                        ev.descripcion AS estado_descripcion,
                        c.nombre_cliente AS cliente_nombre,
-                       e.nombre AS equipo_nombre
+                       e.nombre AS equipo_nombre,
+                       vc.id_medio_pago AS id_medio_cobro
                 FROM {$this->table} v
                 LEFT JOIN estado_venta ev ON v.id_estado_venta = ev.id
                 LEFT JOIN cliente c ON v.id_cliente = c.id
                 LEFT JOIN equipo e ON v.id_equipo = e.id
+                LEFT JOIN (
+                    SELECT id_venta, MAX(id_medio_pago) as id_medio_pago 
+                    FROM venta_cobro 
+                    GROUP BY id_venta
+                ) vc ON v.id = vc.id_venta
                 ORDER BY v.fecha DESC, v.id DESC";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
@@ -41,11 +47,17 @@ class Venta
                        v.simbolo, v.id_cliente, v.tipo_vta,
                        ev.descripcion AS estado_descripcion,
                        c.nombre_cliente AS cliente_nombre,
-                       e.nombre AS equipo_nombre
+                       e.nombre AS equipo_nombre,
+                       vc.id_medio_pago AS id_medio_cobro
                 FROM {$this->table} v
                 LEFT JOIN estado_venta ev ON v.id_estado_venta = ev.id
                 LEFT JOIN cliente c ON v.id_cliente = c.id
                 LEFT JOIN equipo e ON v.id_equipo = e.id
+                LEFT JOIN (
+                    SELECT id_venta, MAX(id_medio_pago) as id_medio_pago 
+                    FROM venta_cobro 
+                    GROUP BY id_venta
+                ) vc ON v.id = vc.id_venta
                 WHERE v.id = :id LIMIT 1";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
@@ -98,10 +110,16 @@ class Venta
         $sql = "SELECT v.id, v.fecha, v.id_equipo, v.descripcion_cliente, v.id_estado_venta, 
                        v.simbolo, v.id_cliente, v.tipo_vta,
                        ev.descripcion AS estado_descripcion,
-                       c.nombre_cliente AS cliente_nombre
+                       c.nombre_cliente AS cliente_nombre,
+                       vc.id_medio_pago AS id_medio_cobro
                 FROM {$this->table} v
                 LEFT JOIN estado_venta ev ON v.id_estado_venta = ev.id
                 LEFT JOIN cliente c ON v.id_cliente = c.id
+                LEFT JOIN (
+                    SELECT id_venta, MAX(id_medio_pago) as id_medio_pago 
+                    FROM venta_cobro 
+                    GROUP BY id_venta
+                ) vc ON v.id = vc.id_venta
                 WHERE v.fecha BETWEEN :fecha_desde AND :fecha_hasta
                 ORDER BY v.fecha DESC";
         $stmt = $this->conn->prepare($sql);

@@ -17,9 +17,25 @@
       </div>
     </div>
 
-    <!-- ── Buscador ───────────────────────────────────────────── -->
-    <div class="mb-4">
-      <FuzzySearch v-model="searchQuery" placeholder="Buscar por cliente, mesa/equipo o descripción..." />
+    <!-- ── Filtros ───────────────────────────────────────────── -->
+    <div class="row g-3 mb-4 align-items-end">
+      <div class="col-12 col-md-4">
+        <label class="form-label small text-muted text-uppercase fw-bold mb-1">Buscador</label>
+        <FuzzySearch v-model="searchQuery" placeholder="Cliente, equipo o descripción..." />
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small text-muted text-uppercase fw-bold mb-1">Desde</label>
+        <input type="date" v-model="filterDateFrom" class="form-control" />
+      </div>
+      <div class="col-6 col-md-3">
+        <label class="form-label small text-muted text-uppercase fw-bold mb-1">Hasta</label>
+        <input type="date" v-model="filterDateTo" class="form-control" />
+      </div>
+      <div class="col-12 col-md-2 d-flex gap-1">
+        <button @click="resetFilters" class="btn btn-outline-secondary w-100" title="Limpiar filtros">
+          <i class="bi bi-arrow-counterclockwise"></i>
+        </button>
+      </div>
     </div>
 
     <!-- ── VENTAS ABIERTAS ────────────────────────────────────── -->
@@ -46,37 +62,43 @@
         <div
           v-for="venta in ventasAbiertas"
           :key="venta.id"
-          class="venta-card venta-card--abierta"
+          class="venta-card venta-card--abierta cursor-pointer"
           :class="{ 'venta-card--expanded': ventaExpandida === venta.id }"
+          @click="openVentaModal(venta)"
         >
           <!-- Cabecera de la tarjeta -->
           <div class="venta-card__header">
-            <div class="d-flex align-items-start gap-2 flex-grow-1 min-w-0">
-              <span class="venta-card__id">#{{ venta.id }}-{{ venta.simbolo }}</span>
-              <div class="min-w-0">
-                <div class="fw-semibold text-dark lh-sm text-truncate">
-                  {{ venta.cliente_nombre || 'Sin cliente' }}
+            <div class="d-flex align-items-start gap-3 flex-grow-1 min-w-0">
+              <div class="venta-card__icon-container">
+                <i class="bi bi-cart3"></i>
+              </div>
+              <div class="min-w-0 flex-grow-1">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <span class="venta-card__id text-uppercase">Venta Nro: {{ venta.id }}-{{ venta.simbolo }}</span>
                 </div>
-                <div class="text-muted" style="font-size:0.78rem">
-                  <span v-if="venta.equipo_nombre" class="badge bg-primary-subtle text-primary-custom rounded-pill px-2 me-1">
-                    <i class="bi bi-table me-1" style="font-size:0.6rem"></i>{{ venta.equipo_nombre }}
+                <div class="fw-bold text-dark lh-sm text-truncate mb-1" style="font-size: 1.05rem;">
+                  {{ venta.cliente_nombre || 'Consumidor Final' }}
+                </div>
+                <div class="d-flex flex-wrap gap-2 align-items-center mt-1">
+                  <span v-if="venta.equipo_nombre" class="badge-equipo">
+                    <i class="bi bi-person-workspace me-1"></i>{{ venta.equipo_nombre }}
                   </span>
-                  {{ formatFecha(venta.fecha) }}
+                  <span class="text-muted" style="font-size:0.8rem">
+                    <i class="bi bi-calendar3 me-1"></i>{{ formatFecha(venta.fecha) }}
+                  </span>
                 </div>
               </div>
             </div>
-            <div class="d-flex align-items-center gap-1 flex-shrink-0">
-              <button @click="openVentaModal(venta)" class="btn btn-sm btn-outline-primary-modern d-flex align-items-center px-2 py-1" title="Agregar artículos">
-                <i class="bi bi-cart-plus me-1"></i>
-                <span class="d-none d-sm-inline">Productos</span>
-              </button>
-              <button @click="iniciarCierreVenta(venta)" class="btn btn-sm btn-success-modern d-flex align-items-center px-2 py-1" title="Cerrar venta">
-                <i class="bi bi-check2-circle me-1"></i>
-                <span class="d-none d-sm-inline">Cerrar</span>
-              </button>
-              <button @click="prepareDeleteVenta(venta.id)" class="btn btn-link link-danger p-0 ms-1" title="Eliminar">
-                <i class="bi bi-trash3 fs-5"></i>
-              </button>
+            <div class="d-flex flex-column align-items-end gap-2 flex-shrink-0 ms-2" @click.stop>
+              <div class="d-flex align-items-center gap-1">
+                <button @click="iniciarCierreVenta(venta)" class="btn btn-sm btn-success-modern d-flex align-items-center px-2 py-1" title="Cerrar y Cobrar">
+                  <i class="bi bi-wallet2 me-1"></i>
+                  <span class="d-none d-sm-inline">Cobrar</span>
+                </button>
+                <button @click="prepareDeleteVenta(venta.id)" class="btn btn-link link-danger p-0 ms-1" title="Eliminar venta">
+                  <i class="bi bi-trash3 fs-5"></i>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -156,14 +178,11 @@
       </div>
 
       <div v-if="mostrarCerradas">
-        <div v-if="loading" class="text-center py-3">
-          <div class="spinner-border spinner-border-sm text-primary-custom"></div>
-        </div>
-        <div v-else-if="ventasCerradas.length === 0" class="venta-empty-state">
+        <div v-if="ventasCerradas.length === 0 && !loading" class="venta-empty-state">
           <i class="bi bi-archive"></i>
           <span>No hay ventas cerradas</span>
         </div>
-        <div v-else class="card shadow-sm border-0 rounded-3 overflow-hidden">
+        <div v-else-if="ventasCerradas.length > 0" class="card shadow-sm border-0 rounded-3 overflow-hidden">
           <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
               <SortableTableHead :columns="columnsCerradas" :sort-key="sortKey" :sort-dir="sortDir" @sort="handleSort" />
@@ -180,8 +199,12 @@
                       <span v-else class="text-muted">—</span>
                     </td>
                     <td class="text-muted small">
-                      <span v-if="venta.tipo_vta === 1" class="badge bg-info-subtle text-info border border-info-subtle px-2">Común</span>
-                      <span v-else-if="venta.tipo_vta === 0" class="badge bg-warning-subtle text-warning border border-warning-subtle px-2">A Cuenta</span>
+                      {{ venta.descripcion_cliente || '—' }}
+                    </td>
+                    <td class="text-muted small">
+                      <span v-if="venta.medio_cobro_nombre" class="badge bg-info-subtle text-info border border-info-subtle px-2">
+                        {{ venta.medio_cobro_nombre }}
+                      </span>
                       <span v-else class="text-muted">—</span>
                     </td>
                     <td class="pe-4 text-end">
@@ -260,6 +283,7 @@
     <VentaModal
       v-model="showVentaModal"
       :is-editing="isEditing"
+      :is-loading="isSaving"
       :initial-form="ventaForm"
       :clientes="clientes"
       :equipos="equipos"
@@ -305,8 +329,9 @@ const columnsCerradas = [
   { key: 'id',            label: 'Nro Venta',     sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width:100px' },
   { key: 'fecha',         label: 'Fecha',       sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'cliente_nombre',label: 'Cliente',     sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
-  { key: 'equipo_nombre', label: 'Mesa',        sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
-  { key: 'tipo_vta',      label: 'Medio pago',  sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'equipo_nombre', label: 'Equipo',      sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'descripcion_cliente', label: 'Descripción', sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'medio_cobro_nombre',  label: 'Medio pago',  sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'acciones',      label: '',            sortable: false, thClass: 'pe-4 py-3 text-end' },
 ];
 
@@ -319,7 +344,29 @@ const articulos       = ref([]);
 const loading         = ref(false);
 const searchQuery     = ref('');
 const mostrarCerradas = ref(true);
-const simboloDia      = ref('$');
+
+const simbolosRotativos = ['$', '#', '&', '@', '€', '£', '¥', 'Δ', 'Ω', 'Σ'];
+const simboloDia = computed(() => {
+  const diaDelAnio = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
+  return simbolosRotativos[diaDelAnio % simbolosRotativos.length];
+});
+
+// Filtros de fecha
+const getYesterday = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().split('T')[0];
+};
+const getToday = () => new Date().toISOString().split('T')[0];
+
+const filterDateFrom = ref(getYesterday());
+const filterDateTo   = ref(getToday());
+
+const resetFilters = () => {
+  searchQuery.value = '';
+  filterDateFrom.value = getYesterday();
+  filterDateTo.value = getToday();
+};
 
 const ventaExpandida    = ref(null);
 const articulosDeVenta  = ref([]);
@@ -365,7 +412,18 @@ const totalDetalleVenta = computed(() =>
 );
 
 const ventasFiltradas = computed(() => {
-  let items = ventas.value;
+  let items = (ventas.value || []).map(v => {
+    const medio = (mediosCobro.value || []).find(m => Number(m.id) === Number(v.id_medio_cobro));
+    return {
+      ...v,
+      medio_cobro_nombre: medio ? medio.descripcion : (v.medio_cobro_nombre || '—')
+    };
+  });
+  
+  // Filtrar fuera a los que no tienen el estado correcto para evitar errores si algo falla
+  items = items.filter(v => v.id_estado_venta);
+  
+  // Filtro de texto
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase();
     items = items.filter(v =>
@@ -375,6 +433,15 @@ const ventasFiltradas = computed(() => {
       v.descripcion_cliente?.toLowerCase().includes(q)
     );
   }
+
+  // Filtro de fechas
+  if (filterDateFrom.value) {
+    items = items.filter(v => v.fecha >= filterDateFrom.value);
+  }
+  if (filterDateTo.value) {
+    items = items.filter(v => v.fecha <= filterDateTo.value);
+  }
+
   return sortItems(items);
 });
 
@@ -395,15 +462,23 @@ const formatFecha = (fecha) => {
 const fetchData = async () => {
   loading.value = true;
   try {
-    [ventas.value, clientes.value, equipos.value, estadosVenta.value, mediosCobro.value, articulos.value, simboloDia.value] = await Promise.all([
+    const [ventasRes, clientesRes, equiposRes, estadosRes, mediosRes, articulosRes] = await Promise.all([
       ventasService.getVentas(),
       clientesService.getClientes(),
       datosMaestrosService.getEquipos(),
       datosMaestrosService.getEstadosVenta(),
       datosMaestrosService.getMediosCobro(),
       articulosService.getAllActivos(),
-      configuracionService.getSimbolo(),
     ]);
+    ventas.value = ventasRes;
+    clientes.value = clientesRes;
+    equipos.value = equiposRes;
+    estadosVenta.value = estadosRes;
+    mediosCobro.value = mediosRes;
+    articulos.value = articulosRes;
+
+    console.log('Ventas:', ventas.value);
+    console.log('Medios Cobro:', mediosCobro.value);
   } catch {
     toast.showToast({ message: 'Error al cargar datos.', type: 'danger' });
   } finally {
@@ -440,6 +515,7 @@ const openVentaModal = async (item = null, forceCierre = false) => {
       ventaForm.value = { 
         ...item, 
         simbolo: item.simbolo || simboloDia.value,
+        id_medio_cobro: item.id_medio_cobro || 1, // Por defecto ID 1 al editar/cerrar
         articulos: articulosExistentes.map(av => ({
           id_articulo: av.id_articulo,
           nombre: av.articulo_nombre,
@@ -467,6 +543,7 @@ const openVentaModal = async (item = null, forceCierre = false) => {
       ...emptyVentaForm(), 
       id_estado_venta: ID_ESTADO_CERRADA.value,
       simbolo: simboloDia.value,
+      id_medio_cobro: 1, // Por defecto ID 1
       articulos: [],
       forceCierre: false
     };
@@ -619,19 +696,208 @@ onUnmounted(() => { window.removeEventListener('keydown', onKeydown); });
 </script>
 
 <style scoped>
+/* ── Estilos Generales y Profundidad ────────────────────────── */
+.venta-card {
+  background-color: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 16px;
+  transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  position: relative;
+  overflow: hidden;
+}
+
+.venta-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  border-color: var(--primary-color-subtle, rgba(0, 85, 140, 0.2));
+}
+
+.venta-card--abierta {
+  border-left: 5px solid #ffc107;
+}
+
+.venta-card--expanded {
+  transform: scale(1.005);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.venta-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.25rem;
+}
+
+.venta-card__icon-container {
+  width: 48px;
+  height: 48px;
+  background-color: #f8f9fa;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  color: #6c757d;
+  flex-shrink: 0;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.venta-card--abierta .venta-card__icon-container {
+  background-color: #fff9e6;
+  color: #ffc107;
+}
+
+.venta-card__id {
+  font-family: 'Monaco', 'Consolas', monospace;
+  font-size: 0.75rem;
+  color: #adb5bd;
+  letter-spacing: 0.5px;
+  font-weight: 800;
+}
+
+.badge-equipo {
+  background-color: #e7f1ff;
+  color: #0d6efd;
+  padding: 0.25rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #cfe2ff;
+}
+
+.venta-card__detalle {
+  padding: 1.25rem;
+  border-top: 1px dashed #e9ecef;
+  background-color: #fcfcfc;
+}
+
+/* ── Tablas con Profundidad ────────────────────────────────── */
+.card-table-container {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.table thead th {
+  background-color: #f8f9fa;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #6c757d;
+  padding: 1rem 0.75rem;
+  border-bottom: 2px solid #edf2f7;
+}
+
+.table tbody td {
+  padding: 1rem 0.75rem;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.table-hover tbody tr:hover {
+  background-color: rgba(248, 249, 250, 0.5);
+}
+
+.venta-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  background: #f8f9fa;
+  border-radius: 16px;
+  border: 2px dashed #dee2e6;
+  color: #6c757d;
+}
+
+.venta-empty-state i {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.ventas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.ventas-section-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+.ventas-section-badge--abierta {
+  background: #fff8e1;
+  color: #856404;
+  border: 1px solid #ffe082;
+}
+
+.ventas-section-badge--cerrada {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.btn-success-modern {
+  background-color: #198754;
+  border: none;
+  border-radius: 9px;
+  color: white;
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 7px 16px;
+  transition: all 0.2s;
+}
+
+.btn-success-modern:hover {
+  background-color: #157347;
+  box-shadow: 0 4px 12px rgba(25, 135, 84, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn-outline-primary-modern {
+  color: var(--color-primary);
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  font-size: 0.85rem;
+  padding: 7px 16px;
+  border-radius: 9px;
+  font-weight: 600;
+}
+
+.btn-outline-primary-modern:hover {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary, #00558c);
+  color: white;
+}
+
 .fs-xs { font-size: 0.75rem; }
-.ventas-section-badge { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; padding: 3px 10px; border-radius: 20px; }
-.ventas-section-badge--abierta { background: #fff8e1; color: #856404; border: 1px solid #ffe082; }
-.ventas-section-badge--cerrada { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
-.ventas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.85rem; }
-.venta-card { border-radius: 12px; border: 1.5px solid #dee2e6; background: #fff; transition: all 0.2s; overflow: hidden; }
-.venta-card--abierta { border-left: 4px solid #fbbf24; }
-.venta-card--expanded { border-color: var(--color-primary); box-shadow: 0 4px 16px rgba(0, 85, 140, 0.1); }
-.venta-card__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; padding: 0.75rem 0.85rem; }
-.venta-card__id { font-size: 0.72rem; font-weight: 700; color: #6c757d; padding-top: 2px; }
-.venta-card__detalle { padding: 0.75rem 0.85rem 0.85rem; border-top: 1px solid #f1f1f1; background: #f8f9fa; }
-.venta-empty-state { display: flex; align-items: center; gap: 0.5rem; color: #adb5bd; font-size: 0.875rem; padding: 1.25rem 0.5rem; }
-.btn-success-modern { background-color: #198754; border: none; border-radius: 7px; color: white; font-weight: 600; font-size: 0.8rem; padding: 5px 12px; }
-.btn-outline-primary-modern { color: var(--color-primary); border-color: var(--color-primary); font-size: 0.78rem; padding: 3px 10px; border-radius: 7px; }
-.btn-outline-primary-modern:hover { background-color: var(--color-primary); color: white; }
+.cursor-pointer { cursor: pointer; }
+
+/* Animaciones */
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 576px) {
+  .ventas-grid {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

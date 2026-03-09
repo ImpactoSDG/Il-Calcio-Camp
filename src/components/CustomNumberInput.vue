@@ -36,8 +36,15 @@ const isEditing = ref(false);
 // Format internal value for display
 const formattedValue = computed(() => {
   if (isEditing.value) {
-    // Show comma for decimals during edit
-    return internalValue.value === null ? '' : internalValue.value.toString().replace('.', ',');
+    // Si no hay valor, devolver vacío
+    if (internalValue.value === null || internalValue.value === undefined || internalValue.value === '') return '';
+    
+    // Formatear con separadores de miles mientras se edita (estilo real-time)
+    const valStr = internalValue.value.toString().replace('.', ',');
+    const [entero, decimal] = valStr.split(',');
+    
+    const enteroFormateado = entero.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return decimal !== undefined ? `${enteroFormateado},${decimal}` : enteroFormateado;
   }
   return formatNumber(internalValue.value, props.decimals);
 });
@@ -45,18 +52,29 @@ const formattedValue = computed(() => {
 const handleInput = (event) => {
   let value = event.target.value;
   
-  // Basic validation: allow numbers, dot/comma
-  value = value.replace(/[^0-9,-]/g, '');
+  // Guardar posición del cursor para evitar que salte al final
+  const selectionStart = event.target.selectionStart;
+  const oldLength = value.length;
+
+  // Limpiar todo lo que no sea número o coma para procesar el valor puro
+  const pureValue = value.replace(/[^\d,]/g, '').replace(',', '.');
   
-  // Ensure single comma (or dot which gets replaced)
-  value = value.replace('.', ',');
-  const parts = value.split(',');
-  if (parts.length > 2) {
-    value = parts[0] + ',' + parts.slice(1).join('');
+  if (pureValue === '' || pureValue === '.') {
+    internalValue.value = null;
+    emit('update:modelValue', null);
+    return;
   }
 
-  internalValue.value = parseNumber(value);
-  emit('update:modelValue', internalValue.value);
+  const numericValue = parseFloat(pureValue);
+  internalValue.value = numericValue;
+  emit('update:modelValue', numericValue);
+
+  // Ajustar posición del cursor después de que Vue actualice el DOM
+  setTimeout(() => {
+    const newLength = event.target.value.length;
+    const diff = newLength - oldLength;
+    event.target.setSelectionRange(selectionStart + diff, selectionStart + diff);
+  }, 0);
 };
 
 const handleFocus = (event) => {

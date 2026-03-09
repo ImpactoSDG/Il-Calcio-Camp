@@ -121,9 +121,9 @@
                     </div>
 
                     <div class="col-12" v-if="esAbierto || form.tipo_vta === 0">
-                      <label class="form-label fw-semibold text-secondary small mb-1">Mesa / Equipo</label>
+                      <label class="form-label fw-semibold text-secondary small mb-1">Equipo</label>
                       <select v-model.number="form.id_equipo" class="form-select border-2 shadow-sm py-2 px-3 rounded-3">
-                        <option :value="null">Sin mesa</option>
+                        <option :value="null">Sin equipo</option>
                         <option v-for="e in equipos" :key="e.id" :value="e.id">{{ e.nombre }}</option>
                       </select>
                     </div>
@@ -303,16 +303,22 @@
         </div>
 
         <!-- Footer Moderno -->
-        <div class="modal-footer border-0 p-4 bg-white justify-content-between flex-shrink-0">
-          <button @click="closeModal" type="button" class="btn btn-link text-secondary text-decoration-none fw-bold px-4">CANCELAR</button>
+        <div class="modal-footer border-0 p-4 bg-white justify-content-end gap-2 flex-shrink-0">
+          <button 
+            @click="closeModal" 
+            type="button" 
+            class="btn btn-outline-secondary px-4 py-2 rounded-3 fw-bold"
+            :disabled="isLoading"
+          >
+            CANCELAR
+          </button>
           <button
             type="submit"
-            class="btn btn-primary-modern btn-lg px-5 py-3 shadow-lg rounded-pill d-flex align-items-center gap-3 border-0 transition-transform active-scale"
+            class="btn btn-primary px-4 py-2 rounded-3 fw-bold d-flex align-items-center gap-2"
             :disabled="isLoading || !puedeGuardar"
           >
-            <div v-if="isLoading" class="spinner-border spinner-border-sm"></div>
-            <i v-else class="bi bi-check-lg fs-4 fw-bold"></i>
-            <span class="fw-black text-uppercase letter-spacing-1" style="font-size: 0.9rem;">{{ isEditing ? 'Guardar Cambios' : 'Confirmar Venta' }}</span>
+            <span v-if="isLoading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span>{{ isLoading ? 'GUARDANDO...' : (isEditing ? 'GUARDAR' : 'CREAR VENTA') }}</span>
           </button>
         </div>
       </form>

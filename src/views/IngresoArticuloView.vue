@@ -13,12 +13,28 @@
       </button>
     </div>
 
-    <!-- Buscador -->
-    <div class="mb-3">
-      <FuzzySearch
-        v-model="searchQuery"
-        placeholder="Buscar por artículo..."
-      />
+    <!-- Filtros -->
+    <div class="row g-3 mb-4 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label fs-xs fw-bold text-uppercase text-secondary mb-1">Buscar Artículo</label>
+        <FuzzySearch
+          v-model="searchQuery"
+          placeholder="Nombre del artículo..."
+        />
+      </div>
+      <div class="col-md-2">
+        <label class="form-label fs-xs fw-bold text-uppercase text-secondary mb-1">Desde</label>
+        <input v-model="filterDateFrom" type="date" class="form-control" />
+      </div>
+      <div class="col-md-2">
+        <label class="form-label fs-xs fw-bold text-uppercase text-secondary mb-1">Hasta</label>
+        <input v-model="filterDateTo" type="date" class="form-control" />
+      </div>
+      <div class="col-md-auto ms-auto">
+        <button @click="resetFilters" class="btn btn-outline-secondary d-flex align-items-center" title="Limpiar Filtros">
+          <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar
+        </button>
+      </div>
     </div>
 
     <div class="card shadow-sm border-0 rounded-lg overflow-hidden position-relative" :style="{ minHeight: loading ? '300px' : 'auto' }">
@@ -36,30 +52,33 @@
             @sort="handleSort"
           />
           <tbody class="bg-white">
-            <tr v-for="item in ingresosFiltrados" :key="item.id">
-              <td class="ps-4 text-muted fw-bold">{{ item.id }}</td>
-              <td class="fw-medium text-dark">{{ item.articulo_nombre }}</td>
-              <td class="text-muted">{{ formatFecha(item.fecha_ingreso) }}</td>
-              <td class="text-end fw-semibold">{{ item.cantidad }}</td>
-              <td class="text-end text-muted">${{ Number(item.precio_unitario).toFixed(2) }}</td>
-              <td class="text-end fw-semibold text-dark">${{ Number(item.total).toFixed(2) }}</td>
+            <tr v-for="item in ingresosFiltrados" :key="item.id" class="article-row">
+              <td class="ps-4 fw-semibold text-dark">{{ item.articulo_nombre }}</td>
+              <td class="text-muted small">
+                <i class="bi bi-calendar3 me-1"></i>{{ formatFecha(item.fecha_ingreso) }}
+              </td>
+              <td class="text-end fw-bold text-primary-custom">{{ item.cantidad }}</td>
+              <td class="text-end text-muted small">${{ Number(item.precio_unitario) % 1 === 0 ? Number(item.precio_unitario).toFixed(0) : Number(item.precio_unitario).toFixed(2) }}</td>
+              <td class="text-end fw-bold text-dark">${{ Number(item.total) % 1 === 0 ? Number(item.total).toFixed(0) : Number(item.total).toFixed(2) }}</td>
               <td class="text-center">
-                <span :class="item.es_perecedero ? 'bg-warning-subtle text-warning' : 'bg-secondary-subtle text-secondary'" class="badge rounded-pill px-3">
-                  {{ item.es_perecedero ? 'Sí' : 'No' }}
+                <span :class="item.es_perecedero ? 'status-pill status-pill--danger' : 'status-pill status-pill--inactive'">
+                  {{ item.es_perecedero ? 'Pered.' : 'No' }}
                 </span>
               </td>
               <td class="text-center">
-                <span :class="item.es_ajuste ? 'bg-info-subtle text-info' : 'bg-secondary-subtle text-secondary'" class="badge rounded-pill px-3">
-                  {{ item.es_ajuste ? 'Sí' : 'No' }}
+                <span :class="item.es_ajuste ? 'status-pill status-pill--info' : 'status-pill status-pill--inactive'">
+                  {{ item.es_ajuste ? 'Ajuste' : 'No' }}
                 </span>
               </td>
               <td class="pe-4 text-end">
-                <button @click="openModal(item)" class="btn btn-link link-secondary p-1 me-2" title="Editar">
-                  <i class="bi bi-pencil-square fs-4"></i>
-                </button>
-                <button @click="prepareDelete(item.id)" class="btn btn-link link-danger p-1" title="Eliminar">
-                  <i class="bi bi-trash3 fs-4"></i>
-                </button>
+                <div class="d-flex justify-content-end gap-1">
+                  <button @click="openModal(item)" class="btn btn-icon btn-light-primary" title="Editar">
+                    <i class="bi bi-pencil-fill"></i>
+                  </button>
+                  <button @click="prepareDelete(item.id)" class="btn btn-icon btn-light-danger" title="Eliminar">
+                    <i class="bi bi-trash3-fill"></i>
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="ingresosFiltrados.length === 0 && !loading">
@@ -88,7 +107,7 @@
               <div class="row g-3">
                 <div class="col-md-8">
                   <label class="form-label">Artículo <span class="text-danger">*</span></label>
-                  <select v-model.number="form.id_articulo" class="form-select" required>
+                  <select v-model.number="form.id_articulo" class="form-select" required @change="onArticuloChange">
                     <option :value="null" disabled>Seleccionar artículo...</option>
                     <option v-for="art in articulos" :key="art.id" :value="art.id">{{ art.nombre }}</option>
                   </select>
@@ -99,28 +118,27 @@
                 </div>
                 <div class="col-md-4">
                   <label class="form-label">Cantidad <span class="text-danger">*</span></label>
-                  <input v-model.number="form.cantidad" type="number" step="0.01" min="0" class="form-control" placeholder="0" required @input="calcularTotal" />
+                  <CustomNumberInput v-model="form.cantidad" placeholder="0" :decimals="2" required @update:modelValue="recalculateFromQuantity" />
                 </div>
                 <div class="col-md-4">
                   <label class="form-label">Precio Unitario ($) <span class="text-danger">*</span></label>
-                  <input v-model.number="form.precio_unitario" type="number" step="0.01" min="0" class="form-control" placeholder="0.00" required @input="calcularTotal" />
+                  <CustomNumberInput v-model="form.precio_unitario" placeholder="0.00" :decimals="2" required @update:modelValue="recalculateFromUnit" />
                 </div>
                 <div class="col-md-4">
                   <label class="form-label">Total ($)</label>
-                  <input :value="totalCalculado" type="number" class="form-control bg-light text-muted" readonly />
+                  <CustomNumberInput v-model="form.total" placeholder="0.00" :decimals="2" @update:modelValue="recalculateFromTotal" />
                 </div>
+                <!-- Fila de Vencimiento y Switches -->
                 <div class="col-md-6">
                   <label class="form-label">Vencimiento</label>
                   <input v-model="form.vencimiento" type="date" class="form-control" />
                 </div>
-                <div class="col-md-3 d-flex align-items-end pb-1">
-                  <div class="form-check form-switch ps-4">
+                <div class="col-md-6 d-flex align-items-center justify-content-around pt-4">
+                  <div class="form-check form-switch">
                     <input v-model="form.es_perecedero" class="form-check-input" type="checkbox" role="switch" id="chkPerecedero" />
                     <label class="form-check-label fw-semibold ms-2" for="chkPerecedero">Perecedero</label>
                   </div>
-                </div>
-                <div class="col-md-3 d-flex align-items-end pb-1">
-                  <div class="form-check form-switch ps-4">
+                  <div class="form-check form-switch">
                     <input v-model="form.es_ajuste" class="form-check-input" type="checkbox" role="switch" id="chkAjuste" />
                     <label class="form-check-label fw-semibold ms-2" for="chkAjuste">Es Ajuste</label>
                   </div>
@@ -155,6 +173,7 @@
 import { ref, computed, onMounted } from 'vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import FuzzySearch from '@/components/FuzzySearch.vue';
+import CustomNumberInput from '@/components/CustomNumberInput.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
 import articulosService from '@/services/articulosService';
 import { useToastStore } from '@/stores/toastStore';
@@ -164,21 +183,22 @@ const toast = useToastStore();
 const { sortKey, sortDir, handleSort, sortItems } = useSorting()
 
 const columns = [
-  { key: 'id',               label: 'ID',            sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 70px' },
-  { key: 'articulo_nombre',  label: 'Artículo',       sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
-  { key: 'fecha_ingreso',    label: 'Fecha Ingreso',  sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
-  { key: 'cantidad',         label: 'Cantidad',       sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-end' },
-  { key: 'precio_unitario',  label: 'Precio Unit.',   sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-end' },
-  { key: 'total',            label: 'Total',          sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-end' },
-  { key: 'es_perecedero',    label: 'Perecedero',     sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center' },
-  { key: 'es_ajuste',        label: 'Ajuste',         sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center' },
-  { key: 'acciones',         label: 'Acciones',       sortable: false, thClass: 'pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary text-end' },
+  { key: 'articulo_nombre',  label: 'Artículo',       sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 30%' },
+  { key: 'fecha_ingreso',    label: 'Fecha Ingreso',  sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 15%' },
+  { key: 'cantidad',         label: 'Cantidad',       sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-end', thStyle: 'width: 10%' },
+  { key: 'precio_unitario',  label: 'Precio Unit.',   sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-end', thStyle: 'width: 10%' },
+  { key: 'total',            label: 'Total',          sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-end', thStyle: 'width: 10%' },
+  { key: 'es_perecedero',    label: 'Pered.',         sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width: 8%' },
+  { key: 'es_ajuste',        label: 'Ajuste',         sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width: 8%' },
+  { key: 'acciones',         label: 'Acciones',       sortable: false, thClass: 'pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary text-end', thStyle: 'width: 9%' },
 ]
 
 const ingresos = ref([]);
 const articulos = ref([]);
 const loading = ref(false);
 const searchQuery = ref('');
+const filterDateFrom = ref('');
+const filterDateTo = ref('');
 const showFormModal = ref(false);
 const showDeleteModal = ref(false);
 const isEditing = ref(false);
@@ -192,6 +212,7 @@ const emptyForm = () => ({
   fecha_ingreso: new Date().toISOString().split('T')[0],
   cantidad: null,
   precio_unitario: null,
+  total: null,
   vencimiento: null,
   es_perecedero: false,
   es_ajuste: false,
@@ -199,20 +220,64 @@ const emptyForm = () => ({
 const form = ref(emptyForm());
 const originalForm = ref({});
 
-const totalCalculado = computed(() => {
-  const c = Number(form.value.cantidad) || 0;
-  const p = Number(form.value.precio_unitario) || 0;
-  return (c * p).toFixed(2);
-});
+const onArticuloChange = () => {
+  const art = articulos.value.find(a => a.id === form.value.id_articulo);
+  if (art) {
+    // Al seleccionar el artículo, completamos con el precio_actual (precio de venta)
+    form.value.precio_unitario = Number(art.precio_actual) || 0;
+    recalculateFromUnit();
+  }
+};
+
+const recalculateFromQuantity = () => {
+  const qty = Number(form.value.cantidad) || 0;
+  const unit = Number(form.value.precio_unitario) || 0;
+  form.value.total = Number((qty * unit).toFixed(2));
+};
+
+const recalculateFromUnit = () => {
+  const qty = Number(form.value.cantidad) || 0;
+  const unit = Number(form.value.precio_unitario) || 0;
+  form.value.total = Number((qty * unit).toFixed(2));
+};
+
+const recalculateFromTotal = () => {
+  const qty = Number(form.value.cantidad) || 0;
+  const total = Number(form.value.total) || 0;
+  if (qty > 0) {
+    form.value.precio_unitario = Number((total / qty).toFixed(2));
+  }
+};
 
 const ingresosFiltrados = computed(() => {
   let items = ingresos.value;
+
+  // Filtro por búsqueda de texto
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase();
     items = items.filter(i => i.articulo_nombre?.toLowerCase().includes(q));
   }
+
+  // Filtro por fechas
+  if (filterDateFrom.value) {
+    items = items.filter(i => i.fecha_ingreso >= filterDateFrom.value);
+  }
+  if (filterDateTo.value) {
+    items = items.filter(i => i.fecha_ingreso <= filterDateTo.value);
+  }
+
   return sortItems(items);
 });
+
+const resetFilters = () => {
+  searchQuery.value = '';
+  const today = new Date();
+  const lastWeek = new Date();
+  lastWeek.setDate(today.getDate() - 7);
+  
+  filterDateFrom.value = lastWeek.toISOString().split('T')[0];
+  filterDateTo.value = today.toISOString().split('T')[0];
+};
 
 const formatFecha = (fecha) => {
   if (!fecha) return '—';
@@ -260,7 +325,7 @@ const save = async () => {
     return;
   }
 
-  const payload = { ...form.value, total: totalCalculado.value };
+  const payload = { ...form.value };
 
   isSaving.value = true;
   try {
@@ -299,12 +364,80 @@ const confirmDelete = async () => {
   }
 };
 
-onMounted(fetchData);
+onMounted(() => {
+  resetFilters();
+  fetchData();
+});
 </script>
 
 <style scoped>
 .fs-xs { font-size: 0.75rem; }
 .btn-link { text-decoration: none; }
+
+/* ── Mejoras Visuales (Sincronizado con ArticulosView) ── */
+.article-row {
+  transition: all 0.2s ease;
+}
+.article-row:hover {
+  background-color: rgba(var(--color-primary-rgb, 0, 85, 140), 0.04) !important;
+}
+
+/* ── Pills de Estado ── */
+.status-pill {
+  font-size: 0.70rem;
+  font-weight: 700;
+  padding: 0.25rem 0.65rem;
+  border-radius: 50px;
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.status-pill--danger {
+  background-color: #fdeaea;
+  color: #dc3545;
+}
+.status-pill--info {
+  background-color: #e7f3ff;
+  color: #0d6efd;
+}
+.status-pill--inactive {
+  background-color: #f1f3f5;
+  color: #6c757d;
+}
+
+/* ── Botones de Acción ── */
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: none;
+  transition: all 0.2s ease;
+}
+.btn-light-primary {
+  background-color: #eef4f8;
+  color: var(--color-primary, #00558c);
+}
+.btn-light-primary:hover {
+  background-color: var(--color-primary, #00558c);
+  color: #fff;
+}
+.btn-light-danger {
+  background-color: #fdeaea;
+  color: #dc3545;
+}
+.btn-light-danger:hover {
+  background-color: #dc3545;
+  color: #fff;
+}
+
+.text-primary-custom {
+  color: var(--color-primary, #00558c) !important;
+}
+
 .loading-overlay-local {
   position: absolute;
   top: 0; left: 0; width: 100%; height: 100%;

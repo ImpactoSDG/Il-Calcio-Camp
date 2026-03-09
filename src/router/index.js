@@ -11,10 +11,10 @@ import CategoriasArticuloView from '@/views/CategoriasArticuloView.vue'
 import EquiposView from '@/views/EquiposView.vue'
 import ArticulosView from '@/views/ArticulosView.vue'
 import IngresoArticuloView from '@/views/IngresoArticuloView.vue'
-import StockView from '@/views/articulos/StockView.vue'
+import StockView from '@/views/StockView.vue'
 import ClientesView from '@/views/ClientesView.vue'
 import ClienteEquipoView from '@/views/ClienteEquipoView.vue'
-import VentasView from '@/views/ventas/VentasView.vue'
+import VentasView from '@/views/VentasView.vue'
 import CobroView from '@/views/CobroView.vue'
 
 const router = createRouter({
@@ -65,22 +65,13 @@ const router = createRouter({
       component: SubmenuView,
       meta: { requiresAuth: true, useParamId: true }
     },
-
-    // --- Datos Maestros ---
+    // --- Artículos & Stock ---
     {
-      path: '/datos-maestros/categorias-articulo',
+      path: '/categorias-articulo',
       name: 'categorias-articulo',
       component: CategoriasArticuloView,
       meta: { requiresAuth: true, idModulo: 9 }
     },
-    {
-      path: '/datos-maestros/equipos',
-      name: 'equipos',
-      component: EquiposView,
-      meta: { requiresAuth: true, idModulo: 10 }
-    },
-
-    // --- Artículos & Stock ---
     {
       path: '/articulos',
       name: 'articulos',
@@ -112,6 +103,12 @@ const router = createRouter({
       name: 'cliente-equipo',
       component: ClienteEquipoView,
       meta: { requiresAuth: true, idModulo: 14 }
+    },
+    {
+      path: '/equipos',
+      name: 'equipos',
+      component: EquiposView,
+      meta: { requiresAuth: true, idModulo: 10 }
     },
 
     // --- Ventas ---

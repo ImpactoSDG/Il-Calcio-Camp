@@ -62,6 +62,7 @@
     </div>
 
     <!-- Modal Formulario -->
+    <Teleport to="body">
     <div v-if="showFormModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -114,6 +115,7 @@
         </div>
       </div>
     </div>
+    </Teleport>
 
     <ConfirmModal
       v-model="showDeleteModal"

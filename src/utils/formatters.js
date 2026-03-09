@@ -6,14 +6,23 @@
  * Formatea un número con separadores de miles (punto) y decimales (coma).
  * @param {number|string} value - El valor a formatear.
  * @param {number} decimals - Cantidad de decimales (por defecto 0).
+ * @param {boolean} hideRoundDecimals - Si es true, oculta .00 si el número es entero.
  * @returns {string} - El string formateado (ej. 1.000).
  */
-export const formatNumber = (value, decimals = 0) => {
+export const formatNumber = (value, decimals = 0, hideRoundDecimals = false) => {
   if (value === null || value === undefined || value === '') return '';
   
   const number = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : value;
   
   if (isNaN(number)) return '';
+
+  // Si el numero es entero y se solicita ocultar decimales redondos
+  if (hideRoundDecimals && Number.isInteger(number)) {
+    return new Intl.NumberFormat('de-DE', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(number);
+  }
 
   return new Intl.NumberFormat('de-DE', {
     minimumFractionDigits: decimals,

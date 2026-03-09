@@ -154,7 +154,7 @@ class TicketVentaController
             : '—';
 
         $cliente = $venta['nombre_cliente'] ?: ($venta['descripcion_cliente'] ?: '—');
-        $mesa    = $venta['equipo_nombre'] ?: '—';
+        $equipo  = $venta['equipo_nombre'] ?: '—';
 
         // Filas de artículos
         $filas = '';
@@ -293,7 +293,7 @@ class TicketVentaController
     <div class='seccion'>
         <span class='dato'><span class='label'>Fecha:</span> {$fecha}</span>
         <span class='dato'><span class='label'>Cliente:</span> {$cliente}</span>
-        <span class='dato'><span class='label'>Mesa/Equipo:</span> {$mesa}</span>
+        <span class='dato'><span class='label'>Equipo:</span> {$equipo}</span>
         <span class='dato'><span class='label'>Medio de pago:</span> {$medioCobro}</span>
     </div>
 

@@ -1,10 +1,10 @@
 :root {
-    --color-primary: #00558c;
-    --color-secondary: #169c9f;
-    --color-accent: #ee5325;
+    --color-primary: #198754;
+    --color-secondary: #dc3545;
+    --color-accent: #198754;
     --color-text-dark: #333333;
     --color-text-light: #ffffff;
-    --color-heading: #00548cea;
+    --color-heading: #146c43;
     --color-background-soft: #f8f9fa;
     --color-border: #dee2e6;
 }
@@ -168,9 +168,22 @@ a {
 }
 
 .btn-primary-modern:hover {
-    background-color: var(--color-secondary);
+    background-color: #146c43;
     transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px rgba(25, 135, 84, 0.2);
+}
+
+.card-luxury {
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid rgba(0,0,0,0.05);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.04);
+}
+
+.text-gradient-primary {
+    background: linear-gradient(45deg, var(--color-primary), var(--color-secondary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 .btn-primary-modern:active {
@@ -271,6 +284,6 @@ a {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(15px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }

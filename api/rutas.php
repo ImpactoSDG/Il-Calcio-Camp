@@ -335,6 +335,9 @@ switch ($resource) {
             case 'PUT':
                 $articuloController->update();
                 break;
+            case 'PATCH':
+                $articuloController->bulkUpdate();
+                break;
             case 'DELETE':
                 $articuloController->delete();
                 break;
