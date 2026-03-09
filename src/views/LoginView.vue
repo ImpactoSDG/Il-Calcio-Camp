@@ -12,7 +12,7 @@
             
             <div class="mb-3">
               <label for="email" class="form-label small fw-bold text-secondary">EMAIL</label>
-              <div class="input-group border-bottom">
+              <div class="input-group">
                 <span class="input-group-text bg-transparent border-0"><i class="bi bi-envelope text-secondary"></i></span>
                 <input 
                   type="email" 
@@ -27,7 +27,7 @@
 
             <div class="mb-4">
               <label for="contrasena" class="form-label small fw-bold text-secondary">CONTRASEÑA</label>
-              <div class="input-group border-bottom">
+              <div class="input-group">
                 <span class="input-group-text bg-transparent border-0"><i class="bi bi-key text-secondary"></i></span>
                 <input 
                   type="password" 
