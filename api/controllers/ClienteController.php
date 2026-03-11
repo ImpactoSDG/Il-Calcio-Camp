@@ -68,6 +68,22 @@ class ClienteController extends BaseController
     }
 
     /**
+     * Obtiene los movimientos (ventas y cobros) de un cliente
+     */
+    public function getMovimientos(): void
+    {
+        try {
+            $id = $_GET['id'] ?? null;
+            if (!$id) $this->respond(400, ['message' => 'ID de cliente requerido.']);
+
+            $result = $this->model->getMovimientos((int)$id);
+            $this->respond(200, $result);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al obtener movimientos del cliente');
+        }
+    }
+
+    /**
      * Crea un nuevo cliente
      */
     public function store(): void

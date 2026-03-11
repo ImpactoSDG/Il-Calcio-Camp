@@ -43,7 +43,13 @@
               </td>
               <td class="text-muted">{{ item.provincia_nombre || '—' }}</td>
               <td class="text-muted">{{ item.direccion || '—' }}</td>
+              <td class="text-end fw-bold" :class="Number(item.saldo_pendiente) > 0 ? 'text-danger' : 'text-success'">
+                ${{ Number(item.saldo_pendiente).toLocaleString('es-AR', { minimumFractionDigits: 2 }) }}
+              </td>
               <td class="pe-4 text-end">
+                <button @click="verSaldo(item)" class="btn btn-link link-primary p-1 me-2" title="Ver Saldo">
+                  <i class="bi bi-wallet2 fs-4"></i>
+                </button>
                 <button @click="openModal(item)" class="btn btn-link link-secondary p-1 me-2" title="Editar">
                   <i class="bi bi-pencil-square fs-4"></i>
                 </button>
@@ -127,6 +133,69 @@
     </div>
     </Teleport>
 
+    <!-- Modal Detalle de Saldo -->
+    <Teleport to="body">
+      <div v-if="showSaldoModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">
+                <i class="bi bi-wallet2 me-2"></i>
+                Detalle de Movimientos: {{ clienteSeleccionado?.nombre_cliente }}
+              </h5>
+              <button type="button" class="btn-close" @click="showSaldoModal = false"></button>
+            </div>
+            <div class="modal-body p-0">
+              <div v-if="loadingMovimientos" class="py-5 text-center">
+                <div class="spinner-border text-primary-custom" role="status"></div>
+                <div class="mt-2 text-muted">Cargando movimientos...</div>
+              </div>
+              <div v-else class="table-responsive" style="max-height: 400px;">
+                <table class="table table-hover align-middle mb-0">
+                  <thead class="bg-light sticky-top">
+                    <tr>
+                      <th class="ps-4">Fecha</th>
+                      <th>Tipo</th>
+                      <th>Descripción</th>
+                      <th class="text-end pe-4">Monto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(mov, index) in movimientos" :key="index">
+                      <td class="ps-4">{{ new Date(mov.fecha).toLocaleDateString() }}</td>
+                      <td>
+                        <span :class="mov.tipo === 'VENTA' ? 'badge bg-danger-subtle text-danger' : 'badge bg-success-subtle text-success'">
+                          {{ mov.tipo }}
+                        </span>
+                      </td>
+                      <td class="text-muted small">{{ mov.descripcion || '—' }}</td>
+                      <td class="text-end pe-4 fw-bold" :class="mov.tipo === 'VENTA' ? 'text-danger' : 'text-success'">
+                        {{ mov.tipo === 'VENTA' ? '+' : '-' }} ${{ Number(mov.monto).toLocaleString('es-AR', { minimumFractionDigits: 2 }) }}
+                      </td>
+                    </tr>
+                    <tr v-if="movimientos.length === 0">
+                      <td colspan="4" class="text-center py-4 text-muted">No hay movimientos registrados.</td>
+                    </tr>
+                  </tbody>
+                  <tfoot class="bg-light sticky-bottom fw-bold">
+                    <tr>
+                      <td colspan="3" class="ps-4 text-end">Saldo Final:</td>
+                      <td class="text-end pe-4" :class="Number(clienteSeleccionado?.saldo_pendiente) > 0 ? 'text-danger' : 'text-success'">
+                        ${{ Number(clienteSeleccionado?.saldo_pendiente).toLocaleString('es-AR', { minimumFractionDigits: 2 }) }}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button @click="showSaldoModal = false" type="button" class="btn btn-secondary px-4">Cerrar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <ConfirmModal
       v-model="showDeleteModal"
       title="Eliminar Cliente"
@@ -158,6 +227,7 @@ const columns = [
   { key: 'condicion_iva_descripcion', label: 'Condición IVA', sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'provincia_nombre',          label: 'Provincia',     sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'direccion',                 label: 'Dirección',     sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'saldo_pendiente',           label: 'Saldo',         sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-end', thStyle: 'width: 120px' },
   { key: 'acciones',                  label: 'Acciones',      sortable: false, thClass: 'pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary text-end' },
 ]
 
@@ -168,6 +238,10 @@ const loading = ref(false);
 const searchQuery = ref('');
 const showFormModal = ref(false);
 const showDeleteModal = ref(false);
+const showSaldoModal = ref(false);
+const loadingMovimientos = ref(false);
+const clienteSeleccionado = ref(null);
+const movimientos = ref([]);
 const isEditing = ref(false);
 const isSaving = ref(false);
 const isDeleting = ref(false);
@@ -184,7 +258,8 @@ const clientesFiltrados = computed(() => {
     items = items.filter(c =>
       c.nombre_cliente?.toLowerCase().includes(q) ||
       c.condicion_iva_descripcion?.toLowerCase().includes(q) ||
-      c.direccion?.toLowerCase().includes(q)
+      c.direccion?.toLowerCase().includes(q) ||
+      String(c.id).includes(q)
     );
   }
   return sortItems(items);
@@ -193,15 +268,33 @@ const clientesFiltrados = computed(() => {
 const fetchData = async () => {
   loading.value = true;
   try {
-    [clientes.value, condicionesIva.value, provincias.value] = await Promise.all([
+    const [c, ci, p] = await Promise.all([
       clientesService.getClientes(),
       datosMaestrosService.getCondicionesIva(),
       datosMaestrosService.getProvincias(),
     ]);
-  } catch {
+    clientes.value = c;
+    condicionesIva.value = ci;
+    provincias.value = p;
+  } catch (err) {
+    console.error(err);
     toast.showToast({ message: 'Error al cargar los clientes.', type: 'danger' });
   } finally {
     loading.value = false;
+  }
+};
+
+const verSaldo = async (item) => {
+  clienteSeleccionado.value = item;
+  showSaldoModal.value = true;
+  loadingMovimientos.value = true;
+  try {
+    movimientos.value = await clientesService.getMovimientos(item.id);
+  } catch (err) {
+    console.error(err);
+    toast.showToast({ message: 'Error al cargar los movimientos.', type: 'danger' });
+  } finally {
+    loadingMovimientos.value = false;
   }
 };
 

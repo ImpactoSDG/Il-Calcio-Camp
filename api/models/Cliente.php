@@ -13,19 +13,47 @@ class Cliente
     }
 
     /**
-     * Obtiene todos los clientes con información relacionada
+     * Obtiene todos los clientes con información relacionada y saldo
      */
     public function getAll(): array
     {
         $sql = "SELECT c.id, c.nombre_cliente, c.condicion_iva, c.id_condicion_iva_receptor, 
                        c.direccion, c.id_provinica,
                        cir.descripcion_condicion AS condicion_iva_descripcion,
-                       p.provincia AS provincia_nombre
+                       p.provincia AS provincia_nombre,
+                       COALESCE((SELECT SUM(av.total) FROM articulo_venta av INNER JOIN venta v ON av.id_venta = v.id WHERE v.id_cliente = c.id), 0) -
+                       COALESCE((SELECT SUM(vc.monto) FROM venta_cobro vc INNER JOIN venta v ON vc.id_venta = v.id WHERE v.id_cliente = c.id), 0) AS saldo_pendiente
                 FROM {$this->table} c
                 LEFT JOIN condicion_iva_receptor cir ON c.id_condicion_iva_receptor = cir.id
                 LEFT JOIN provincia p ON c.id_provinica = p.id
                 ORDER BY c.nombre_cliente ASC";
         $stmt = $this->conn->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Obtiene el detalle de ventas y cobros de un cliente
+     */
+    public function getMovimientos(int $idCliente): array
+    {
+        $sql = "SELECT 'VENTA' as tipo, v.id as id_mov, v.fecha, 
+                       COALESCE((SELECT SUM(av.total) FROM articulo_venta av WHERE av.id_venta = v.id), 0) as monto,
+                       v.descripcion_cliente as descripcion
+                FROM venta v
+                WHERE v.id_cliente = :id_cliente
+                
+                UNION ALL
+                
+                SELECT 'COBRO' as tipo, c.id as id_mov, c.fecha,
+                       COALESCE((SELECT SUM(vc.monto) FROM venta_cobro vc WHERE vc.id_cobro = c.id), 0) as monto,
+                       'Cobro registrado' as descripcion
+                FROM cobro c
+                WHERE c.cliente_id = :id_cliente
+                
+                ORDER BY fecha DESC";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':id_cliente', $idCliente, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -38,7 +66,9 @@ class Cliente
         $sql = "SELECT c.id, c.nombre_cliente, c.condicion_iva, c.id_condicion_iva_receptor, 
                        c.direccion, c.id_provinica,
                        cir.descripcion_condicion AS condicion_iva_descripcion,
-                       p.provincia AS provincia_nombre
+                       p.provincia AS provincia_nombre,
+                       COALESCE((SELECT SUM(av.total) FROM articulo_venta av INNER JOIN venta v ON av.id_venta = v.id WHERE v.id_cliente = c.id), 0) -
+                       COALESCE((SELECT SUM(vc.monto) FROM venta_cobro vc INNER JOIN venta v ON vc.id_venta = v.id WHERE v.id_cliente = c.id), 0) AS saldo_pendiente
                 FROM {$this->table} c
                 LEFT JOIN condicion_iva_receptor cir ON c.id_condicion_iva_receptor = cir.id
                 LEFT JOIN provincia p ON c.id_provinica = p.id

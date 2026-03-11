@@ -354,8 +354,13 @@ switch ($resource) {
         switch ($method) {
             case 'GET':
                 if ($id) {
-                    if (isset($_GET['action']) && $_GET['action'] === 'equipos') {
-                        $clienteController->getEquipos();
+                    if (isset($_GET['action'])) {
+                        $_GET['id'] = $id;
+                        if ($_GET['action'] === 'equipos') {
+                            $clienteController->getEquipos();
+                        } elseif ($_GET['action'] === 'movimientos') {
+                            $clienteController->getMovimientos();
+                        }
                     } else {
                         $_GET['id'] = $id;
                         $clienteController->getById();
