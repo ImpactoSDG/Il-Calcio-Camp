@@ -21,6 +21,8 @@ class Cliente
                        c.direccion, c.id_provinica,
                        cir.descripcion_condicion AS condicion_iva_descripcion,
                        p.provincia AS provincia_nombre,
+                       (SELECT e.id FROM cliente_equipo ce INNER JOIN equipo e ON ce.id_equipo = e.id WHERE ce.id_cliente = c.id LIMIT 1) AS id_equipo,
+                       (SELECT e.nombre FROM cliente_equipo ce INNER JOIN equipo e ON ce.id_equipo = e.id WHERE ce.id_cliente = c.id LIMIT 1) AS equipo_nombre,
                        COALESCE((SELECT SUM(av.total) FROM articulo_venta av INNER JOIN venta v ON av.id_venta = v.id WHERE v.id_cliente = c.id), 0) -
                        COALESCE((SELECT SUM(vc.monto) FROM venta_cobro vc INNER JOIN venta v ON vc.id_venta = v.id WHERE v.id_cliente = c.id), 0) AS saldo_pendiente
                 FROM {$this->table} c
@@ -119,18 +121,22 @@ class Cliente
     /**
      * Crea un nuevo cliente
      */
-    public function create(int $id, string $nombreCliente, ?string $condicionIva, ?int $idCondicionIvaReceptor, ?string $direccion, ?int $idProvincia): bool
+    public function create(?int $id, string $nombreCliente, ?string $condicionIva, ?int $idCondicionIvaReceptor, ?string $direccion, ?int $idProvincia): int|bool
     {
         $sql = "INSERT INTO {$this->table} (id, nombre_cliente, condicion_iva, id_condicion_iva_receptor, direccion, id_provinica) 
                 VALUES (:id, :nombre_cliente, :condicion_iva, :id_condicion_iva_receptor, :direccion, :id_provinica)";
         $stmt = $this->conn->prepare($sql);
-        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+        $stmt->bindValue(':id', $id, $id ? PDO::PARAM_INT : PDO::PARAM_NULL);
         $stmt->bindValue(':nombre_cliente', $nombreCliente);
         $stmt->bindValue(':condicion_iva', $condicionIva);
-        $stmt->bindValue(':id_condicion_iva_receptor', $idCondicionIvaReceptor, PDO::PARAM_INT);
+        $stmt->bindValue(':id_condicion_iva_receptor', $idCondicionIvaReceptor, $idCondicionIvaReceptor ? PDO::PARAM_INT : PDO::PARAM_NULL);
         $stmt->bindValue(':direccion', $direccion);
-        $stmt->bindValue(':id_provinica', $idProvincia, PDO::PARAM_INT);
-        return $stmt->execute();
+        $stmt->bindValue(':id_provinica', $idProvincia, $idProvincia ? PDO::PARAM_INT : PDO::PARAM_NULL);
+        
+        if ($stmt->execute()) {
+            return (int)$this->conn->lastInsertId();
+        }
+        return false;
     }
 
     /**

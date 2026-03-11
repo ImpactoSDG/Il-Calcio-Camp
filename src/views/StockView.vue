@@ -111,8 +111,16 @@
               :key="item.id"
               :class="{ 'table-danger-soft': Number(item.stock_actual) <= 0 }"
             >
-              <!-- Producto -->
+              <!-- Imagen -->
               <td class="ps-4">
+                <div class="articulo-img-thumb shadow-sm border overflow-hidden rounded-2 d-flex align-items-center justify-content-center bg-light" style="width: 40px; height: 40px;">
+                  <img v-if="item.url_imagen" :src="`${apiBaseUrl}/${item.url_imagen}`" class="w-100 h-100 object-fit-cover" />
+                  <i v-else class="bi bi-image text-muted opacity-25" style="font-size: 1.2rem;"></i>
+                </div>
+              </td>
+
+              <!-- Producto -->
+              <td>
                 <div class="fw-medium text-dark lh-sm">{{ item.nombre }}</div>
                 <span v-if="item.categoria_descripcion" class="badge bg-primary-subtle text-primary-custom rounded-pill px-2 mt-1" style="font-size:0.7rem">
                   {{ item.categoria_descripcion }}
@@ -334,6 +342,7 @@ import articulosService from '@/services/articulosService';
 import { useToastStore } from '@/stores/toastStore';
 
 const toast = useToastStore();
+const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost/Il-Calcio-Camp/api';
 const { sortKey, sortDir, handleSort, sortItems } = useSorting('nombre', 'asc');
 
 // ─── Constantes configurables ───────────────────────────────────────────────
@@ -342,7 +351,8 @@ const DIAS_ALERTA_VENCIMIENTO = 30;
 
 // ─── Columnas de la tabla ────────────────────────────────────────────────────
 const columns = [
-  { key: 'nombre',              label: 'Producto',          sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'imagen',              label: '',                  sortable: false, thClass: 'ps-4 py-3', thStyle: 'width: 50px' },
+  { key: 'nombre',              label: 'Producto',          sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'cod_barra',           label: 'Cód. Barra',        sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'stock_actual',        label: 'Stock',             sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width:160px' },
   { key: 'vencimiento_proximo', label: 'Próx. Vencimiento', sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width:175px' },

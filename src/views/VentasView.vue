@@ -118,6 +118,7 @@
             <table v-else class="table table-sm align-middle mb-1">
               <thead>
                 <tr>
+                  <th style="width: 32px"></th>
                   <th class="text-uppercase fs-xs text-secondary fw-bold py-1">Artículo</th>
                   <th class="text-uppercase fs-xs text-secondary fw-bold py-1 text-end">Cant.</th>
                   <th class="text-uppercase fs-xs text-secondary fw-bold py-1 text-end">P.Unit.</th>
@@ -127,6 +128,12 @@
               </thead>
               <tbody>
                 <tr v-for="av in articulosDeVenta" :key="av.id_articulo_venta">
+                  <td>
+                    <div class="rounded-2 overflow-hidden d-flex align-items-center justify-content-center bg-light border shadow-sm" style="width: 40px; height: 40px;">
+                      <img v-if="av.url_imagen" :src="`${apiBaseUrl}/${av.url_imagen}`" class="w-100 h-100 object-fit-cover" />
+                      <i v-else class="bi bi-box-seam text-muted" style="font-size: 1rem;"></i>
+                    </div>
+                  </td>
                   <td class="fw-medium small">{{ av.articulo_nombre }}</td>
                   <td class="text-end small">{{ av.cantidad }}</td>
                   <td class="text-end small text-muted">${{ Number(av.precio_unitario).toFixed(2) }}</td>
@@ -138,12 +145,12 @@
                   </td>
                 </tr>
                 <tr v-if="articulosDeVenta.length === 0">
-                  <td colspan="5" class="text-center text-muted py-2 small">Sin artículos cargados aún.</td>
+                  <td colspan="6" class="text-center text-muted py-2 small">Sin artículos cargados aún.</td>
                 </tr>
               </tbody>
               <tfoot v-if="articulosDeVenta.length > 0">
                 <tr class="border-top">
-                  <td colspan="3" class="text-end fw-bold small py-1">Total:</td>
+                  <td colspan="4" class="text-end fw-bold small py-1">Total:</td>
                   <td class="text-end fw-bold small py-1">${{ totalDetalleVenta }}</td>
                   <td></td>
                 </tr>
@@ -225,6 +232,7 @@
                       <table v-else class="table table-sm align-middle mb-0">
                         <thead>
                           <tr>
+                            <th style="width: 44px"></th>
                             <th class="text-uppercase fs-xs text-secondary fw-bold py-1">Artículo</th>
                             <th class="text-uppercase fs-xs text-secondary fw-bold py-1 text-end">Cant.</th>
                             <th class="text-uppercase fs-xs text-secondary fw-bold py-1 text-end">P.Unit.</th>
@@ -233,16 +241,22 @@
                         </thead>
                         <tbody>
                           <tr v-for="av in articulosDeVenta" :key="av.id_articulo_venta">
+                            <td>
+                              <div class="articulo-img-thumb shadow-sm border overflow-hidden rounded-2 d-flex align-items-center justify-content-center bg-white" style="width: 40px; height: 40px;">
+                                <img v-if="av.url_imagen" :src="`${apiBaseUrl}/${av.url_imagen}`" class="w-100 h-100 object-fit-cover" />
+                                <i v-else class="bi bi-box-seam text-muted opacity-50" style="font-size: 1rem;"></i>
+                              </div>
+                            </td>
                             <td class="fw-medium small">{{ av.articulo_nombre }}</td>
                             <td class="text-end small">{{ av.cantidad }}</td>
                             <td class="text-end small text-muted">${{ Number(av.precio_unitario).toFixed(2) }}</td>
                             <td class="text-end small fw-semibold">${{ Number(av.total).toFixed(2) }}</td>
                           </tr>
                           <tr v-if="articulosDeVenta.length === 0">
-                            <td colspan="4" class="text-center text-muted py-2 small">Sin artículos.</td>
+                            <td colspan="5" class="text-center text-muted py-2 small">Sin artículos.</td>
                           </tr>
                           <tr v-if="articulosDeVenta.length > 0" class="border-top">
-                            <td colspan="3" class="text-end fw-bold small py-1">Total:</td>
+                            <td colspan="4" class="text-end fw-bold small py-1">Total:</td>
                             <td class="text-end fw-bold small py-1">${{ totalDetalleVenta }}</td>
                           </tr>
                         </tbody>
@@ -294,6 +308,8 @@
       :id-cuenta-corriente="ID_CUENTA_CORRIENTE"
       :simbolo-dia="simboloDia"
       @save="handleSaveVenta"
+      @client-created="handleQuickClientCreated"
+      @assign-team="handleQuickTeamAssign"
     />
 
     <!-- Contenedor de Ticket para Impresión -->
@@ -361,6 +377,8 @@ import { useToastStore } from '@/stores/toastStore';
 const toast = useToastStore();
 const { sortKey, sortDir, handleSort, sortItems } = useSorting('id', 'desc');
 
+const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost/Il-Calcio-Camp/api';
+
 // Inicializar seguridad de QZ Tray (una única vez para toda la app)
 setupQzSecurity(QZ_CERT, QZ_PK);
 
@@ -383,7 +401,7 @@ const ID_CUENTA_CORRIENTE = computed(() =>
 
 const columnsCerradas = [
   { key: 'id',            label: 'Nro Venta',     sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width:100px' },
-  { key: 'fecha',         label: 'Fecha',       sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'fecha',         label: 'Fecha',         sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'cliente_nombre',label: 'Cliente',     sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'equipo_nombre', label: 'Equipo',      sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'descripcion_cliente', label: 'Descripción', sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
@@ -448,6 +466,44 @@ const emptyVentaForm = () => ({
 
 const ventaForm = ref(emptyVentaForm());
 
+const tempQuickClient = ref(null);
+
+const handleQuickClientCreated = (cliente) => {
+  tempQuickClient.value = cliente;
+  // Agregarlo a la lista local para que aparezca en el select del modal
+  clientes.value.push(cliente);
+};
+
+const handleQuickTeamAssign = async ({ id_cliente, id_equipo }) => {
+  try {
+    // Si el cliente es real (no empieza con temp-), persistir en DB
+    if (!String(id_cliente).startsWith('temp-')) {
+      await clientesService.crearClienteEquipo({ 
+        id_cliente, 
+        id_equipo 
+      });
+      // Actualizar la lista local de clientes para que ya tenga el equipo
+      const cliIdx = clientes.value.findIndex(c => c.id === id_cliente);
+      if (cliIdx !== -1) {
+        const equipo = equipos.value.find(e => e.id === id_equipo);
+        clientes.value[cliIdx].id_equipo = id_equipo;
+        clientes.value[cliIdx].equipo_nombre = equipo?.nombre || 'Asociado';
+      }
+    } else {
+      // Si es un cliente temporal, solo lo guardamos en el objeto temporal localmente
+      // Se persistirá cuando se guarde la venta completa
+      if (tempQuickClient.value) {
+        tempQuickClient.value.id_equipo = id_equipo;
+        const equipo = equipos.value.find(e => e.id === id_equipo);
+        tempQuickClient.value.equipo_nombre = equipo?.nombre || 'Asociado';
+      }
+    }
+  } catch (err) {
+    console.error('Error al asociar equipo:', err);
+    toast.showToast({ message: 'No se pudo persistir la asociación del equipo.', type: 'warning' });
+  }
+};
+
 const showArticuloVentaModal = ref(false);
 const ventaIdParaArticulo    = ref(null);
 const isSavingArticulo       = ref(false);
@@ -470,9 +526,14 @@ const totalDetalleVenta = computed(() =>
 const ventasFiltradas = computed(() => {
   let items = (ventas.value || []).map(v => {
     const medio = (mediosCobro.value || []).find(m => Number(m.id) === Number(v.id_medio_cobro));
+    
+    // Si la venta tiene detalle de artículos (por el getVentaById o similar), usamos la primera imagen
+    const url_imagen_principal = v.articulos_venta?.[0]?.url_imagen || v.url_imagen_principal || null;
+
     return {
       ...v,
-      medio_cobro_nombre: medio ? medio.descripcion : (v.medio_cobro_nombre || '—')
+      medio_cobro_nombre: medio ? medio.descripcion : (v.medio_cobro_nombre || '—'),
+      url_imagen_principal
     };
   });
   
@@ -615,6 +676,44 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito }) => {
   if (isSaving.value) return; // Evitar múltiples clicks
   isSaving.value = true;
   try {
+    // 1. Si hay un cliente temporal asignado a esta venta, crearlo primero
+    if (tempQuickClient.value && String(venta.id_cliente).startsWith('temp-')) {
+      try {
+        const respNuevo = await clientesService.crearCliente({
+          nombre_cliente: tempQuickClient.value.nombre_cliente,
+          id_condicion_iva_receptor: 1, // Consumidor Final por defecto
+          id_provinica: null,
+          condicion_iva: 'Consumidor Final',
+          direccion: '',
+          localidad: '',
+          telefono: '',
+          email: ''
+        });
+        
+        // El ID real viene en respNuevo.id (o respNuevo si la API solo devuelve el objeto)
+        const nuevoId = respNuevo.id || respNuevo;
+
+        // Si el cliente temporal tenía un equipo asignado, guardarlo ahora en la DB
+        if (tempQuickClient.value.id_equipo) {
+          try {
+            await clientesService.crearClienteEquipo({ 
+              id_cliente: nuevoId, 
+              id_equipo: tempQuickClient.value.id_equipo 
+            });
+          } catch (eTeam) {
+            console.error('Error al persistir equipo del cliente nuevo:', eTeam);
+          }
+        }
+        
+        // Actualizar el ID en la venta con el ID real de la base de datos
+        venta.id_cliente = nuevoId;
+        // Limpiar el temporal ya procesado
+        tempQuickClient.value = null;
+      } catch (errDet) {
+        throw new Error('No se pudo registrar el nuevo cliente: ' + (errDet?.response?.data?.message || 'Error desconocido'));
+      }
+    }
+
     const esCerrada = Number(venta.id_estado_venta) === Number(ID_ESTADO_CERRADA.value);
     const medioCobroDesc = mediosCobro.value.find(m => m.id === venta.id_medio_cobro)?.descripcion ?? '';
     const payload = {

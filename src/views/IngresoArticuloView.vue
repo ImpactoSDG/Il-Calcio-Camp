@@ -53,7 +53,13 @@
           />
           <tbody class="bg-white">
             <tr v-for="item in ingresosFiltrados" :key="item.id" class="article-row">
-              <td class="ps-4 fw-semibold text-dark">{{ item.articulo_nombre }}</td>
+              <td class="ps-4">
+                <div class="articulo-img-thumb shadow-sm border overflow-hidden rounded-2 d-flex align-items-center justify-content-center bg-light" style="width: 40px; height: 40px;">
+                  <img v-if="item.url_imagen" :src="`${apiBaseUrl}/${item.url_imagen}`" class="w-100 h-100 object-fit-cover" />
+                  <i v-else class="bi bi-image text-muted opacity-25" style="font-size: 1.2rem;"></i>
+                </div>
+              </td>
+              <td class="fw-semibold text-dark">{{ item.articulo_nombre }}</td>
               <td class="text-muted small">
                 <i class="bi bi-calendar3 me-1"></i>{{ formatFecha(item.fecha_ingreso) }}
               </td>
@@ -179,11 +185,13 @@ import articulosService from '@/services/articulosService';
 import { useToastStore } from '@/stores/toastStore';
 
 const toast = useToastStore();
+const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost/Il-Calcio-Camp/api';
 
 const { sortKey, sortDir, handleSort, sortItems } = useSorting()
 
 const columns = [
-  { key: 'articulo_nombre',  label: 'Artículo',       sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 30%' },
+  { key: 'imagen',           label: '',               sortable: false, thClass: 'ps-4 py-3', thStyle: 'width: 50px' },
+  { key: 'articulo_nombre',  label: 'Artículo',       sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 25%' },
   { key: 'fecha_ingreso',    label: 'Fecha Ingreso',  sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 15%' },
   { key: 'cantidad',         label: 'Cantidad',       sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-end', thStyle: 'width: 10%' },
   { key: 'precio_unitario',  label: 'Precio Unit.',   sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-end', thStyle: 'width: 10%' },

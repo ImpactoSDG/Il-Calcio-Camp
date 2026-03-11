@@ -332,7 +332,11 @@ switch ($resource) {
                 }
                 break;
             case 'POST':
-                $articuloController->store();
+                if ($id === 'upload-image') {
+                    $articuloController->uploadImage();
+                } else {
+                    $articuloController->store();
+                }
                 break;
             case 'PUT':
                 $articuloController->update();

@@ -22,7 +22,14 @@ class Venta
                        ev.descripcion AS estado_descripcion,
                        c.nombre_cliente AS cliente_nombre,
                        e.nombre AS equipo_nombre,
-                       vc.id_medio_pago AS id_medio_cobro
+                       vc.id_medio_pago AS id_medio_cobro,
+                       (
+                           SELECT a.url_imagen 
+                           FROM articulo_venta av 
+                           INNER JOIN articulo a ON av.id_articulo = a.id 
+                           WHERE av.id_venta = v.id 
+                           LIMIT 1
+                       ) AS url_imagen_principal
                 FROM {$this->table} v
                 LEFT JOIN estado_venta ev ON v.id_estado_venta = ev.id
                 LEFT JOIN cliente c ON v.id_cliente = c.id
@@ -135,7 +142,7 @@ class Venta
     public function getArticulos(int $idVenta): array
     {
         $sql = "SELECT av.id_articulo_venta, av.id_articulo, av.cantidad, av.precio_unitario, av.total,
-                       a.nombre AS articulo_nombre, a.cod_barra
+                       a.nombre AS articulo_nombre, a.cod_barra, a.url_imagen
                 FROM articulo_venta av
                 INNER JOIN articulo a ON av.id_articulo = a.id
                 WHERE av.id_venta = :id_venta

@@ -8,6 +8,15 @@ const articulosService = {
   crearArticulo: (data) => api.post('/articulos', data).then(r => r.data),
   actualizarArticulo: (data) => api.put('/articulos', data).then(r => r.data),
   eliminarArticulo: (id) => api.delete('/articulos', { data: { id } }).then(r => r.data),
+  subirImagen: (id, nombre, file) => {
+    const formData = new FormData();
+    formData.append('id', id);
+    formData.append('nombre', nombre);
+    formData.append('imagen', file);
+    return api.post('/articulos/upload-image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    }).then(r => r.data);
+  },
   // campo: 'precio_actual' | 'costo_actual', precios: { [id]: valor }
   bulkUpdatePrecios: (campo, precios) => api.patch('/articulos', { campo, precios }).then(r => r.data),
   // ids: [id1, id2, ...], activo: boolean

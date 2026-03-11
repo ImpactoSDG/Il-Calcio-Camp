@@ -18,7 +18,7 @@ class Articulo
     public function getAll(): array
     {
         $sql = "SELECT a.id, a.nombre, a.precio_actual, a.costo_actual, a.cod_barra, 
-                       a.id_categoria_articulo, a.activo,
+                       a.id_categoria_articulo, a.activo, a.url_imagen,
                        ca.descripcion AS categoria_descripcion
                 FROM {$this->table} a
                 LEFT JOIN categoria_articulo ca ON a.id_categoria_articulo = ca.id
@@ -34,7 +34,7 @@ class Articulo
     public function getActivos(): array
     {
         $sql = "SELECT a.id, a.nombre, a.precio_actual, a.costo_actual, a.cod_barra, 
-                       a.id_categoria_articulo, a.activo,
+                       a.id_categoria_articulo, a.activo, a.url_imagen,
                        ca.descripcion AS categoria_descripcion,
                        (SELECT COALESCE(SUM(ia.cantidad), 0) FROM ingreso_articulo ia WHERE ia.id_articulo = a.id) - 
                        (SELECT COALESCE(SUM(avia.cantidad), 0) 
@@ -75,7 +75,7 @@ class Articulo
     public function getById(int $id): ?array
     {
         $sql = "SELECT a.id, a.nombre, a.precio_actual, a.costo_actual, a.cod_barra, 
-                       a.id_categoria_articulo, a.activo,
+                       a.id_categoria_articulo, a.activo, a.url_imagen,
                        ca.descripcion AS categoria_descripcion
                 FROM {$this->table} a
                 LEFT JOIN categoria_articulo ca ON a.id_categoria_articulo = ca.id
@@ -93,7 +93,7 @@ class Articulo
     public function getByCategoria(int $idCategoria): array
     {
         $sql = "SELECT a.id, a.nombre, a.precio_actual, a.costo_actual, a.cod_barra, 
-                       a.id_categoria_articulo, a.activo,
+                       a.id_categoria_articulo, a.activo, a.url_imagen,
                        ca.descripcion AS categoria_descripcion
                 FROM {$this->table} a
                 LEFT JOIN categoria_articulo ca ON a.id_categoria_articulo = ca.id
@@ -111,7 +111,7 @@ class Articulo
     public function getByCodBarra(string $codBarra): ?array
     {
         $sql = "SELECT a.id, a.nombre, a.precio_actual, a.costo_actual, a.cod_barra, 
-                       a.id_categoria_articulo, a.activo,
+                       a.id_categoria_articulo, a.activo, a.url_imagen,
                        ca.descripcion AS categoria_descripcion
                 FROM {$this->table} a
                 LEFT JOIN categoria_articulo ca ON a.id_categoria_articulo = ca.id
@@ -126,10 +126,10 @@ class Articulo
     /**
      * Crea un nuevo artículo
      */
-    public function create(string $nombre, ?float $precioActual, ?float $costoActual, ?string $codBarra, ?int $idCategoriaArticulo, bool $activo = true): int|false
+    public function create(string $nombre, ?float $precioActual, ?float $costoActual, ?string $codBarra, ?int $idCategoriaArticulo, bool $activo = true, ?string $urlImagen = null): int|false
     {
-        $sql = "INSERT INTO {$this->table} (nombre, precio_actual, costo_actual, cod_barra, id_categoria_articulo, activo) 
-                VALUES (:nombre, :precio_actual, :costo_actual, :cod_barra, :id_categoria_articulo, :activo)";
+        $sql = "INSERT INTO {$this->table} (nombre, precio_actual, costo_actual, cod_barra, id_categoria_articulo, activo, url_imagen) 
+                VALUES (:nombre, :precio_actual, :costo_actual, :cod_barra, :id_categoria_articulo, :activo, :url_imagen)";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':nombre', $nombre);
         $stmt->bindValue(':precio_actual', $precioActual);
@@ -137,6 +137,7 @@ class Articulo
         $stmt->bindValue(':cod_barra', $codBarra);
         $stmt->bindValue(':id_categoria_articulo', $idCategoriaArticulo, PDO::PARAM_INT);
         $stmt->bindValue(':activo', $activo ? 1 : 0, PDO::PARAM_INT);
+        $stmt->bindValue(':url_imagen', $urlImagen);
         
         if ($stmt->execute()) {
             return (int)$this->conn->lastInsertId();
@@ -147,7 +148,7 @@ class Articulo
     /**
      * Actualiza un artículo
      */
-    public function update(int $id, string $nombre, ?float $precioActual, ?float $costoActual, ?string $codBarra, ?int $idCategoriaArticulo, bool $activo): bool
+    public function update(int $id, string $nombre, ?float $precioActual, ?float $costoActual, ?string $codBarra, ?int $idCategoriaArticulo, bool $activo, ?string $urlImagen = null): bool
     {
         $sql = "UPDATE {$this->table} 
                 SET nombre = :nombre, 
@@ -155,7 +156,8 @@ class Articulo
                     costo_actual = :costo_actual, 
                     cod_barra = :cod_barra, 
                     id_categoria_articulo = :id_categoria_articulo, 
-                    activo = :activo 
+                    activo = :activo,
+                    url_imagen = COALESCE(:url_imagen, url_imagen)
                 WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':nombre', $nombre);
@@ -164,6 +166,19 @@ class Articulo
         $stmt->bindValue(':cod_barra', $codBarra);
         $stmt->bindValue(':id_categoria_articulo', $idCategoriaArticulo, PDO::PARAM_INT);
         $stmt->bindValue(':activo', $activo ? 1 : 0, PDO::PARAM_INT);
+        $stmt->bindValue(':url_imagen', $urlImagen);
+        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+        return $stmt->execute();
+    }
+
+    /**
+     * Actualiza solo la imagen del artículo
+     */
+    public function updateImagen(int $id, string $urlImagen): bool
+    {
+        $sql = "UPDATE {$this->table} SET url_imagen = :url_imagen WHERE id = :id";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':url_imagen', $urlImagen);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         return $stmt->execute();
     }

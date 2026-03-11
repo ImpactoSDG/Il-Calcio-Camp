@@ -73,7 +73,6 @@
         class="card-categoria"
         :class="{ 'card-categoria--open': categoriasAbiertas.has(idx) }"
       >
-        <!-- Header de Categoría -->
         <div
           class="card-categoria__header"
           @click="toggleCategoria(idx)"
@@ -92,7 +91,6 @@
             </div>
           </div>
           <div class="d-flex align-items-center gap-3">
-            <!-- Stats rápidas -->
             <div class="cat-stats d-none d-md-flex">
               <span class="cat-stat">
                 <i class="bi bi-check-circle-fill text-success me-1"></i>
@@ -104,8 +102,7 @@
                 {{ grupo.articulos.filter(a => !a.activo).length }} inactivos
               </span>
             </div>
-
-            <!-- Checkbox maestro -->
+          
             <div class="d-flex align-items-center gap-2 cat-select-all" @click.stop>
               <input
                 type="checkbox"
@@ -117,28 +114,21 @@
               />
               <label class="fs-xs text-muted" style="cursor:pointer">Sel. todos</label>
             </div>
-
+          
             <div class="cat-chevron-wrap" :class="{ 'cat-chevron-wrap--open': categoriasAbiertas.has(idx) }">
               <i class="bi bi-chevron-down"></i>
             </div>
           </div>
         </div>
-
-        <!-- Tabla de artículos -->
+      
         <Transition name="accordion">
           <div v-if="categoriasAbiertas.has(idx)" class="card-categoria__body">
-            <table class="table-articulos">
+            <table class="table-articulos w-100">
               <colgroup>
-                <col style="width: 44px">
-                <col>
-                <col style="width: 130px">
-                <col style="width: 130px">
-                <col style="width: 170px">
-                <col style="width: 90px">
-                <col style="width: 90px">
-              </colgroup>
+                <col style="width: 44px">    <col style="width: 60px">    <col style="width: auto">    <col style="width: 110px">   <col style="width: 110px">   <col style="width: 150px">   <col style="width: 100px">   <col style="width: 100px">   </colgroup>
               <thead>
                 <tr>
+                  <th></th>
                   <th></th>
                   <th>Nombre</th>
                   <th class="text-end">Precio</th>
@@ -162,6 +152,12 @@
                       :value="item.id"
                       v-model="seleccionados"
                     />
+                  </td>
+                  <td>
+                    <div class="articulo-img-thumb shadow-sm border overflow-hidden rounded-2 d-flex align-items-center justify-content-center bg-light" style="width: 40px; height: 40px;">
+                      <img v-if="item.url_imagen" :src="`${apiBaseUrl}/${item.url_imagen}`" class="w-100 h-100 object-fit-cover" />
+                      <i v-else class="bi bi-image text-muted opacity-25" style="font-size: 1.2rem;"></i>
+                    </div>
                   </td>
                   <td>
                     <span class="fw-semibold text-dark">{{ item.nombre }}</span>
@@ -304,8 +300,8 @@
 
     <!-- ── Modal: Formulario artículo ── -->
     <Teleport to="body">
-      <div v-if="showFormModal" class="modal-backdrop-custom" @click.self="showFormModal = false">
-        <div class="modal-panel animate-modal-in">
+      <div v-if="showFormModal" class="modal-backdrop-custom modal-backdrop-custom--scrollable" @click.self="showFormModal = false">
+        <div class="modal-panel animate-modal-in my-4">
           <div class="modal-panel__header">
             <div class="d-flex align-items-center gap-3">
               <span class="modal-icon-wrap">
@@ -324,8 +320,54 @@
               <div class="row g-3">
                 <div class="col-12">
                   <label class="form-label">Nombre <span class="text-danger">*</span></label>
-                  <input v-model.trim="form.nombre" type="text" class="form-control" placeholder="Ej: Pelota de fútbol" required />
+                  <input v-model.trim="form.nombre" type="text" class="form-control" placeholder="Ej: Coca Cola 500 ml" required />
                 </div>
+                
+                <!-- Subida de Imagen -->
+                <div class="col-12">
+                  <label class="form-label d-block text-uppercase fw-bold small text-secondary">Imagen del Producto</label>
+                  <div class="d-flex flex-column align-items-center gap-3 p-4 border rounded-4 bg-white shadow-sm overflow-hidden">
+                    <div class="position-relative" style="width: 180px; height: 180px;">
+                      <div class="w-100 h-100 rounded-4 bg-light border-2 border-dashed border-primary-subtle d-flex align-items-center justify-content-center overflow-hidden shadow-sm">
+                        <img v-if="previewImagen" :src="previewImagen" class="w-100 h-100 object-fit-cover animate-fade-in" />
+                        <img v-else-if="form.url_imagen" :src="`${apiBaseUrl}/${form.url_imagen}`" class="w-100 h-100 object-fit-cover" />
+                        <div v-else class="text-center">
+                          <i class="bi bi-cloud-arrow-up fs-1 text-primary opacity-50"></i>
+                          <p class="small text-muted mb-0">Sin imagen</p>
+                        </div>
+                      </div>
+                      <input 
+                        type="file" 
+                        ref="fileInput" 
+                        @change="onFileChange" 
+                        accept=".jpg,.jpeg,.png,.webp" 
+                        class="d-none" 
+                      />
+                      <button 
+                        v-if="form.url_imagen || previewImagen" 
+                        type="button" 
+                        @click="clearImage" 
+                        class="btn btn-danger btn-sm rounded-circle position-absolute top-0 end-0 m-2 shadow"
+                        style="width: 28px; height: 28px; padding: 0; transform: translate(30%, -30%); z-index: 5;"
+                      >
+                        <i class="bi bi-x fs-5"></i>
+                      </button>
+                    </div>
+                    <div class="text-center">
+                      <p class="small text-muted mb-3 lh-sm" style="max-width: 300px;">Formatos: <strong>JPG, PNG o WEBP</strong>. Se recomienda una relación de aspecto 1:1.</p>
+                      <button 
+                        type="button" 
+                        @click="$refs.fileInput.click()" 
+                        class="btn btn-primary px-4 rounded-pill fw-bold shadow-sm"
+                        :disabled="isSaving"
+                      >
+                        <i class="bi bi-camera-fill me-2"></i>
+                        {{ form.url_imagen || previewImagen ? 'Cambiar imagen' : 'Seleccionar foto' }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="col-md-6">
                   <label class="form-label">Categoría</label>
                   <select v-model.number="form.id_categoria_articulo" class="form-select">
@@ -433,7 +475,33 @@ const isApplyingStatus = ref(false);
 const idToDelete      = ref(null);
 const targetStatus    = ref(true);
 
-const emptyForm = () => ({ nombre: '', precio_actual: null, costo_actual: null, cod_barra: '', id_categoria_articulo: null, activo: true });
+const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost/Il-Calcio-Camp/api';
+const fileInput = ref(null);
+const previewImagen = ref(null);
+const fileToUpload = ref(null);
+
+const onFileChange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+  if (!allowed.includes(file.type)) {
+    toast.showToast({ message: 'Formato no permitido. Use JPG, PNG o WEBP.', type: 'danger' });
+    return;
+  }
+
+  fileToUpload.value = file;
+  previewImagen.value = URL.createObjectURL(file);
+};
+
+const clearImage = () => {
+  fileToUpload.value = null;
+  previewImagen.value = null;
+  form.value.url_imagen = null;
+  if (fileInput.value) fileInput.value.value = '';
+};
+
+const emptyForm = () => ({ nombre: '', precio_actual: null, costo_actual: null, cod_barra: '', id_categoria_articulo: null, activo: true, url_imagen: null });
 const form         = ref(emptyForm());
 const originalForm = ref({});
 
@@ -611,6 +679,8 @@ const fetchData = async () => {
 };
 
 const openModal = (item = null) => {
+  previewImagen.value = null;
+  fileToUpload.value = null;
   if (item) {
     isEditing.value = true;
     form.value = { ...item, activo: Boolean(Number(item.activo)) };
@@ -627,24 +697,41 @@ const save = async () => {
     toast.showToast({ message: 'El nombre es obligatorio.', type: 'warning' });
     return;
   }
-  if (isEditing.value && JSON.stringify(form.value) === JSON.stringify(originalForm.value)) {
+  
+  const hasFormChanges = JSON.stringify(form.value) !== JSON.stringify(originalForm.value);
+  const hasFileToUpload = !!fileToUpload.value;
+  
+  if (isEditing.value && !hasFormChanges && !hasFileToUpload) {
     toast.showToast({ message: 'No se detectaron cambios.', type: 'info' });
     showFormModal.value = false;
     return;
   }
+  
   isSaving.value = true;
   try {
+    let savedArticulo = null;
     if (isEditing.value) {
       await articulosService.actualizarArticulo(form.value);
+      savedArticulo = form.value;
       toast.showToast({ message: 'Artículo actualizado.', type: 'success' });
     } else {
-      await articulosService.crearArticulo(form.value);
+      const resp = await articulosService.crearArticulo(form.value);
+      savedArticulo = { ...form.value, id: resp.id };
       toast.showToast({ message: 'Artículo creado.', type: 'success' });
     }
+
+    // Subir imagen si hay un archivo seleccionado
+    if (fileToUpload.value && savedArticulo.id) {
+      await articulosService.subirImagen(savedArticulo.id, savedArticulo.nombre, fileToUpload.value);
+    }
+    
     showFormModal.value = false;
+    previewImagen.value = null;
+    fileToUpload.value = null;
     fetchData();
-  } catch {
-    toast.showToast({ message: 'Error al guardar el artículo.', type: 'danger' });
+  } catch (err) {
+    const msg = err.response?.data?.message || 'Error al guardar el artículo.';
+    toast.showToast({ message: msg, type: 'danger' });
   } finally {
     isSaving.value = false;
   }
@@ -1041,6 +1128,17 @@ onMounted(async () => {
   justify-content: center;
   z-index: 1055;
   padding: 1rem;
+}
+
+/* Permitir scroll cuando el contenido es muy alto */
+.modal-backdrop-custom--scrollable {
+  display: block;
+  overflow-y: auto;
+  padding: 2rem 1rem;
+}
+
+.modal-backdrop-custom--scrollable .modal-panel {
+  margin: 0 auto;
 }
 
 .modal-panel {

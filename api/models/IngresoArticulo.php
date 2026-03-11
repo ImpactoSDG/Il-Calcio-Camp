@@ -19,7 +19,7 @@ class IngresoArticulo
     {
         $sql = "SELECT ia.id, ia.fecha_ingreso, ia.vencimiento, ia.es_ajuste, ia.cantidad, 
                        ia.id_articulo, ia.precio_unitario, ia.total, ia.es_perecedero,
-                       a.nombre AS articulo_nombre
+                       a.nombre AS articulo_nombre, a.url_imagen
                 FROM {$this->table} ia
                 INNER JOIN articulo a ON ia.id_articulo = a.id
                 ORDER BY ia.fecha_ingreso DESC, ia.id DESC";

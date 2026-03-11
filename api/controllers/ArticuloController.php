@@ -62,6 +62,55 @@ class ArticuloController extends BaseController
     }
 
     /**
+     * Sube una imagen para un artículo
+     */
+    public function uploadImage(): void
+    {
+        try {
+            if (!isset($_FILES['imagen']) || !isset($_POST['id'])) {
+                $this->respond(400, ['message' => 'Imagen e ID de artículo requeridos.']);
+                return;
+            }
+
+            $id = (int)$_POST['id'];
+            $file = $_FILES['imagen'];
+            $nombreArticulo = $_POST['nombre'] ?? 'articulo';
+
+            // Validar formato
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+            $fileExtension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+            if (!in_array($fileExtension, $allowedExtensions)) {
+                $this->respond(400, ['message' => 'Formato de imagen no permitido. Use jpg, jpeg, png o webp.']);
+                return;
+            }
+
+            // Nombre de archivo limpio: id_nombre_timestamp.extension para evitar sobreescritura y cache
+            $cleanName = preg_replace('/[^a-zA-Z0-9]/', '_', $nombreArticulo);
+            $fileName = $id . '_' . $cleanName . '_' . time() . '.' . $fileExtension;
+            $uploadPath = __DIR__ . '/../uploads/' . $fileName;
+
+            if (move_uploaded_file($file['tmp_name'], $uploadPath)) {
+                $urlImagen = 'uploads/' . $fileName;
+                
+                // Actualizar en base de datos
+                if ($this->model->updateImagen($id, $urlImagen)) {
+                    $this->respond(200, [
+                        'message' => 'Imagen subida exitosamente.',
+                        'url_imagen' => $urlImagen
+                    ]);
+                } else {
+                    $this->respond(500, ['message' => 'Error al guardar la ruta en la base de datos.']);
+                }
+            } else {
+                $this->respond(500, ['message' => 'Error al mover el archivo subido.']);
+            }
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al subir imagen');
+        }
+    }
+
+    /**
      * Crea un nuevo artículo
      */
     public function store(): void
@@ -71,13 +120,16 @@ class ArticuloController extends BaseController
 
             if (empty($data['nombre'])) {
                 $this->respond(400, ['message' => 'Nombre del artículo requerido.']);
+                return;
             }
 
-            $precioActual = $data['precio_actual'] ?? null;
-            $costoActual = $data['costo_actual'] ?? null;
-            $codBarra = $data['cod_barra'] ?? null;
-            $idCategoria = $data['id_categoria_articulo'] ?? null;
-            $activo = $data['activo'] ?? true;
+            // Convertir strings vacíos o formateados a tipos PHP correctos (float/int/bool/null)
+            $precioActual = ($data['precio_actual'] !== null && $data['precio_actual'] !== '') ? (float)$data['precio_actual'] : null;
+            $costoActual = ($data['costo_actual'] !== null && $data['costo_actual'] !== '') ? (float)$data['costo_actual'] : null;
+            $codBarra = !empty($data['cod_barra']) ? (string)$data['cod_barra'] : null;
+            $idCategoria = !empty($data['id_categoria_articulo']) ? (int)$data['id_categoria_articulo'] : null;
+            $activo = isset($data['activo']) ? (bool)$data['activo'] : true;
+            $urlImagen = !empty($data['url_imagen']) ? (string)$data['url_imagen'] : null;
 
             $id = $this->model->create(
                 $data['nombre'],
@@ -85,11 +137,12 @@ class ArticuloController extends BaseController
                 $costoActual,
                 $codBarra,
                 $idCategoria,
-                (bool)$activo
+                $activo,
+                $urlImagen
             );
 
             if ($id) {
-                $this->respond(201, ['message' => 'Artículo creado exitosamente.', 'id' => $id]);
+                $this->respond(201, ['message' => 'Artículo creado exitosamente.', 'id' => (int)$id]);
             } else {
                 $this->respond(500, ['message' => 'Error al crear artículo.']);
             }
@@ -108,13 +161,16 @@ class ArticuloController extends BaseController
 
             if (empty($data['id']) || empty($data['nombre'])) {
                 $this->respond(400, ['message' => 'ID y nombre requeridos.']);
+                return;
             }
 
-            $precioActual = $data['precio_actual'] ?? null;
-            $costoActual = $data['costo_actual'] ?? null;
-            $codBarra = $data['cod_barra'] ?? null;
-            $idCategoria = $data['id_categoria_articulo'] ?? null;
-            $activo = $data['activo'] ?? true;
+            // Convertir strings vacíos o "null" de frontend a nulos reales de PHP para los tipos nullable
+            $precioActual = ($data['precio_actual'] !== null && $data['precio_actual'] !== '') ? (float)$data['precio_actual'] : null;
+            $costoActual = ($data['costo_actual'] !== null && $data['costo_actual'] !== '') ? (float)$data['costo_actual'] : null;
+            $codBarra = !empty($data['cod_barra']) ? (string)$data['cod_barra'] : null;
+            $idCategoria = !empty($data['id_categoria_articulo']) ? (int)$data['id_categoria_articulo'] : null;
+            $activo = isset($data['activo']) ? (bool)$data['activo'] : true;
+            $urlImagen = !empty($data['url_imagen']) ? (string)$data['url_imagen'] : null;
 
             if ($this->model->update(
                 (int)$data['id'],
@@ -123,7 +179,8 @@ class ArticuloController extends BaseController
                 $costoActual,
                 $codBarra,
                 $idCategoria,
-                (bool)$activo
+                $activo,
+                $urlImagen
             )) {
                 $this->respond(200, ['message' => 'Artículo actualizado exitosamente.']);
             } else {
