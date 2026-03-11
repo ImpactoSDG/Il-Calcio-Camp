@@ -9,6 +9,9 @@ import ConfiguracionesView from '@/views/ConfiguracionesView.vue'
 import SubmenuView from '@/views/SubmenuView.vue'
 import CategoriasArticuloView from '@/views/CategoriasArticuloView.vue'
 import EquiposView from '@/views/EquiposView.vue'
+import JugadoresView from '@/views/JugadoresView.vue'
+import ArbitrosView from '@/views/ArbitrosView.vue'
+import EventosView from '@/views/EventosView.vue'
 import ArticulosView from '@/views/ArticulosView.vue'
 import IngresoArticuloView from '@/views/IngresoArticuloView.vue'
 import StockView from '@/views/StockView.vue'
@@ -109,6 +112,24 @@ const router = createRouter({
       name: 'equipos',
       component: EquiposView,
       meta: { requiresAuth: true, idModulo: 10 }
+    },
+    {
+      path: '/jugadores',
+      name: 'jugadores',
+      component: JugadoresView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/arbitros',
+      name: 'arbitros',
+      component: ArbitrosView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/eventos',
+      name: 'eventos',
+      component: EventosView,
+      meta: { requiresAuth: true }
     },
 
     // --- Ventas ---

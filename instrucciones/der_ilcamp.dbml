@@ -1,0 +1,368 @@
+// ILCamp - Sistema de Torneos Deportivos y Reserva de Asadores
+
+Enum tipo_evento_enum {
+  partido
+  festejo
+  reunion
+  otro
+}
+
+Table disciplina {
+  id int [pk, increment]
+  nombre varchar(150)
+  fecha_creacion varchar(45)
+}
+
+Table categoria_articulo {
+  id int [pk, increment]
+  descripcion varchar(45)
+}
+
+Table estado_venta {
+  id int [pk, increment]
+  descripcion varchar(45)
+}
+
+Table estado_torneo {
+  id int [pk, increment]
+  descripcion varchar(50)
+  activo tinyint
+}
+
+Table estado_inscripcion {
+  id int [pk, increment]
+  descripcion varchar(50)
+  activo tinyint
+}
+
+Table condicion_iva_receptor {
+  id int [pk]
+  descripcion_condicion varchar(45)
+}
+
+Table provincia {
+  id int [pk]
+  provincia varchar(100)
+}
+
+Table medio_cobro {
+  id int [pk]
+  descripcion varchar(255)
+  activo tinyint
+}
+
+Table cliente {
+  id int [pk]
+  nombre_cliente varchar(45)
+  condicion_iva varchar(45)
+  id_condicion_iva_receptor int
+  direccion varchar(45)
+  id_provinica int
+}
+
+Table equipo {
+  id int [pk]
+  nombre varchar(45)
+  id_disciplina int
+  activo tinyint
+}
+
+Table jugador {
+  id int [pk, increment]
+  nombre varchar(100)
+  apellido varchar(100)
+  dni varchar(20)
+  fecha_nac date
+  fecha_alta date
+  activo tinyint
+}
+
+Table cliente_equipo {
+  id_cliente_equipo int [pk]
+  id_cliente int
+  id_equipo int
+}
+
+Table jugador_equipo {
+  id int [pk, increment]
+  id_jugador int
+  id_equipo int
+  fecha_desde date
+  fecha_hasta date
+}
+
+Table jugador_equipo_hist {
+  id int [pk, increment]
+  id_jugador_equipo int
+  id_jugador int
+  id_equipo int
+  fecha_desde date
+  fecha_hasta date
+  fecha_cambio datetime
+  accion varchar(50)
+}
+
+Table equipo_torneo {
+  id int [pk, increment]
+  id_equipo int
+  id_torneo int
+  id_estado_inscripcion int
+  fecha_inscripcion date
+  fecha_pago date
+  comprobante_pago varchar(255)
+  observacion varchar(255)
+}
+
+Table articulo {
+  id int [pk, increment]
+  nombre varchar(255)
+  precio_actual decimal(10,2)
+  costo_actual decimal(10,2)
+  cod_barra varchar(1000)
+  id_categoria_articulo int
+  activo tinyint
+}
+
+Table ingreso_articulo {
+  id int [pk, increment]
+  id_articulo int
+  fecha_ingreso date
+  vencimiento date
+  es_ajuste tinyint
+  cantidad decimal(10,2)
+  precio_unitario decimal(10,2)
+  total decimal(10,2)
+  es_perecedero tinyint
+}
+
+Table articulo_venta_ingreso_articulo {
+  id_articulo_venta_ingreso_articulo varchar(45) [pk]
+  articulo_venta_id_articulo_venta int
+  ingreso_articulo_id int
+  cantidad varchar(45)
+}
+
+Table venta {
+  id int [pk, increment]
+  fecha date
+  id_equipo int
+  descripcion_cliente varchar(255)
+  id_estado_venta int
+  simbolo varchar(45)
+  id_cliente int
+  tipo_vta varchar(45)
+}
+
+Table articulo_venta {
+  id_articulo_venta int [pk, increment]
+  id_articulo int
+  id_venta int
+  cantidad double(10,2)
+  precio_unitario double(10,2)
+  total double(10,2)
+}
+
+Table cobro {
+  id int [pk]
+  cliente_id int
+}
+
+Table venta_cobro {
+  id_venta_cobro int [pk]
+  id_venta int
+  id_cobro int
+  id_medio_pago int
+  monto double(10,2)
+}
+
+Table torneo {
+  id int [pk, increment]
+  nombre varchar(150)
+  descripcion varchar(255)
+  id_disciplina int
+  id_estado_torneo int
+  fecha_inicio date
+  fecha_fin date
+  fecha_fin_planificada date
+  cupo_equipos int
+  valor_inscripcion decimal(10,2)
+  formato_manual varchar(50)
+  configuracion_json text
+}
+
+Table estado_torneo_hist {
+  id int [pk, increment]
+  id_torneo int
+  id_estado_torneo int
+  fecha_cambio datetime
+  observacion varchar(255)
+}
+
+Table fase_torneo {
+  id int [pk, increment]
+  id_torneo int
+  nombre varchar(100)
+  tipo_fase varchar(50)
+  orden int
+  configuracion_json text
+}
+
+Table grupo_torneo {
+  id int [pk, increment]
+  id_fase_torneo int
+  nombre varchar(100)
+  orden int
+  cantidad_equipos_objetivo int
+  criterio_asignacion varchar(50)
+}
+
+Table grupo_torneo_equipo {
+  id int [pk, increment]
+  id_grupo_torneo int
+  id_equipo_torneo int
+  posicion_inicial int
+}
+
+Table cruce_torneo {
+  id int [pk, increment]
+  id_fase_torneo int
+  id_grupo_torneo int
+  id_evento int
+  nombre varchar(100)
+  orden int
+  origen_local_tipo varchar(50)
+  origen_local_valor varchar(100)
+  origen_visitante_tipo varchar(50)
+  origen_visitante_valor varchar(100)
+}
+
+Table generacion_fixture {
+  id int [pk, increment]
+  id_torneo int
+  fecha_generacion datetime
+  motor_generacion varchar(100)
+  version_algoritmo varchar(50)
+  parametros_json text
+  resultado_json text
+  estado varchar(50)
+  observacion varchar(255)
+}
+
+Table cancha {
+  id int [pk, increment]
+  nombre varchar(100)
+  descripcion varchar(255)
+  activo tinyint
+}
+
+Table arbitro {
+  id int [pk, increment]
+  nombre varchar(100)
+  apellido varchar(100)
+  dni varchar(20)
+  telefono varchar(30)
+  email varchar(100)
+  activo tinyint
+}
+
+Table estado_evento {
+  id int [pk, increment]
+  descripcion varchar(50)
+  activo tinyint
+}
+
+Table estado_evento_hist {
+  id int [pk, increment]
+  id_evento int
+  id_estado_evento int
+  fecha_cambio datetime
+  observacion varchar(255)
+}
+
+Table evento {
+  id int [pk, increment]
+  id_torneo int [null]
+  id_estado_evento int
+  tipo_evento tipo_evento_enum
+  titulo varchar(150)
+  descripcion varchar(255)
+  numero_fecha int
+  fecha_hora_inicio datetime
+  fecha_hora_fin datetime
+  id_cancha int
+  id_arbitro int
+  id_equipo_local int
+  id_equipo_visitante int
+  resultado_local int
+  resultado_visitante int
+  resultado_penales_local int
+  resultado_penales_visitante int
+}
+
+Table evento_partido {
+  id int [pk, increment]
+  id_evento int
+  id_tipo_evento_partido int
+  id_jugador int
+  id_equipo int
+  minuto int
+  observacion varchar(255)
+}
+
+Table tipo_evento_partido {
+  id int [pk, increment]
+  descripcion varchar(50)
+  activo tinyint
+}
+
+// RELACIONES (Referencias entre tablas)
+
+Ref: cliente_equipo.id_cliente > cliente.id
+Ref: cliente_equipo.id_equipo > equipo.id
+Ref: equipo.id_disciplina > disciplina.id
+Ref: jugador_equipo.id_jugador > jugador.id
+Ref: jugador_equipo.id_equipo > equipo.id
+Ref: jugador_equipo_hist.id_jugador_equipo > jugador_equipo.id
+Ref: jugador_equipo_hist.id_jugador > jugador.id
+Ref: jugador_equipo_hist.id_equipo > equipo.id
+Ref: equipo_torneo.id_equipo > equipo.id
+Ref: equipo_torneo.id_torneo > torneo.id
+Ref: equipo_torneo.id_estado_inscripcion > estado_inscripcion.id
+Ref: torneo.id_disciplina > disciplina.id
+Ref: torneo.id_estado_torneo > estado_torneo.id
+Ref: estado_torneo_hist.id_torneo > torneo.id
+Ref: estado_torneo_hist.id_estado_torneo > estado_torneo.id
+Ref: fase_torneo.id_torneo > torneo.id
+Ref: grupo_torneo.id_fase_torneo > fase_torneo.id
+Ref: grupo_torneo_equipo.id_grupo_torneo > grupo_torneo.id
+Ref: grupo_torneo_equipo.id_equipo_torneo > equipo_torneo.id
+Ref: cruce_torneo.id_fase_torneo > fase_torneo.id
+Ref: cruce_torneo.id_grupo_torneo > grupo_torneo.id
+Ref: cruce_torneo.id_evento > evento.id
+Ref: generacion_fixture.id_torneo > torneo.id
+Ref: estado_evento_hist.id_evento > evento.id
+Ref: estado_evento_hist.id_estado_evento > estado_evento.id
+Ref: evento.id_torneo > torneo.id
+Ref: evento.id_estado_evento > estado_evento.id
+Ref: evento.id_cancha > cancha.id
+Ref: evento.id_arbitro > arbitro.id
+Ref: evento.id_equipo_local > equipo.id
+Ref: evento.id_equipo_visitante > equipo.id
+Ref: evento_partido.id_evento > evento.id
+Ref: evento_partido.id_tipo_evento_partido > tipo_evento_partido.id
+Ref: evento_partido.id_jugador > jugador.id
+Ref: evento_partido.id_equipo > equipo.id
+Ref: cliente.id_condicion_iva_receptor > condicion_iva_receptor.id
+Ref: cliente.id_provinica > provincia.id
+Ref: articulo.id_categoria_articulo > categoria_articulo.id
+Ref: ingreso_articulo.id_articulo > articulo.id
+Ref: articulo_venta_ingreso_articulo.articulo_venta_id_articulo_venta > articulo_venta.id_articulo_venta
+Ref: articulo_venta_ingreso_articulo.ingreso_articulo_id > ingreso_articulo.id
+Ref: venta.id_estado_venta > estado_venta.id
+Ref: venta.id_cliente > cliente.id
+Ref: articulo_venta.id_articulo > articulo.id
+Ref: articulo_venta.id_venta > venta.id
+Ref: cobro.cliente_id > cliente.id
+Ref: venta_cobro.id_venta > venta.id
+Ref: venta_cobro.id_cobro > cobro.id
+Ref: venta_cobro.id_medio_pago > medio_cobro.id

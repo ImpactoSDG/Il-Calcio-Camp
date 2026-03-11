@@ -19,11 +19,32 @@ const datosMaestrosService = {
   // --- Provincias (/provincias) --- solo lectura
   getProvincias: () => api.get('/provincias').then(r => r.data),
 
+  // --- Estados de Evento (/estados-evento) --- solo lectura
+  getEstadosEvento: () => api.get('/estados-evento').then(r => r.data),
+
+  // --- Canchas (/canchas) --- solo lectura
+  getCanchas: () => api.get('/canchas').then(r => r.data),
+
+  // --- Torneos (/torneos) --- solo lectura
+  getTorneos: () => api.get('/torneos').then(r => r.data),
+
   // --- Equipos (/equipos) ---
   getEquipos: () => api.get('/equipos').then(r => r.data),
   crearEquipo: (data) => api.post('/equipos', data).then(r => r.data),
   actualizarEquipo: (data) => api.put('/equipos', data).then(r => r.data),
   eliminarEquipo: (id) => api.delete('/equipos', { data: { id } }).then(r => r.data),
+
+  // --- Jugadores (/jugadores) ---
+  getJugadores: () => api.get('/jugadores').then(r => r.data),
+  crearJugador: (data) => api.post('/jugadores', data).then(r => r.data),
+  actualizarJugador: (data) => api.put('/jugadores', data).then(r => r.data),
+  eliminarJugador: (id) => api.delete('/jugadores', { data: { id } }).then(r => r.data),
+
+  // --- Arbitros (/arbitros) ---
+  getArbitros: () => api.get('/arbitros').then(r => r.data),
+  crearArbitro: (data) => api.post('/arbitros', data).then(r => r.data),
+  actualizarArbitro: (data) => api.put('/arbitros', data).then(r => r.data),
+  eliminarArbitro: (id) => api.delete('/arbitros', { data: { id } }).then(r => r.data),
 };
 
 export default datosMaestrosService;

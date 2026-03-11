@@ -19,6 +19,12 @@ require_once __DIR__ . '/controllers/MedioCobroController.php';
 require_once __DIR__ . '/controllers/CobroController.php';
 require_once __DIR__ . '/controllers/VentaCobroController.php';
 require_once __DIR__ . '/controllers/EquipoController.php';
+require_once __DIR__ . '/controllers/JugadorController.php';
+require_once __DIR__ . '/controllers/ArbitroController.php';
+require_once __DIR__ . '/controllers/EventoController.php';
+require_once __DIR__ . '/controllers/EstadoEventoController.php';
+require_once __DIR__ . '/controllers/CanchaController.php';
+require_once __DIR__ . '/controllers/TorneoController.php';
 require_once __DIR__ . '/controllers/ClienteEquipoController.php';
 require_once __DIR__ . '/controllers/ArticuloVentaIngresoArticuloController.php';
 require_once __DIR__ . '/controllers/TicketVentaController.php';
@@ -52,6 +58,12 @@ $medioCobroController = new MedioCobroController($db);
 $cobroController = new CobroController($db);
 $ventaCobroController = new VentaCobroController($db);
 $equipoController = new EquipoController($db);
+$jugadorController = new JugadorController($db);
+$arbitroController = new ArbitroController($db);
+$eventoController = new EventoController($db);
+$estadoEventoController = new EstadoEventoController($db);
+$canchaController = new CanchaController($db);
+$torneoController = new TorneoController($db);
 $clienteEquipoController = new ClienteEquipoController($db);
 $articuloVentaIngresoArticuloController = new ArticuloVentaIngresoArticuloController($db);
 $ticketVentaController = new TicketVentaController($db);
@@ -311,6 +323,126 @@ switch ($resource) {
                 break;
             case 'DELETE':
                 $equipoController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'jugadores':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $jugadorController->getById();
+                } else {
+                    $jugadorController->getAll();
+                }
+                break;
+            case 'POST':
+                $jugadorController->store();
+                break;
+            case 'PUT':
+                $jugadorController->update();
+                break;
+            case 'DELETE':
+                $jugadorController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'arbitros':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $arbitroController->getById();
+                } else {
+                    $arbitroController->getAll();
+                }
+                break;
+            case 'POST':
+                $arbitroController->store();
+                break;
+            case 'PUT':
+                $arbitroController->update();
+                break;
+            case 'DELETE':
+                $arbitroController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'estados-evento':
+        verifyAuth();
+        if ($method === 'GET') {
+            if ($id) {
+                $_GET['id'] = $id;
+                $estadoEventoController->getById();
+            } else {
+                $estadoEventoController->getAll();
+            }
+        } else {
+            http_response_code(405);
+        }
+        break;
+
+    case 'canchas':
+        verifyAuth();
+        if ($method === 'GET') {
+            if ($id) {
+                $_GET['id'] = $id;
+                $canchaController->getById();
+            } else {
+                $canchaController->getAll();
+            }
+        } else {
+            http_response_code(405);
+        }
+        break;
+
+    case 'torneos':
+        verifyAuth();
+        if ($method === 'GET') {
+            if ($id) {
+                $_GET['id'] = $id;
+                $torneoController->getById();
+            } else {
+                $torneoController->getAll();
+            }
+        } else {
+            http_response_code(405);
+        }
+        break;
+
+    case 'eventos':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $eventoController->getById();
+                } else {
+                    $eventoController->getAll();
+                }
+                break;
+            case 'POST':
+                $eventoController->store();
+                break;
+            case 'PUT':
+                $eventoController->update();
+                break;
+            case 'DELETE':
+                $eventoController->delete();
                 break;
             default:
                 http_response_code(405);
