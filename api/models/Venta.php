@@ -18,11 +18,17 @@ class Venta
     public function getAll(): array
     {
         $sql = "SELECT v.id, v.fecha, v.id_equipo, v.descripcion_cliente, v.id_estado_venta, 
-                       v.simbolo, v.id_cliente, v.tipo_vta,
+                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste,
                        ev.descripcion AS estado_descripcion,
                        c.nombre_cliente AS cliente_nombre,
                        e.nombre AS equipo_nombre,
                        vc.id_medio_pago AS id_medio_cobro,
+                       (
+                           SELECT GROUP_CONCAT(CONCAT(av.cantidad, 'x ', a.nombre) SEPARATOR '||')
+                           FROM articulo_venta av
+                           INNER JOIN articulo a ON av.id_articulo = a.id
+                           WHERE av.id_venta = v.id
+                       ) AS articulos_list,
                        (
                            SELECT a.url_imagen 
                            FROM articulo_venta av 
@@ -51,7 +57,7 @@ class Venta
     public function getById(int $id): ?array
     {
         $sql = "SELECT v.id, v.fecha, v.id_equipo, v.descripcion_cliente, v.id_estado_venta, 
-                       v.simbolo, v.id_cliente, v.tipo_vta,
+                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste,
                        ev.descripcion AS estado_descripcion,
                        c.nombre_cliente AS cliente_nombre,
                        e.nombre AS equipo_nombre,
@@ -79,7 +85,7 @@ class Venta
     public function getByCliente(int $idCliente): array
     {
         $sql = "SELECT v.id, v.fecha, v.id_equipo, v.descripcion_cliente, v.id_estado_venta, 
-                       v.simbolo, v.id_cliente, v.tipo_vta,
+                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste,
                        ev.descripcion AS estado_descripcion
                 FROM {$this->table} v
                 LEFT JOIN estado_venta ev ON v.id_estado_venta = ev.id
@@ -97,7 +103,7 @@ class Venta
     public function getByEstado(int $idEstado): array
     {
         $sql = "SELECT v.id, v.fecha, v.id_equipo, v.descripcion_cliente, v.id_estado_venta, 
-                       v.simbolo, v.id_cliente, v.tipo_vta,
+                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste,
                        c.nombre_cliente AS cliente_nombre
                 FROM {$this->table} v
                 LEFT JOIN cliente c ON v.id_cliente = c.id
@@ -115,7 +121,7 @@ class Venta
     public function getByFechas(string $fechaDesde, string $fechaHasta): array
     {
         $sql = "SELECT v.id, v.fecha, v.id_equipo, v.descripcion_cliente, v.id_estado_venta, 
-                       v.simbolo, v.id_cliente, v.tipo_vta,
+                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste,
                        ev.descripcion AS estado_descripcion,
                        c.nombre_cliente AS cliente_nombre,
                        vc.id_medio_pago AS id_medio_cobro
@@ -162,8 +168,8 @@ class Venta
             $this->conn->beginTransaction();
 
             // 1. Crear la cabecera de la venta
-            $sql = "INSERT INTO {$this->table} (fecha, id_equipo, descripcion_cliente, id_estado_venta, simbolo, id_cliente, tipo_vta) 
-                    VALUES (:fecha, :id_equipo, :descripcion_cliente, :id_estado_venta, :simbolo, :id_cliente, :tipo_vta)";
+            $sql = "INSERT INTO {$this->table} (fecha, id_equipo, descripcion_cliente, id_estado_venta, simbolo, id_cliente, tipo_vta, es_ajuste) 
+                    VALUES (:fecha, :id_equipo, :descripcion_cliente, :id_estado_venta, :simbolo, :id_cliente, :tipo_vta, :es_ajuste)";
             $stmt = $this->conn->prepare($sql);
             $stmt->bindValue(':fecha', $data['fecha']);
             $stmt->bindValue(':id_equipo', $data['id_equipo'] ?? null, PDO::PARAM_INT);
@@ -174,6 +180,7 @@ class Venta
             // Si es cerrada (tipo_vta != 0), forzamos a 1 (pagada inmediatamente). Si no, a 0 (A Cuenta).
             $tipoVtaInt = (int)($data['id_estado_venta'] == ($data['id_estado_cerrada'] ?? 2) ? 1 : 0);
             $stmt->bindValue(':tipo_vta', $tipoVtaInt, PDO::PARAM_INT);
+            $stmt->bindValue(':es_ajuste', $data['es_ajuste'] ?? 0, PDO::PARAM_INT);
             $stmt->execute();
             $idVenta = (int)$this->conn->lastInsertId();
 
@@ -196,12 +203,20 @@ class Venta
 
                 // b. Lógica de Descuento de Stock (FIFO)
                 $lotes = $articuloModel->getLotesDisponibles((int)$art['id_articulo']);
-                $cantidadPendiente = (float)$art['cantidad'];
+                $cantidadPendiente = (float)($art['cantidad'] ?? 0);
+
+                // Obtener nombre del artículo para mensajes de error si está disponible en $art
+                $nombreArticulo = $art['nombre'] ?? ("ID " . $art['id_articulo']);
+
+                // Si no hay stock disponible (stock = 0), no debe poder agregarse a la venta.
+                if (empty($lotes) || array_sum(array_column($lotes, 'disponible')) <= 0) {
+                    throw new Exception("El artículo \"$nombreArticulo\" no tiene stock disponible.");
+                }
 
                 // Verificar stock total antes de empezar
                 $stockTotal = array_sum(array_column($lotes, 'disponible'));
                 if ($stockTotal < $cantidadPendiente) {
-                    throw new Exception("Stock insuficiente para el artículo {$art['id_articulo']}. Disponible: $stockTotal, Requerido: $cantidadPendiente");
+                    throw new Exception("Cantidad mayor al stock disponible para \"$nombreArticulo\". Disponible: $stockTotal, Requerido: $cantidadPendiente");
                 }
 
                 foreach ($lotes as $lote) {
@@ -370,7 +385,7 @@ class Venta
             $stmtDel->bindValue(':id_v', $idVenta, PDO::PARAM_INT);
             $stmtDel->execute();
 
-            // b. Insertar los nuevos artículos (reutilizamos la lógica de creación)
+                // b. Insertar los nuevos artículos (reutilizamos la lógica de creación)
             require_once __DIR__ . '/Articulo.php';
             $articuloModel = new Articulo($this->conn);
 
@@ -388,7 +403,21 @@ class Venta
 
                 // Lógica de Descuento de Stock (FIFO) similar a la de creación
                 $lotes = $articuloModel->getLotesDisponibles((int)$art['id_articulo']);
-                $cantidadPendiente = (float)$art['cantidad'];
+                $cantidadPendiente = (float)($art['cantidad'] ?? 0);
+
+                // Obtener nombre del artículo para mensajes de error si está disponible en $art
+                $nombreArticulo = $art['nombre'] ?? ("ID " . $art['id_articulo']);
+
+                // Si no hay stock disponible (stock = 0), no debe poder agregarse a la venta.
+                if (empty($lotes) || array_sum(array_column($lotes, 'disponible')) <= 0) {
+                    throw new Exception("El artículo \"$nombreArticulo\" no tiene stock disponible.");
+                }
+
+                // Verificar stock total antes de empezar
+                $stockTotal = array_sum(array_column($lotes, 'disponible'));
+                if ($stockTotal < $cantidadPendiente) {
+                    throw new Exception("Cantidad mayor al stock disponible para \"$nombreArticulo\". Disponible: $stockTotal, Requerido: $cantidadPendiente");
+                }
 
                 foreach ($lotes as $lote) {
                     if ($cantidadPendiente <= 0) break;
@@ -428,13 +457,70 @@ class Venta
     }
 
     /**
-     * Elimina una venta
+     * Elimina una venta y sus detalles de manera transaccional
      */
     public function delete(int $id): bool
     {
-        $sql = "DELETE FROM {$this->table} WHERE id = :id";
-        $stmt = $this->conn->prepare($sql);
-        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
-        return $stmt->execute();
+        try {
+            if (!$this->conn->inTransaction()) {
+                $this->conn->beginTransaction();
+            }
+
+            // 1. Obtener IDs de articulo_venta para borrar relaciones con lotes
+            $sqlAV = "SELECT id_articulo_venta FROM articulo_venta WHERE id_venta = :id_v";
+            $stmtAV = $this->conn->prepare($sqlAV);
+            $stmtAV->bindValue(':id_v', $id, PDO::PARAM_INT);
+            $stmtAV->execute();
+            $avIds = $stmtAV->fetchAll(PDO::FETCH_COLUMN);
+
+            if (!empty($avIds)) {
+                $placeholders = implode(',', array_fill(0, count($avIds), '?'));
+                
+                // 2. Borrar relaciones de stock (esto devuelve el stock al cálculo de 'getActivos')
+                $sqlDelAVIA = "DELETE FROM articulo_venta_ingreso_articulo WHERE articulo_venta_id_articulo_venta IN ($placeholders)";
+                $stmtDelAVIA = $this->conn->prepare($sqlDelAVIA);
+                $stmtDelAVIA->execute($avIds);
+
+                // 3. Borrar detalles de venta
+                $sqlDelAV = "DELETE FROM articulo_venta WHERE id_venta = :id_v";
+                $stmtDelAV = $this->conn->prepare($sqlDelAV);
+                $stmtDelAV->bindValue(':id_v', $id, PDO::PARAM_INT);
+                $stmtDelAV->execute();
+            }
+
+            // 4. Borrar cobros asociados (venta_cobro -> cobro)
+            $sqlVC = "SELECT id_cobro FROM venta_cobro WHERE id_venta = :id_v";
+            $stmtVC = $this->conn->prepare($sqlVC);
+            $stmtVC->bindValue(':id_v', $id, PDO::PARAM_INT);
+            $stmtVC->execute();
+            $cobroIds = $stmtVC->fetchAll(PDO::FETCH_COLUMN);
+
+            if (!empty($cobroIds)) {
+                $sqlDelVC = "DELETE FROM venta_cobro WHERE id_venta = :id_v";
+                $stmtDelVC = $this->conn->prepare($sqlDelVC);
+                $stmtDelVC->bindValue(':id_v', $id, PDO::PARAM_INT);
+                $stmtDelVC->execute();
+
+                $placeholdersC = implode(',', array_fill(0, count($cobroIds), '?'));
+                $sqlDelC = "DELETE FROM cobro WHERE id IN ($placeholdersC)";
+                $stmtDelC = $this->conn->prepare($sqlDelC);
+                $stmtDelC->execute($cobroIds);
+            }
+
+            // 5. Por último borrar la cabecera de la venta
+            $sqlV = "DELETE FROM {$this->table} WHERE id = :id";
+            $stmtV = $this->conn->prepare($sqlV);
+            $stmtV->bindValue(':id', $id, PDO::PARAM_INT);
+            $stmtV->execute();
+
+            $this->conn->commit();
+            return true;
+        } catch (Exception $e) {
+            if ($this->conn->inTransaction()) {
+                $this->conn->rollBack();
+            }
+            error_log("Error deleting sale: " . $e->getMessage());
+            return false;
+        }
     }
 }

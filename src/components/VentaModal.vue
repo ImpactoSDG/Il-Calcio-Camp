@@ -13,7 +13,7 @@
             <i class="bi bi-cart-plus fs-4"></i>
           </div>
           <h5 class="modal-title fw-black text-dark text-uppercase letter-spacing-1 mb-0" style="font-size: 1.1rem;">
-            {{ isEditing ? `Venta #${form.id}` : 'Nueva Venta' }}
+            {{ isAjuste ? 'Nuevo Ajuste de Stock' : (isEditing ? `Venta #${form.id}` : 'Nueva Venta') }}
           </h5>
         </div>
         <button type="button" class="btn-close shadow-none p-2" @click="closeModal"></button>
@@ -33,12 +33,12 @@
                   </div>
 
                   <div class="row g-2">
-                    <div class="col-12" v-if="isEditing">
+                    <div class="col-12" v-if="isEditing || isAjuste">
                       <label class="form-label fw-semibold text-secondary small mb-1">Fecha <span class="text-danger">*</span></label>
                       <input v-model="form.fecha" type="date" class="form-control border-2 shadow-sm py-1 px-3 rounded-3 fw-bold small" required />
                     </div>
 
-                    <div class="col-12">
+                    <div class="col-12" v-if="!isAjuste">
                       <div class="form-check form-switch p-0 d-flex align-items-center gap-3 bg-white p-2 border-2 border rounded-3 shadow-sm">
                         <label class="form-check-label fw-bold text-dark mb-0 order-2 small" for="checkPedidoAbierto" style="cursor: pointer;">
                           Dejar pedido abierto
@@ -59,7 +59,7 @@
                     <!-- Cliente y Observaciones -->
                     <div class="col-12 mt-2 pt-2 border-top">
                       <div class="row g-2">
-                        <div class="col-6">
+                        <div class="col-12" v-if="!isAjuste">
                           <div class="d-flex justify-content-between align-items-center mb-1">
                             <label class="form-label fw-semibold text-secondary small mb-0">
                               Cliente <span v-if="esAbierto" class="text-danger">*</span>
@@ -85,24 +85,24 @@
                           </select>
                         </div>
                         
-                        <div class="col-6">
+                        <div class="col-12">
                           <div class="d-flex align-items-center mb-1" style="min-height: 20px;">
-                            <label class="form-label fw-semibold text-secondary small mb-0">Observaciones</label>
+                            <label class="form-label fw-semibold text-secondary small mb-0">{{ isAjuste ? 'Motivo del Ajuste' : 'Observaciones' }}</label>
                           </div>
                           
                           <textarea 
                             v-model.trim="form.descripcion_cliente" 
                             class="form-control border-2 shadow-sm rounded-3 py-1 px-2 small" 
-                            rows="1"
-                            style="min-height: 31px; resize: vertical;" 
-                            placeholder="Notas..."
+                            rows="2"
+                            style="min-height: 60px; resize: vertical;" 
+                            :placeholder="isAjuste ? 'Ej: Productos dañados, vencidos...' : 'Notas...'"
                           ></textarea>
                         </div>
                       </div>
                     </div>
 
                     <!-- Medio de Pago y Monto Cobrado -->
-                    <div v-if="!esAbierto" class="col-12 mt-2 pt-2 border-top animate-fade-in">
+                    <div v-if="!esAbierto && !isAjuste" class="col-12 mt-2 pt-2 border-top animate-fade-in">
                       <div class="row g-2">
                         <div class="col-6">
                           <label class="form-label fw-semibold text-secondary small mb-1">Medio de Pago <span class="text-danger">*</span></label>
@@ -129,7 +129,7 @@
                     </div>
 
                     <!-- Equipo -->
-                    <div v-if="form.id_cliente" class="col-12 mt-2">
+                    <div v-if="form.id_cliente && !isAjuste" class="col-12 mt-2">
                       <label class="form-label fw-semibold text-secondary small mb-1">Equipo Asociado</label>
                       <div v-if="form.id_equipo" class="bg-white p-1 px-2 rounded-3 border-2 border d-flex align-items-center justify-content-between">
                         <div class="d-flex align-items-center gap-2">
@@ -151,16 +151,16 @@
 
                   <div class="bg-white border-2 rounded-4 p-3 border shadow-sm">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                      <span class="text-secondary fw-medium">Subtotal</span>
-                      <span class="text-dark fw-bold">${{ Number(totalCarrito).toLocaleString(undefined, { minimumFractionDigits: 2 }) }}</span>
+                      <span class="text-secondary fw-medium">{{ isAjuste ? 'Items a ajustar' : 'Subtotal' }}</span>
+                      <span class="text-dark fw-bold">{{ isAjuste ? articulosCarrito.length : ('$' + Number(totalCarrito).toLocaleString(undefined, { minimumFractionDigits: 2 })) }}</span>
                     </div>
-                    <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div v-if="!isAjuste" class="d-flex justify-content-between align-items-center mb-2">
                       <span class="text-secondary fw-medium">IVA (Total)</span>
                       <span class="text-dark fw-bold">$ 0,00</span>        
                     </div>
-                    <div class="border-top border-2 pt-2 mt-2 d-flex justify-content-between align-items-center">
-                      <span class="text-dark fw-black fs-5">TOTAL</span>   
-                      <span class="text-primary fw-black fs-4">${{ Number(totalCarrito).toLocaleString(undefined, { minimumFractionDigits: 2 }) }}</span>  
+                    <div :class="{ 'border-top border-2 pt-2 mt-2': true, 'd-flex justify-content-between align-items-center': true, 'opacity-50': isAjuste }">
+                      <span class="text-dark fw-black fs-5">{{ isAjuste ? 'AJUSTE' : 'TOTAL' }}</span>   
+                      <span class="text-primary fw-black fs-4">{{ isAjuste ? 'STOCK' : ('$' + Number(totalCarrito).toLocaleString(undefined, { minimumFractionDigits: 2 })) }}</span>  
                     </div>
                   </div>
                 </div>
@@ -234,7 +234,7 @@
                           min="1"
                           @click.stop
                         />
-                        <div class="text-end ms-2">
+                        <div v-if="!isAjuste" class="text-end ms-2">
                           <div class="fw-black text-primary fs-5">${{ Number(res.precio_actual || 0).toLocaleString() }}</div>
                         </div>
                       </div>
@@ -247,7 +247,8 @@
                   <table class="table table-hover align-middle mb-0">      
                     <tbody class="divide-y divide-gray-100">
                       <tr v-for="(item, index) in articulosCarrito" :key="index" class="animate-row-in border-bottom bg-white">
-                        <td class="py-2 ps-3" style="width: 65%;">
+
+                        <td class="py-2 ps-3" :style="{ width: isAjuste ? '80%' : '65%' }">
                           <div class="d-flex align-items-center gap-2">    
                             <div class="bg-primary-subtle rounded-3 overflow-hidden d-flex align-items-center justify-content-center border shadow-sm" style="width: 32px; height: 32px; flex-shrink: 0;">
                               <img v-if="item.imagen || item.url_imagen" :src="`${apiBaseUrl}/${item.imagen || item.url_imagen}`" class="w-100 h-100 object-fit-cover" />
@@ -255,10 +256,11 @@
                             </div>
                             <div class="lh-sm min-w-0 flex-grow-1 py-1">
                               <div class="fw-bold text-dark small" style="word-break: break-word; line-height: 1.2;">{{ item.nombre }}</div>
-                              <div class="text-muted" style="font-size: 0.7rem;">${{ Number(item.precio_unitario).toLocaleString() }} / un.</div>
+                              <div v-if="!isAjuste" class="text-muted" style="font-size: 0.7rem;">${{ Number(item.precio_unitario).toLocaleString() }} / un.</div>
                             </div>
                           </div>
                         </td>
+                      
                         <td class="text-center py-2 px-1" style="width: 12%;">
                           <input
                             :ref="el => { if (el) inputCantidadesRefs[index] = el }"
@@ -266,8 +268,8 @@
                             type="number"
                             step="0.01"
                             min="0.01"
-                            class="form-control form-control-sm text-center fw-bold px-1"
-                            style="width: 58px; margin: 0 auto; border: 1px solid #ced4da; border-radius: 6px; color: #000; font-size: 0.85rem; height: 30px;"
+                            class="form-control text-center fw-bold px-1 hide-arrows minimalist-qty-input"
+                            style="width: 70px; margin: 0 auto; border: 1px solid #ced4da; border-radius: 8px; color: #000; font-size: 0.9rem; height: 36px; padding: 0 !important;"
                             @input="actualizarTotalItem(index)"
                             @keydown.up.prevent="focusAnterior(index)"
                             @keydown.down.prevent="focusSiguiente(index)"
@@ -275,22 +277,24 @@
                             @keydown.right.prevent="cambiarCantidad(index, 1)"
                           />
                         </td>
-                        <td class="text-end py-2 fw-black text-dark px-1" style="width: 18%; font-size: 0.8rem;">
+                      
+                        <td v-if="!isAjuste" class="text-end py-2 fw-black text-dark px-1" style="width: 18%; font-size: 0.8rem;">
                           ${{ Number(item.total).toLocaleString(undefined, { minimumFractionDigits: 2 }) }}
                         </td>
+                      
                         <td class="pe-3 text-end" style="width: 5%;">      
-                          <button type="button" @click="quitarFilaArticulo(index)" class="btn btn-link link-danger p-0 opacity-50 hover-opacity-100">
-                            <i class="bi bi-x-lg" style="font-size: 0.8rem;"></i>       
+                          <button type="button" @click="quitarFilaArticulo(index)" class="btn btn-link link-danger p-0 opacity-50 hover-opacity-100" title="Quitar artículo">
+                            <i class="bi bi-x-circle" style="font-size: 1rem;"></i>      
                           </button>
                         </td>
-                      </tr>
 
-                      <!-- Empty State (Imagen) -->
+                      </tr>
+                    
                       <tr v-if="articulosCarrito.length === 0">
-                        <td colspan="4" class="text-center py-5">
+                        <td :colspan="isAjuste ? 3 : 4" class="text-center py-5">
                           <div class="container-empty-state opacity-50">   
-                            <i class="bi bi-cart-x border rounded-circle p-4 fs-1 d-inline-block mb-3"></i>
-                            <h5 class="fw-bold text-muted">Aún no hay artículos en la venta</h5>
+                            <i class="bi bi-cart-x border rounded-circle p-4 fs-1 d-inline-block mb-3 text-muted"></i>
+                            <h5 class="fw-bold text-muted">Aún no hay artículos {{ isAjuste ? 'agregados' : 'en la venta' }}</h5>
                             <p class="text-muted small">Busca y selecciona artículos arriba para agregarlos</p>
                           </div>
                         </td>
@@ -328,7 +332,7 @@
             :disabled="isLoading || !puedeGuardar"
           >
             <span v-if="isLoading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-            <span>{{ isLoading ? 'GUARDANDO...' : (isEditing ? 'GUARDAR' : 'CREAR VENTA') }}</span>
+            <span>{{ isLoading ? 'GUARDANDO...' : (isAjuste ? 'REGISTRAR AJUSTE' : (isEditing ? 'GUARDAR' : 'CREAR VENTA')) }}</span>
           </button>
         </div>
       </form>
@@ -371,7 +375,8 @@ const props = defineProps({
   articulos: Array,
   idEstadoCerrada: Number,
   idCuentaCorriente: Number,
-  simboloDia: String
+  simboloDia: String,
+  isAjuste: Boolean
 });
 
 const emit = defineEmits(['update:modelValue', 'save', 'client-created', 'assign-team']);
@@ -603,12 +608,56 @@ const onQueryArticulo = () => {
 };
 
 const seleccionarArticuloDeSearch = (art) => {
-  const cantidadAAgregar = Number(art.cantidad_previa) || 1;
+  const stockDisponible = Number(art.stock_actual || 0);
+  
+  // Si un producto no tiene stock disponible (stock = 0), no debe poder agregarse a la venta.
+  if (stockDisponible <= 0) {
+    toastStore.showToast({
+      message: `El artículo "${art.nombre}" no tiene stock disponible.`,
+      type: 'warning'
+    });
+    return;
+  }
+
+  let cantidadAAgregar = Number(art.cantidad_previa) || 1;
   const existente = articulosCarrito.value.find(i => Number(i.id_articulo) === Number(art.id));
+  
   if (existente) {
-    existente.cantidad = Number((Number(existente.cantidad) + cantidadAAgregar).toFixed(2));
+    const totalDespuesDeAgregar = Number((Number(existente.cantidad) + cantidadAAgregar).toFixed(2));
+    
+    // Si la suma supera el stock, ajustamos para que quede el máximo disponible
+    if (totalDespuesDeAgregar > stockDisponible) {
+      const cantidadRealmenteAgregada = Number((stockDisponible - existente.cantidad).toFixed(2));
+      
+      if (cantidadRealmenteAgregada > 0) {
+        existente.cantidad = stockDisponible;
+        existente.total = (existente.cantidad * existente.precio_unitario).toFixed(2);
+        toastStore.showToast({
+          message: `Se ajustó la cantidad al máximo disponible (${stockDisponible}) para "${art.nombre}".`,
+          type: 'warning'
+        });
+      } else {
+        toastStore.showToast({
+          message: `Ya tienes todo el stock disponible en el carrito para "${art.nombre}".`,
+          type: 'warning'
+        });
+      }
+      limpiarBusqueda();
+      return;
+    }
+    
+    existente.cantidad = totalDespuesDeAgregar;
     existente.total = (existente.cantidad * existente.precio_unitario).toFixed(2);
   } else {
+    // Si la cantidad inicial es mayor al stock, capamos al máximo disponible
+    if (cantidadAAgregar > stockDisponible) {
+      cantidadAAgregar = stockDisponible;
+      toastStore.showToast({
+        message: `Cantidad ajustada al stock disponible (${stockDisponible}) para "${art.nombre}".`,
+        type: 'warning'
+      });
+    }
+
     // Agregar al principio del array (Unshift) para que el último producto aparezca arriba
     articulosCarrito.value.unshift({
       id_articulo: art.id,
@@ -690,8 +739,23 @@ const stockColor = (stock) => {
 
 const cambiarCantidad = (index, delta) => {
   const item = articulosCarrito.value[index];
-  const nueva = Number((Number(item.cantidad) + delta).toFixed(2));
-  if (nueva > 0) { item.cantidad = nueva; actualizarTotalItem(index); }      
+  const stockDisponible = Number(item.stock_actual || 0);
+  let nueva = Number((Number(item.cantidad) + delta).toFixed(2));
+  
+  // No permitir cantidad menor o igual a 0
+  if (nueva <= 0) return;
+
+  // Si con el delta superamos el stock, capamos al stock disponible
+  if (nueva > stockDisponible) {
+    nueva = stockDisponible;
+    toastStore.showToast({
+      message: `Solo hay ${stockDisponible} unidades disponibles para "${item.nombre}".`,
+      type: 'warning'
+    });
+  }
+
+  item.cantidad = nueva;
+  actualizarTotalItem(index);
 };
 
 const actualizarTotalItem = (index) => {
@@ -706,7 +770,7 @@ const validarStockMasivo = () => {
   errorStock.value = null;
   for (const item of articulosCarrito.value) {
     if (item.id_articulo && Number(item.cantidad) > Number(item.stock_actual ?? 0)) {
-      errorStock.value = "Stock insuficiente para \"" + item.nombre + "\". Disponible: " + (item.stock_actual ?? 0);
+      errorStock.value = "Cantidad mayor al stock disponible para \"" + item.nombre + "\". Disponible: " + (item.stock_actual ?? 0);
       return false;
     }
   }

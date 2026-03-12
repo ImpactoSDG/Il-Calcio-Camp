@@ -130,6 +130,7 @@ class ArticuloController extends BaseController
             $idCategoria = !empty($data['id_categoria_articulo']) ? (int)$data['id_categoria_articulo'] : null;
             $activo = isset($data['activo']) ? (bool)$data['activo'] : true;
             $urlImagen = !empty($data['url_imagen']) ? (string)$data['url_imagen'] : null;
+            $ROP = isset($data['ROP']) && $data['ROP'] !== '' ? (int)$data['ROP'] : 1;
 
             $id = $this->model->create(
                 $data['nombre'],
@@ -138,7 +139,8 @@ class ArticuloController extends BaseController
                 $codBarra,
                 $idCategoria,
                 $activo,
-                $urlImagen
+                $urlImagen,
+                $ROP
             );
 
             if ($id) {
@@ -171,6 +173,7 @@ class ArticuloController extends BaseController
             $idCategoria = !empty($data['id_categoria_articulo']) ? (int)$data['id_categoria_articulo'] : null;
             $activo = isset($data['activo']) ? (bool)$data['activo'] : true;
             $urlImagen = !empty($data['url_imagen']) ? (string)$data['url_imagen'] : null;
+            $ROP = isset($data['ROP']) && $data['ROP'] !== '' ? (int)$data['ROP'] : 1;
 
             if ($this->model->update(
                 (int)$data['id'],
@@ -180,7 +183,8 @@ class ArticuloController extends BaseController
                 $codBarra,
                 $idCategoria,
                 $activo,
-                $urlImagen
+                $urlImagen,
+                $ROP
             )) {
                 $this->respond(200, ['message' => 'Artículo actualizado exitosamente.']);
             } else {

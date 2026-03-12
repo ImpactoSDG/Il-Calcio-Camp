@@ -387,6 +387,12 @@
                   <label class="form-label">Costo Actual ($)</label>
                   <CustomNumberInput v-model="form.costo_actual" :decimals="2" placeholder="0.00" />
                 </div>
+                <!-- Nuevo campo ROP -->
+                <div class="col-md-6">
+                  <label class="form-label">Stock Mínimo (ROP)</label>
+                  <input v-model.number="form.ROP" type="number" class="form-control" placeholder="1" min="0" />
+                  <div class="form-text fs-xs">Nivel de reabastecimiento</div>
+                </div>
                 <!-- Sección de Estado: Solo visible al editar -->
                 <div v-if="isEditing" class="col-12 mt-3">
                   <label class="form-label d-block text-uppercase fw-bold small text-secondary">Estado del Artículo</label>
@@ -501,7 +507,16 @@ const clearImage = () => {
   if (fileInput.value) fileInput.value.value = '';
 };
 
-const emptyForm = () => ({ nombre: '', precio_actual: null, costo_actual: null, cod_barra: '', id_categoria_articulo: null, activo: true, url_imagen: null });
+const emptyForm = () => ({ 
+  nombre: '', 
+  precio_actual: null, 
+  costo_actual: null, 
+  cod_barra: '', 
+  id_categoria_articulo: null, 
+  activo: true, 
+  url_imagen: null, 
+  ROP: 1 
+});
 const form         = ref(emptyForm());
 const originalForm = ref({});
 

@@ -12,6 +12,7 @@ import EquiposView from '@/views/EquiposView.vue'
 import ArticulosView from '@/views/ArticulosView.vue'
 import IngresoArticuloView from '@/views/IngresoArticuloView.vue'
 import StockView from '@/views/StockView.vue'
+import DescontarStockView from '@/views/DescontarStockView.vue'
 import ClientesView from '@/views/ClientesView.vue'
 import ClienteEquipoView from '@/views/ClienteEquipoView.vue'
 import VentasView from '@/views/VentasView.vue'
@@ -89,6 +90,12 @@ const router = createRouter({
       name: 'stock',
       component: StockView,
       meta: { requiresAuth: true, idModulo: 16 }
+    },
+    {
+      path: '/articulos/descontar-stock',
+      name: 'descontar-stock',
+      component: DescontarStockView,
+      meta: { requiresAuth: true, idModulo: 11 } // Reuso idModulo 11 (Artículos) o crear uno nuevo si existe
     },
 
     // --- Clientes & Equipos ---

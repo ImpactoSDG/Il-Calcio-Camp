@@ -264,8 +264,8 @@ a {
 
 .form-control:focus, .form-select:focus {
     background-color: #ffffff !important;
-    border-color: var(--color-secondary) !important;
-    box-shadow: 0 0 0 4px rgba(22, 156, 159, 0.1) !important;
+    border-color: var(--color-primary) !important;
+    box-shadow: 0 0 0 4px rgba(25, 135, 84, 0.1) !important;
     outline: none !important;
 }
 

@@ -157,8 +157,10 @@ class Cobro
                 FROM venta v
                 LEFT JOIN cliente cl ON v.id_cliente = cl.id
                 LEFT JOIN equipo e ON v.id_equipo = e.id
+                LEFT JOIN estado_venta ev ON v.id_estado_venta = ev.id
                 {$joinMedioPago}
-                {$where}
+                WHERE (ev.descripcion LIKE '%Cerrada%' OR ev.descripcion LIKE '%Cerrado%')
+                " . ($where ? " AND " . implode(' AND ', $conditions) : "") . "
                 GROUP BY v.id, v.fecha, v.id_cliente, v.descripcion_cliente, v.simbolo,
                          cl.nombre_cliente, e.nombre
                 {$havingMedioPago}

@@ -13,15 +13,18 @@ class IngresoArticulo
     }
 
     /**
-     * Obtiene todos los ingresos de artículos con información del artículo
+     * Obtiene todos los ingresos de artículos con información del artículo y ventas asociadas para calcular stock por lote
      */
     public function getAll(): array
     {
         $sql = "SELECT ia.id, ia.fecha_ingreso, ia.vencimiento, ia.es_ajuste, ia.cantidad, 
                        ia.id_articulo, ia.precio_unitario, ia.total, ia.es_perecedero,
-                       a.nombre AS articulo_nombre, a.url_imagen
+                       a.nombre AS articulo_nombre, a.url_imagen,
+                       COALESCE(SUM(avia.cantidad), 0) AS cantidad_vendida
                 FROM {$this->table} ia
                 INNER JOIN articulo a ON ia.id_articulo = a.id
+                LEFT JOIN articulo_venta_ingreso_articulo avia ON ia.id = avia.ingreso_articulo_id
+                GROUP BY ia.id
                 ORDER BY ia.fecha_ingreso DESC, ia.id DESC";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();

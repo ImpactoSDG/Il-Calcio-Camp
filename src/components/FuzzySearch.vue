@@ -2,9 +2,11 @@
   <div class="search-container">
     <input
       type="text"
+      ref="searchInput"
       v-model="query"
       :placeholder="placeholder"
       @input="onSearch"
+      @keydown.enter.prevent="onEnter"
       class="form-control"
     />
 
@@ -38,8 +40,18 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'selected']);
 
+const searchInput = ref(null);
 const query = ref(props.modelValue);
 const results = ref([]);
+
+const focus = () => {
+  if (searchInput.value) {
+    searchInput.value.focus();
+  }
+};
+
+defineExpose({ focus });
+
 let fuse = null;
 
 // Sincronizar query interna con modelValue propeado
@@ -70,15 +82,34 @@ const onSearch = () => {
   }
 };
 
+const onEnter = () => {
+  if (results.value.length > 0) {
+    selectItem(results.value[0].item);
+  }
+};
+
 const selectItem = (item) => {
-  query.value = '';
+  // Intentamos obtener el valor de la propiedad que más se parezca a un nombre o código
+  const keyToUse = props.keys.find(k => k === 'nombre') || props.keys[0];
+  query.value = item[keyToUse] || ''; 
   results.value = [];
   emit('selected', item);
+  emit('update:modelValue', query.value);
 };
+
+// Cerrar resultados si se hace click afuera
+onMounted(() => {
+  setupFuse();
+  document.addEventListener('click', (e) => {
+    if (searchInput.value && !searchInput.value.contains(e.target)) {
+      results.value = [];
+    }
+  });
+});
 
 watch(() => props.data, () => {
   setupFuse();
-  if (query.value) onSearch();
+  // No llamar a onSearch preventivamente para no disparar emits innecesarios
 }, { deep: true });
 
 onMounted(() => setupFuse());
