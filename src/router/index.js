@@ -19,6 +19,8 @@ import ClientesView from '@/views/ClientesView.vue'
 import ClienteEquipoView from '@/views/ClienteEquipoView.vue'
 import VentasView from '@/views/VentasView.vue'
 import CobroView from '@/views/CobroView.vue'
+import PlanTorneoView from '@/views/PlanTorneoView.vue'
+import GestionTorneosView from '@/views/GestionTorneosView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -145,6 +147,18 @@ const router = createRouter({
       path: '/cobros',
       name: 'cobros',
       component: CobroView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/plantorneo',
+      name: 'plantorneo',
+      component: PlanTorneoView,
+      meta: { requiresAuth: true, idModulo: 22 }
+    },
+    {
+      path: '/gestiontorneos',
+      name: 'gestiontorneos',
+      component: GestionTorneosView,
       meta: { requiresAuth: true }
     },
   ]

@@ -1,0 +1,1872 @@
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/../core/BaseController.php';
+
+class PlanTorneoController extends BaseController
+{
+    public function simular(): void
+    {
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($data)) {
+                $this->respond(400, ['message' => 'Datos inválidos para planificar torneo.']);
+            }
+
+            $payload = $this->normalizePayload($data);
+            $resultado = $this->buildSimulation($payload);
+
+            $this->respond(200, $resultado);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al simular planificación del torneo');
+        }
+    }
+
+    public function confirmar(): void
+    {
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($data)) {
+                $this->respond(400, ['message' => 'Datos inválidos para confirmar planificación.']);
+            }
+
+            $parametrosRaw = $data['parametros'] ?? $data;
+            if (!is_array($parametrosRaw)) {
+                $this->respond(400, ['message' => 'parametros debe ser un objeto válido.']);
+            }
+
+            $payload = $this->normalizePayload($parametrosRaw);
+            $resultado = $this->buildSimulation($payload);
+
+            $idTorneo = $this->nullableInt($data['id_torneo'] ?? null);
+            $torneoNuevo = $data['torneo_nuevo'] ?? null;
+
+            if ($idTorneo === null && !is_array($torneoNuevo)) {
+                $this->respond(400, ['message' => 'Debes enviar id_torneo existente o torneo_nuevo para crear uno.']);
+            }
+
+            if ($idTorneo !== null) {
+                if (!$this->torneoExiste($idTorneo)) {
+                    $this->respond(404, ['message' => 'El torneo indicado no existe.']);
+                }
+
+                if ($this->existeConfirmadaVigente($idTorneo)) {
+                    $this->respond(409, ['message' => 'El torneo ya tiene una planificación confirmada vigente.']);
+                }
+            }
+
+            $motor = trim((string)($data['motor_generacion'] ?? 'php'));
+            $version = trim((string)($data['version_algoritmo'] ?? 'v1.0.0'));
+            $observacion = isset($data['observacion']) ? trim((string)$data['observacion']) : null;
+            if ($observacion === '') {
+                $observacion = null;
+            }
+
+            $this->db->beginTransaction();
+
+            if ($idTorneo === null && is_array($torneoNuevo)) {
+                $idTorneo = $this->crearTorneoDesdePlanificacion($torneoNuevo, $payload);
+            }
+
+            $sql = "INSERT INTO generacion_fixture (
+                        id_torneo,
+                        fecha_generacion,
+                        motor_generacion,
+                        version_algoritmo,
+                        parametros_json,
+                        resultado_json,
+                        estado,
+                        observacion
+                    ) VALUES (
+                        :id_torneo,
+                        NOW(),
+                        :motor_generacion,
+                        :version_algoritmo,
+                        :parametros_json,
+                        :resultado_json,
+                        'CONFIRMADA',
+                        :observacion
+                    )";
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmt->bindValue(':motor_generacion', $motor);
+            $stmt->bindValue(':version_algoritmo', $version);
+            $stmt->bindValue(':parametros_json', json_encode($payload));
+            $stmt->bindValue(':resultado_json', json_encode($resultado));
+            $stmt->bindValue(':observacion', $observacion);
+            $stmt->execute();
+
+            $idGeneracion = (int)$this->db->lastInsertId();
+
+            $estadoEventoProgramadoId = $this->getEstadoEventoProgramadoId();
+            $idsFases = [];
+            $idsGrupos = [];
+            $idsCruces = [];
+            $idsEventos = [];
+
+            $idFaseGrupos = null;
+            $maxFechaZonas = 0;
+            if ($payload['usa_zonas'] && !empty($resultado['zonas'])) {
+                $idFaseGrupos = $this->insertFase(
+                    $idTorneo,
+                    'Fase de grupos',
+                    'FASE_DE_GRUPOS',
+                    1,
+                    [
+                        'cantidad_zonas' => count($resultado['zonas']),
+                        'clasificados_por_zona' => $payload['clasificados_por_zona'],
+                        'ida_vuelta' => $payload['ida_vuelta_zonas'],
+                    ]
+                );
+                $idsFases[] = $idFaseGrupos;
+
+                foreach ($resultado['zonas'] as $index => $zona) {
+                    $idGrupo = $this->insertGrupo(
+                        $idFaseGrupos,
+                        'Zona ' . (string)$zona['zona'],
+                        $index + 1,
+                        (int)$zona['equipos'],
+                        'MANUAL_POST_CONFIRMACION'
+                    );
+                    $idsGrupos[] = $idGrupo;
+
+                    [$idsEventosZona, $maxFechaZona] = $this->insertEventosZona(
+                        $idTorneo,
+                        $estadoEventoProgramadoId,
+                        (string)$zona['zona'],
+                        (int)$zona['equipos'],
+                        (bool)$payload['ida_vuelta_zonas']
+                    );
+
+                    $idsEventos = array_merge($idsEventos, $idsEventosZona);
+                    $maxFechaZonas = max($maxFechaZonas, $maxFechaZona);
+                }
+            }
+
+            $idFaseEliminacion = $this->insertFase(
+                $idTorneo,
+                'Fase eliminatoria',
+                'ELIMINACION_DIRECTA',
+                $payload['usa_zonas'] ? 2 : 1,
+                [
+                    'llave_equipos' => $resultado['llave']['equipos'] ?? null,
+                    'tercer_puesto' => $payload['tercer_puesto'],
+                ]
+            );
+            $idsFases[] = $idFaseEliminacion;
+
+            $rondas = $resultado['llave']['rondas'] ?? [];
+            foreach ($rondas as $indiceRonda => $ronda) {
+                $numeroFecha = $maxFechaZonas + $indiceRonda + 1;
+                $offsetDias = $indiceRonda * 7;
+
+                foreach (($ronda['partidos'] ?? []) as $indicePartido => $partido) {
+                    $tituloEvento = ($ronda['nombre'] ?? 'Cruce') . ' - Partido ' . ($indicePartido + 1);
+                    $fechaHoraInicio = date('Y-m-d H:i:s', strtotime('+' . $offsetDias . ' days 20:00:00'));
+
+                    $idEvento = $this->insertEventoPlanificado(
+                        $idTorneo,
+                        $estadoEventoProgramadoId,
+                        $tituloEvento,
+                        'Evento generado automaticamente desde planificación confirmada.',
+                        $numeroFecha,
+                        $fechaHoraInicio
+                    );
+                    $idsEventos[] = $idEvento;
+
+                    $origenLocal = $this->parseOrigen((string)($partido['local'] ?? 'TBD'));
+                    $origenVisitante = $this->parseOrigen((string)($partido['visitante'] ?? 'TBD'));
+
+                    $idCruce = $this->insertCruce(
+                        $idFaseEliminacion,
+                        $idEvento,
+                        ($ronda['nombre'] ?? 'Cruce') . ' P' . ($indicePartido + 1),
+                        $indicePartido + 1,
+                        $origenLocal,
+                        $origenVisitante
+                    );
+                    $idsCruces[] = $idCruce;
+                }
+            }
+
+            $this->db->commit();
+
+            $this->respond(201, [
+                'message' => 'Planificación confirmada correctamente.',
+                'id_generacion_fixture' => $idGeneracion,
+                'id_torneo' => $idTorneo,
+                'estado' => 'CONFIRMADA',
+                'ids_fases' => $idsFases,
+                'ids_grupos' => $idsGrupos,
+                'ids_cruces' => $idsCruces,
+                'ids_eventos' => $idsEventos,
+            ]);
+        } catch (Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->handleError($e, 'Error al confirmar planificación del torneo');
+        }
+    }
+
+    public function getConfirmadaVigente(): void
+    {
+        try {
+            $idTorneo = $this->nullableInt($_GET['id_torneo'] ?? null);
+            if ($idTorneo === null) {
+                $this->respond(400, ['message' => 'id_torneo es obligatorio.']);
+            }
+
+            $sql = "SELECT id, id_torneo, fecha_generacion, motor_generacion, version_algoritmo,
+                           parametros_json, resultado_json, estado, observacion
+                    FROM generacion_fixture
+                    WHERE id_torneo = :id_torneo
+                      AND estado = 'CONFIRMADA'
+                    ORDER BY id DESC
+                    LIMIT 1";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmt->execute();
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$row) {
+                $this->respond(404, ['message' => 'No existe una planificación confirmada para ese torneo.']);
+            }
+
+            $this->respond(200, [
+                'id' => (int)$row['id'],
+                'id_torneo' => (int)$row['id_torneo'],
+                'fecha_generacion' => $row['fecha_generacion'],
+                'motor_generacion' => $row['motor_generacion'],
+                'version_algoritmo' => $row['version_algoritmo'],
+                'estado' => $row['estado'],
+                'observacion' => $row['observacion'],
+                'parametros' => json_decode((string)$row['parametros_json'], true),
+                'resultado' => json_decode((string)$row['resultado_json'], true),
+            ]);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al obtener planificación confirmada');
+        }
+    }
+
+    public function getDetalleGestion(): void
+    {
+        try {
+            $idTorneo = $this->nullableInt($_GET['id_torneo'] ?? null);
+            if ($idTorneo === null) {
+                $this->respond(400, ['message' => 'id_torneo es obligatorio.']);
+            }
+
+            $sqlTorneo = "SELECT t.id, t.nombre, t.descripcion, t.id_disciplina, t.id_estado_torneo,
+                                 t.fecha_inicio, t.fecha_fin, t.cupo_equipos, t.valor_inscripcion,
+                                 t.formato_manual, d.nombre AS disciplina_nombre, et.descripcion AS estado_nombre
+                          FROM torneo t
+                          LEFT JOIN disciplina d ON d.id = t.id_disciplina
+                          LEFT JOIN estado_torneo et ON et.id = t.id_estado_torneo
+                          WHERE t.id = :id_torneo
+                                                        AND COALESCE(t.activo, 1) = 1
+                          LIMIT 1";
+            $stmt = $this->db->prepare($sqlTorneo);
+            $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmt->execute();
+            $torneo = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$torneo) {
+                $this->respond(404, ['message' => 'Torneo no encontrado.']);
+            }
+
+            $confirmada = $this->getConfirmadaData($idTorneo);
+
+            $sqlGrupos = "SELECT g.id, g.nombre, g.orden, g.cantidad_equipos_objetivo,
+                                  COUNT(gte.id) AS asignados
+                           FROM grupo_torneo g
+                           INNER JOIN fase_torneo f ON f.id = g.id_fase_torneo
+                           LEFT JOIN grupo_torneo_equipo gte ON gte.id_grupo_torneo = g.id
+                           WHERE f.id_torneo = :id_torneo
+                             AND UPPER(f.tipo_fase) = 'FASE_DE_GRUPOS'
+                           GROUP BY g.id, g.nombre, g.orden, g.cantidad_equipos_objetivo
+                           ORDER BY g.orden ASC, g.id ASC";
+            $stmt = $this->db->prepare($sqlGrupos);
+            $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmt->execute();
+            $grupos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $sqlAsignaciones = "SELECT g.id AS id_grupo_torneo, g.nombre AS grupo_nombre,
+                                       gte.posicion_inicial,
+                                       et.id_equipo, e.nombre AS equipo_nombre, e.escudo
+                                FROM grupo_torneo_equipo gte
+                                INNER JOIN grupo_torneo g ON g.id = gte.id_grupo_torneo
+                                INNER JOIN fase_torneo f ON f.id = g.id_fase_torneo
+                                INNER JOIN equipo_torneo et ON et.id = gte.id_equipo_torneo
+                                INNER JOIN equipo e ON e.id = et.id_equipo
+                                WHERE f.id_torneo = :id_torneo
+                                  AND UPPER(f.tipo_fase) = 'FASE_DE_GRUPOS'
+                                ORDER BY g.orden ASC, gte.posicion_inicial ASC";
+            $stmt = $this->db->prepare($sqlAsignaciones);
+            $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmt->execute();
+            $asignaciones = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $sqlInscriptos = "SELECT et.id, et.id_equipo, e.nombre AS equipo_nombre, e.escudo,
+                                     et.id_estado_inscripcion, ei.descripcion AS estado_inscripcion,
+                                     et.fecha_inscripcion, et.fecha_pago, et.comprobante_pago, et.observacion,
+                                     MAX(CASE WHEN gte.id IS NULL THEN 0 ELSE 1 END) AS asignado
+                              FROM equipo_torneo et
+                              INNER JOIN equipo e ON e.id = et.id_equipo
+                              LEFT JOIN estado_inscripcion ei ON ei.id = et.id_estado_inscripcion
+                              LEFT JOIN grupo_torneo_equipo gte ON gte.id_equipo_torneo = et.id
+                              WHERE et.id_torneo = :id_torneo
+                              GROUP BY et.id, et.id_equipo, e.nombre, e.escudo,
+                                       et.id_estado_inscripcion, ei.descripcion,
+                                       et.fecha_inscripcion, et.fecha_pago, et.comprobante_pago, et.observacion
+                              ORDER BY e.nombre ASC";
+            $stmt = $this->db->prepare($sqlInscriptos);
+            $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmt->execute();
+            $inscriptos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $estadosInscripcion = $this->getEstadosInscripcionCatalogo();
+
+            $inscripcionesTotal = count($inscriptos);
+            $inscripcionesPagas = 0;
+            $inscripcionesAsignadas = 0;
+            foreach ($inscriptos as $item) {
+                $estado = strtoupper((string)($item['estado_inscripcion'] ?? ''));
+                if (!empty($item['fecha_pago']) || $estado === 'INSCRIPTA') {
+                    $inscripcionesPagas++;
+                }
+                if ((int)($item['asignado'] ?? 0) === 1) {
+                    $inscripcionesAsignadas++;
+                }
+            }
+
+            $sqlEventos = "SELECT
+                               SUM(CASE WHEN titulo LIKE 'Zona % - Fecha % - Partido %' THEN 1 ELSE 0 END) AS eventos_zona,
+                               SUM(CASE WHEN titulo NOT LIKE 'Zona % - Fecha % - Partido %' THEN 1 ELSE 0 END) AS eventos_eliminacion,
+                               COUNT(*) AS total
+                           FROM evento
+                           WHERE id_torneo = :id_torneo";
+            $stmt = $this->db->prepare($sqlEventos);
+            $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmt->execute();
+            $eventos = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['eventos_zona' => 0, 'eventos_eliminacion' => 0, 'total' => 0];
+
+            $this->respond(200, [
+                'torneo' => $torneo,
+                'confirmada' => $confirmada,
+                'grupos' => $grupos,
+                'asignaciones' => $asignaciones,
+                'inscriptos' => $inscriptos,
+                'estados_inscripcion' => $estadosInscripcion,
+                'inscripciones' => [
+                    'total' => $inscripcionesTotal,
+                    'pagas' => $inscripcionesPagas,
+                    'pendientes' => max(0, $inscripcionesTotal - $inscripcionesPagas),
+                    'asignadas' => $inscripcionesAsignadas,
+                ],
+                'eventos' => [
+                    'zona' => (int)($eventos['eventos_zona'] ?? 0),
+                    'eliminacion' => (int)($eventos['eventos_eliminacion'] ?? 0),
+                    'total' => (int)($eventos['total'] ?? 0),
+                ],
+            ]);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al obtener detalle de gestion de torneo');
+        }
+    }
+
+    public function getEquiposDisponibles(): void
+    {
+        try {
+            $idTorneo = $this->nullableInt($_GET['id_torneo'] ?? null);
+            if ($idTorneo === null) {
+                $this->respond(400, ['message' => 'id_torneo es obligatorio.']);
+            }
+
+            $sql = "SELECT e.id, e.nombre, e.escudo
+                    FROM equipo e
+                    WHERE e.activo = 1
+                      AND e.id NOT IN (
+                          SELECT et.id_equipo
+                          FROM equipo_torneo et
+                          WHERE et.id_torneo = :id_torneo
+                      )
+                    ORDER BY e.nombre ASC, e.id ASC";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $this->respond(200, $stmt->fetchAll(PDO::FETCH_ASSOC));
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al obtener equipos disponibles');
+        }
+    }
+
+    public function asignarEquipos(): void
+    {
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($data)) {
+                $this->respond(400, ['message' => 'Datos invalidos para asignar equipos.']);
+            }
+
+            $idTorneo = $this->nullableInt($data['id_torneo'] ?? null);
+            if ($idTorneo === null) {
+                $this->respond(400, ['message' => 'id_torneo es obligatorio.']);
+            }
+
+            if (!$this->torneoExiste($idTorneo)) {
+                $this->respond(404, ['message' => 'Torneo no encontrado.']);
+            }
+
+            if (!$this->existeConfirmadaVigente($idTorneo)) {
+                $this->respond(409, ['message' => 'El torneo no tiene una planificación confirmada vigente.']);
+            }
+
+            $asignaciones = $data['asignaciones'] ?? [];
+            if (!is_array($asignaciones) || count($asignaciones) === 0) {
+                $this->respond(400, ['message' => 'Debes enviar al menos una asignacion.']);
+            }
+
+            $grupos = $this->getGruposFaseZonas($idTorneo);
+            if (empty($grupos)) {
+                $this->respond(409, ['message' => 'El torneo no tiene grupos configurados para asignar equipos.']);
+            }
+
+            $grupoMap = [];
+            foreach ($grupos as $g) {
+                $grupoMap[(int)$g['id']] = $g;
+            }
+
+            $equiposIds = [];
+            $conteoPorGrupo = [];
+
+            foreach ($asignaciones as $row) {
+                $idGrupo = (int)($row['id_grupo_torneo'] ?? 0);
+                $idEquipo = (int)($row['id_equipo'] ?? 0);
+                $posicion = (int)($row['posicion_inicial'] ?? 0);
+
+                if ($idGrupo <= 0 || $idEquipo <= 0 || $posicion <= 0) {
+                    $this->respond(400, ['message' => 'Cada asignacion requiere id_grupo_torneo, id_equipo y posicion_inicial validos.']);
+                }
+
+                if (!isset($grupoMap[$idGrupo])) {
+                    $this->respond(400, ['message' => 'Se detecto un grupo que no pertenece al torneo.']);
+                }
+
+                if (in_array($idEquipo, $equiposIds, true)) {
+                    $this->respond(422, ['message' => 'No se puede asignar el mismo equipo mas de una vez.']);
+                }
+
+                $equiposIds[] = $idEquipo;
+                $conteoPorGrupo[$idGrupo] = ($conteoPorGrupo[$idGrupo] ?? 0) + 1;
+            }
+
+            foreach ($conteoPorGrupo as $idGrupo => $cantidad) {
+                $objetivo = (int)($grupoMap[$idGrupo]['cantidad_equipos_objetivo'] ?? 0);
+                if ($objetivo > 0 && $cantidad > $objetivo) {
+                    $this->respond(422, ['message' => 'Un grupo supera su capacidad de equipos objetivo.']);
+                }
+            }
+
+            $equiposActivos = $this->getEquiposActivosMap($equiposIds);
+            if (count($equiposActivos) !== count($equiposIds)) {
+                $this->respond(422, ['message' => 'Hay equipos inexistentes o inactivos en la asignacion.']);
+            }
+
+            $this->db->beginTransaction();
+
+            // Reemplazo completo de asignaciones para mantener consistencia.
+            $this->deleteAsignacionesActuales($idTorneo);
+
+            $mapEquipoTorneo = $this->getEquipoTorneoMapByEquipos($idTorneo, $equiposIds);
+            if (count($mapEquipoTorneo) !== count($equiposIds)) {
+                $this->respond(422, ['message' => 'Hay equipos no inscriptos en el torneo. Cargá inscripciones antes de asignar.']);
+            }
+
+            $insertadas = 0;
+            foreach ($asignaciones as $row) {
+                $idGrupo = (int)$row['id_grupo_torneo'];
+                $idEquipo = (int)$row['id_equipo'];
+                $posicion = (int)$row['posicion_inicial'];
+                $this->insertGrupoTorneoEquipo($idGrupo, $mapEquipoTorneo[$idEquipo], $posicion);
+                $insertadas++;
+            }
+
+            $parametrosConfirmados = $this->getParametrosConfirmados($idTorneo);
+            $idaVuelta = (bool)($parametrosConfirmados['ida_vuelta_zonas'] ?? false);
+
+            $eventosZonaActualizados = $this->actualizarEventosZonaConAsignacion($idTorneo, $idaVuelta);
+            $eventosCruceActualizados = $this->actualizarEventosCruceConAsignacion($idTorneo);
+
+            $this->db->commit();
+
+            $this->respond(200, [
+                'message' => 'Equipos asignados correctamente.',
+                'asignaciones_insertadas' => $insertadas,
+                'eventos_zona_actualizados' => $eventosZonaActualizados,
+                'eventos_cruce_actualizados' => $eventosCruceActualizados,
+            ]);
+        } catch (Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->handleError($e, 'Error al asignar equipos del torneo');
+        }
+    }
+
+    public function subirComprobantePago(): void
+    {
+        try {
+            if (!isset($_FILES['comprobante'])) {
+                $this->respond(400, ['message' => 'Debes adjuntar un archivo en el campo comprobante.']);
+            }
+
+            $file = $_FILES['comprobante'];
+            if (!is_array($file) || !isset($file['error'])) {
+                $this->respond(400, ['message' => 'Archivo de comprobante inválido.']);
+            }
+
+            if ((int)$file['error'] !== UPLOAD_ERR_OK) {
+                $this->respond(400, ['message' => 'Error al subir el comprobante. Código: ' . (string)$file['error']]);
+            }
+
+            $maxBytes = 10 * 1024 * 1024; // 10 MB
+            $size = (int)($file['size'] ?? 0);
+            if ($size <= 0 || $size > $maxBytes) {
+                $this->respond(422, ['message' => 'El comprobante debe pesar entre 1 byte y 10 MB.']);
+            }
+
+            $tmpPath = (string)($file['tmp_name'] ?? '');
+            if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
+                $this->respond(400, ['message' => 'No se encontró el archivo temporal del comprobante.']);
+            }
+
+            $allowedMimeToExt = [
+                'application/pdf' => 'pdf',
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'image/webp' => 'webp',
+            ];
+
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime = $finfo ? (string)finfo_file($finfo, $tmpPath) : '';
+            if ($finfo) {
+                finfo_close($finfo);
+            }
+
+            if (!isset($allowedMimeToExt[$mime])) {
+                $this->respond(422, ['message' => 'Formato no permitido. Usa PDF, JPG, PNG o WEBP.']);
+            }
+
+            $uploadsDir = $this->resolveUploadsDirectory();
+            $originalName = (string)($file['name'] ?? 'comprobante');
+            $safeBase = $this->sanitizeFileBaseName(pathinfo($originalName, PATHINFO_FILENAME));
+            $ext = $allowedMimeToExt[$mime];
+            $fileName = date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '_' . $safeBase . '.' . $ext;
+            $fullPath = rtrim($uploadsDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $fileName;
+
+            if (!move_uploaded_file($tmpPath, $fullPath)) {
+                $this->respond(500, ['message' => 'No se pudo guardar el comprobante en el servidor.']);
+            }
+
+            $webPath = $this->buildUploadsPublicPath($fileName);
+            $this->respond(201, [
+                'message' => 'Comprobante subido correctamente.',
+                'comprobante_pago' => $webPath,
+                'file_name' => $fileName,
+                'mime_type' => $mime,
+                'size_bytes' => $size,
+            ]);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al subir comprobante de pago');
+        }
+    }
+
+    public function inscribirEquipos(): void
+    {
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($data)) {
+                $this->respond(400, ['message' => 'Datos invalidos para inscribir equipos.']);
+            }
+
+            $idTorneo = $this->nullableInt($data['id_torneo'] ?? null);
+            if ($idTorneo === null) {
+                $this->respond(400, ['message' => 'id_torneo es obligatorio.']);
+            }
+
+            if (!$this->torneoExiste($idTorneo)) {
+                $this->respond(404, ['message' => 'Torneo no encontrado.']);
+            }
+
+            $inscripciones = $data['inscripciones'] ?? [];
+            if (!is_array($inscripciones) || count($inscripciones) === 0) {
+                $this->respond(400, ['message' => 'Debes enviar inscripciones para registrar.']);
+            }
+
+            $idsEquipos = [];
+            $payloadMap = [];
+            foreach ($inscripciones as $item) {
+                $idEquipo = (int)($item['id_equipo'] ?? 0);
+                if ($idEquipo <= 0) {
+                    $this->respond(400, ['message' => 'Cada inscripción debe incluir id_equipo válido.']);
+                }
+                if (in_array($idEquipo, $idsEquipos, true)) {
+                    $this->respond(422, ['message' => 'No se puede repetir equipo en la misma carga de inscripciones.']);
+                }
+
+                $idsEquipos[] = $idEquipo;
+                $payloadMap[$idEquipo] = [
+                    'pagada' => (bool)($item['pagada'] ?? false),
+                    'fecha_pago' => isset($item['fecha_pago']) ? trim((string)$item['fecha_pago']) : null,
+                    'id_estado_inscripcion' => isset($item['id_estado_inscripcion']) ? $this->nullableInt($item['id_estado_inscripcion']) : null,
+                    'comprobante_pago' => isset($item['comprobante_pago']) ? trim((string)$item['comprobante_pago']) : null,
+                    'observacion' => isset($item['observacion']) ? trim((string)$item['observacion']) : null,
+                ];
+            }
+
+            $equiposActivos = $this->getEquiposActivosMap($idsEquipos);
+            if (count($equiposActivos) !== count($idsEquipos)) {
+                $this->respond(422, ['message' => 'Hay equipos inexistentes o inactivos en la carga de inscripciones.']);
+            }
+
+            $yaInscriptos = $this->getEquipoTorneoMapByEquipos($idTorneo, $idsEquipos);
+
+            $idEstadoPendiente = $this->resolveEstadoInscripcionByDescripcion(['PENDIENTE', 'PENDIENTE_PAGO']);
+            $idEstadoPaga = $this->resolveEstadoInscripcionByDescripcion(['INSCRIPTA', 'PAGO_EN_REVISION', 'PAGADA']);
+            $estadosValidos = $this->getEstadosInscripcionCatalogo();
+            $estadoIdsValidos = [];
+            foreach ($estadosValidos as $estado) {
+                $estadoIdsValidos[(int)$estado['id']] = true;
+            }
+
+            $this->db->beginTransaction();
+            $creadas = 0;
+            $actualizadas = 0;
+
+            foreach ($idsEquipos as $idEquipo) {
+                $pagada = $payloadMap[$idEquipo]['pagada'];
+                $fechaPago = $payloadMap[$idEquipo]['fecha_pago'];
+                $comprobantePago = $payloadMap[$idEquipo]['comprobante_pago'];
+                $observacion = $payloadMap[$idEquipo]['observacion'];
+                $idEstadoPayload = $payloadMap[$idEquipo]['id_estado_inscripcion'];
+                if ($pagada && empty($fechaPago)) {
+                    $fechaPago = date('Y-m-d');
+                }
+
+                if ($idEstadoPayload !== null) {
+                    if (!isset($estadoIdsValidos[$idEstadoPayload])) {
+                        $this->respond(422, ['message' => 'Se detectó un estado de inscripción inválido.']);
+                    }
+                    $idEstado = $idEstadoPayload;
+                } else {
+                    $idEstado = $pagada ? $idEstadoPaga : $idEstadoPendiente;
+                }
+
+                if (isset($yaInscriptos[$idEquipo])) {
+                    $sql = "UPDATE equipo_torneo
+                            SET id_estado_inscripcion = :id_estado_inscripcion,
+                                fecha_pago = :fecha_pago,
+                                comprobante_pago = :comprobante_pago,
+                                observacion = :observacion
+                            WHERE id = :id";
+                    $stmt = $this->db->prepare($sql);
+                    $stmt->bindValue(':id_estado_inscripcion', $idEstado, PDO::PARAM_INT);
+                    if ($fechaPago) {
+                        $stmt->bindValue(':fecha_pago', $fechaPago);
+                    } else {
+                        $stmt->bindValue(':fecha_pago', null, PDO::PARAM_NULL);
+                    }
+                    if (!empty($comprobantePago)) {
+                        $stmt->bindValue(':comprobante_pago', $comprobantePago);
+                    } else {
+                        $stmt->bindValue(':comprobante_pago', null, PDO::PARAM_NULL);
+                    }
+                    if (!empty($observacion)) {
+                        $stmt->bindValue(':observacion', $observacion);
+                    } else {
+                        $stmt->bindValue(':observacion', null, PDO::PARAM_NULL);
+                    }
+                    $stmt->bindValue(':id', (int)$yaInscriptos[$idEquipo], PDO::PARAM_INT);
+                    $stmt->execute();
+                    $actualizadas++;
+                } else {
+                    $this->insertEquipoTorneo($idTorneo, $idEquipo, $idEstado, $fechaPago, $comprobantePago, $observacion);
+                    $creadas++;
+                }
+            }
+
+            $this->db->commit();
+
+            $this->respond(200, [
+                'message' => 'Inscripciones registradas correctamente.',
+                'creadas' => $creadas,
+                'actualizadas' => $actualizadas,
+            ]);
+        } catch (Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->handleError($e, 'Error al cargar inscripciones del torneo');
+        }
+    }
+
+    public function eliminarInscripcion(): void
+    {
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($data)) {
+                $this->respond(400, ['message' => 'Datos inválidos para eliminar inscripción.']);
+            }
+
+            $idTorneo = $this->nullableInt($data['id_torneo'] ?? null);
+            $idEquipoTorneo = $this->nullableInt($data['id_equipo_torneo'] ?? null);
+
+            if ($idTorneo === null || $idEquipoTorneo === null) {
+                $this->respond(400, ['message' => 'id_torneo e id_equipo_torneo son obligatorios.']);
+            }
+
+            $stmt = $this->db->prepare('SELECT id FROM equipo_torneo WHERE id = :id AND id_torneo = :id_torneo LIMIT 1');
+            $stmt->bindValue(':id', $idEquipoTorneo, PDO::PARAM_INT);
+            $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmt->execute();
+            if (!$stmt->fetch(PDO::FETCH_ASSOC)) {
+                $this->respond(404, ['message' => 'La inscripción indicada no existe para el torneo.']);
+            }
+
+            $this->db->beginTransaction();
+
+            $stmt = $this->db->prepare('DELETE FROM grupo_torneo_equipo WHERE id_equipo_torneo = :id_equipo_torneo');
+            $stmt->bindValue(':id_equipo_torneo', $idEquipoTorneo, PDO::PARAM_INT);
+            $stmt->execute();
+            $asignacionesEliminadas = $stmt->rowCount();
+
+            $stmt = $this->db->prepare('DELETE FROM equipo_torneo WHERE id = :id AND id_torneo = :id_torneo');
+            $stmt->bindValue(':id', $idEquipoTorneo, PDO::PARAM_INT);
+            $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $parametrosConfirmados = $this->getParametrosConfirmados($idTorneo);
+            $idaVuelta = (bool)($parametrosConfirmados['ida_vuelta_zonas'] ?? false);
+
+            $eventosZonaActualizados = $this->actualizarEventosZonaConAsignacion($idTorneo, $idaVuelta);
+            $eventosCruceActualizados = $this->actualizarEventosCruceConAsignacion($idTorneo);
+
+            $this->db->commit();
+
+            $this->respond(200, [
+                'message' => 'Inscripción eliminada correctamente.',
+                'asignaciones_eliminadas' => $asignacionesEliminadas,
+                'eventos_zona_actualizados' => $eventosZonaActualizados,
+                'eventos_cruce_actualizados' => $eventosCruceActualizados,
+            ]);
+        } catch (Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->handleError($e, 'Error al eliminar inscripción del torneo');
+        }
+    }
+
+    private function buildSimulation(array $payload): array
+    {
+        $warnings = [];
+        $zonas = [];
+        $partidosFaseZonas = 0;
+        $minimoPartidosPorEquipo = 1;
+
+        if ($payload['usa_zonas']) {
+            [$zonas, $partidosFaseZonas, $minimoPartidosPorEquipo, $warnings] = $this->calcularFaseZonas($payload, $warnings);
+        }
+
+        [$llave, $partidosEliminacion, $warnings] = $this->calcularLlave($payload, $zonas, $warnings);
+
+        return [
+            'message' => 'Planificación simulada correctamente.',
+            'input_normalizado' => $payload,
+            'resumen' => [
+                'total_partidos' => $partidosFaseZonas + $partidosEliminacion,
+                'partidos_fase_zonas' => $partidosFaseZonas,
+                'partidos_eliminacion' => $partidosEliminacion,
+                'cantidad_zonas' => count($zonas),
+                'llave_equipos' => $llave['equipos'],
+                'minimo_partidos_por_equipo' => $minimoPartidosPorEquipo,
+            ],
+            'zonas' => $zonas,
+            'llave' => $llave,
+            'observaciones' => $warnings,
+        ];
+    }
+
+    private function getConfirmadaData(int $idTorneo): ?array
+    {
+        $sql = "SELECT id, fecha_generacion, motor_generacion, version_algoritmo,
+                       parametros_json, resultado_json, estado
+                FROM generacion_fixture
+                WHERE id_torneo = :id_torneo
+                  AND estado = 'CONFIRMADA'
+                ORDER BY id DESC
+                LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            return null;
+        }
+
+        return [
+            'id' => (int)$row['id'],
+            'fecha_generacion' => $row['fecha_generacion'],
+            'motor_generacion' => $row['motor_generacion'],
+            'version_algoritmo' => $row['version_algoritmo'],
+            'estado' => $row['estado'],
+            'parametros' => json_decode((string)$row['parametros_json'], true),
+            'resultado' => json_decode((string)$row['resultado_json'], true),
+        ];
+    }
+
+    private function getGruposFaseZonas(int $idTorneo): array
+    {
+        $sql = "SELECT g.id, g.nombre, g.orden, g.cantidad_equipos_objetivo
+                FROM grupo_torneo g
+                INNER JOIN fase_torneo f ON f.id = g.id_fase_torneo
+                WHERE f.id_torneo = :id_torneo
+                  AND UPPER(f.tipo_fase) = 'FASE_DE_GRUPOS'
+                ORDER BY g.orden ASC, g.id ASC";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    private function getEquiposActivosMap(array $ids): array
+    {
+        if (empty($ids)) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $sql = "SELECT id FROM equipo WHERE activo = 1 AND id IN ($placeholders)";
+        $stmt = $this->db->prepare($sql);
+        foreach ($ids as $i => $id) {
+            $stmt->bindValue($i + 1, $id, PDO::PARAM_INT);
+        }
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        $map = [];
+        foreach ($rows as $id) {
+            $map[(int)$id] = true;
+        }
+        return $map;
+    }
+
+    private function deleteAsignacionesActuales(int $idTorneo): void
+    {
+        $sql = "DELETE gte
+                FROM grupo_torneo_equipo gte
+                INNER JOIN grupo_torneo g ON g.id = gte.id_grupo_torneo
+                INNER JOIN fase_torneo f ON f.id = g.id_fase_torneo
+                WHERE f.id_torneo = :id_torneo";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->execute();
+    }
+
+    private function resolveEstadoInscripcionByDescripcion(array $descripciones): int
+    {
+        foreach ($descripciones as $desc) {
+            $stmt = $this->db->prepare('SELECT id FROM estado_inscripcion WHERE UPPER(descripcion) = :desc LIMIT 1');
+            $stmt->bindValue(':desc', strtoupper($desc));
+            $stmt->execute();
+            $id = $stmt->fetchColumn();
+            if ($id) {
+                return (int)$id;
+            }
+        }
+
+        $stmt = $this->db->prepare('SELECT id FROM estado_inscripcion ORDER BY id ASC LIMIT 1');
+        $stmt->execute();
+        $id = $stmt->fetchColumn();
+        if ($id) {
+            return (int)$id;
+        }
+
+        $this->respond(400, ['message' => 'No existe estado_inscripcion configurado para asignar equipos.']);
+    }
+
+    private function insertEquipoTorneo(
+        int $idTorneo,
+        int $idEquipo,
+        int $idEstadoInscripcion,
+        ?string $fechaPago = null,
+        ?string $comprobantePago = null,
+        ?string $observacion = null
+    ): int
+    {
+        $sql = "INSERT INTO equipo_torneo (
+                    id_equipo,
+                    id_torneo,
+                    id_estado_inscripcion,
+                    fecha_inscripcion,
+                    fecha_pago,
+                    comprobante_pago,
+                    observacion
+                ) VALUES (
+                    :id_equipo,
+                    :id_torneo,
+                    :id_estado_inscripcion,
+                    CURDATE(),
+                    :fecha_pago,
+                    :comprobante_pago,
+                    :observacion
+                )";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':id_equipo', $idEquipo, PDO::PARAM_INT);
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->bindValue(':id_estado_inscripcion', $idEstadoInscripcion, PDO::PARAM_INT);
+        if ($fechaPago) {
+            $stmt->bindValue(':fecha_pago', $fechaPago);
+        } else {
+            $stmt->bindValue(':fecha_pago', null, PDO::PARAM_NULL);
+        }
+        if (!empty($comprobantePago)) {
+            $stmt->bindValue(':comprobante_pago', $comprobantePago);
+        } else {
+            $stmt->bindValue(':comprobante_pago', null, PDO::PARAM_NULL);
+        }
+        if (!empty($observacion)) {
+            $stmt->bindValue(':observacion', $observacion);
+        } else {
+            $stmt->bindValue(':observacion', null, PDO::PARAM_NULL);
+        }
+        $stmt->execute();
+        return (int)$this->db->lastInsertId();
+    }
+
+    private function getEstadosInscripcionCatalogo(): array
+    {
+        $stmt = $this->db->prepare('SELECT id, descripcion FROM estado_inscripcion ORDER BY id ASC');
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    private function resolveUploadsDirectory(): string
+    {
+        $configured = trim((string)($_ENV['UPLOADS_DIR'] ?? getenv('UPLOADS_DIR') ?? ''));
+        $candidates = [];
+        if ($configured !== '') {
+            $candidates[] = $configured;
+        }
+        $candidates[] = '/home/impactos/il-calcio-camp.impactosdg.com/uploads';
+        $candidates[] = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'uploads';
+
+        foreach ($candidates as $candidate) {
+            $dir = rtrim($candidate, "\\/");
+            if ($dir === '') {
+                continue;
+            }
+            if (is_dir($dir) || @mkdir($dir, 0775, true)) {
+                return $dir;
+            }
+        }
+
+        $this->respond(500, ['message' => 'No se pudo resolver el directorio de uploads. Configura UPLOADS_DIR.']);
+    }
+
+    private function sanitizeFileBaseName(string $baseName): string
+    {
+        $sanitized = preg_replace('/[^a-zA-Z0-9_-]+/', '_', $baseName);
+        $sanitized = trim((string)$sanitized, '_');
+        if ($sanitized === '') {
+            $sanitized = 'comprobante';
+        }
+        return substr($sanitized, 0, 60);
+    }
+
+    private function buildUploadsPublicPath(string $fileName): string
+    {
+        $scriptName = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
+        $apiDir = rtrim((string)dirname($scriptName), '/');
+        $baseDir = preg_replace('#/api$#', '', $apiDir) ?? '';
+        $baseDir = rtrim($baseDir, '/');
+
+        if ($baseDir === '' || $baseDir === '.') {
+            return '/uploads/' . $fileName;
+        }
+
+        return $baseDir . '/uploads/' . $fileName;
+    }
+
+    private function getEquipoTorneoMapByEquipos(int $idTorneo, array $idsEquipos): array
+    {
+        if (empty($idsEquipos)) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($idsEquipos), '?'));
+        $sql = "SELECT id, id_equipo
+                FROM equipo_torneo
+                WHERE id_torneo = ?
+                  AND id_equipo IN ($placeholders)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(1, $idTorneo, PDO::PARAM_INT);
+        foreach ($idsEquipos as $i => $idEquipo) {
+            $stmt->bindValue($i + 2, $idEquipo, PDO::PARAM_INT);
+        }
+        $stmt->execute();
+
+        $map = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $map[(int)$row['id_equipo']] = (int)$row['id'];
+        }
+        return $map;
+    }
+
+    private function insertGrupoTorneoEquipo(int $idGrupo, int $idEquipoTorneo, int $posicion): void
+    {
+        $sql = "INSERT INTO grupo_torneo_equipo (id_grupo_torneo, id_equipo_torneo, posicion_inicial)
+                VALUES (:id_grupo_torneo, :id_equipo_torneo, :posicion_inicial)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':id_grupo_torneo', $idGrupo, PDO::PARAM_INT);
+        $stmt->bindValue(':id_equipo_torneo', $idEquipoTorneo, PDO::PARAM_INT);
+        $stmt->bindValue(':posicion_inicial', $posicion, PDO::PARAM_INT);
+        $stmt->execute();
+    }
+
+    private function getParametrosConfirmados(int $idTorneo): array
+    {
+        $stmt = $this->db->prepare("SELECT parametros_json
+                                   FROM generacion_fixture
+                                   WHERE id_torneo = :id_torneo AND estado = 'CONFIRMADA'
+                                   ORDER BY id DESC LIMIT 1");
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->execute();
+        $json = $stmt->fetchColumn();
+        if (!$json) {
+            return [];
+        }
+
+        $decoded = json_decode((string)$json, true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function actualizarEventosZonaConAsignacion(int $idTorneo, bool $idaVuelta): int
+    {
+        $grupos = $this->getGruposFaseZonas($idTorneo);
+        $actualizados = 0;
+
+        foreach ($grupos as $grupo) {
+            $idGrupo = (int)$grupo['id'];
+            $zona = $this->extractZonaFromGroupName((string)$grupo['nombre']);
+            if ($zona === null) {
+                continue;
+            }
+
+            $sql = "SELECT et.id_equipo
+                    FROM grupo_torneo_equipo gte
+                    INNER JOIN equipo_torneo et ON et.id = gte.id_equipo_torneo
+                    WHERE gte.id_grupo_torneo = :id_grupo
+                    ORDER BY gte.posicion_inicial ASC, gte.id ASC";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindValue(':id_grupo', $idGrupo, PDO::PARAM_INT);
+            $stmt->execute();
+            $teamIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+
+            $matches = $this->buildRoundRobinMatches($teamIds, $idaVuelta);
+            if (empty($matches)) {
+                continue;
+            }
+
+            $stmt = $this->db->prepare("SELECT id
+                                       FROM evento
+                                       WHERE id_torneo = :id_torneo
+                                         AND titulo LIKE :prefix
+                                       ORDER BY numero_fecha ASC, id ASC");
+            $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmt->bindValue(':prefix', 'Zona ' . $zona . ' - Fecha % - Partido %');
+            $stmt->execute();
+            $eventIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+
+            $limit = min(count($eventIds), count($matches));
+            for ($i = 0; $i < $limit; $i++) {
+                $eventId = $eventIds[$i];
+                $match = $matches[$i];
+                $u = $this->db->prepare('UPDATE evento SET id_equipo_local = :local, id_equipo_visitante = :visitante WHERE id = :id');
+                $u->bindValue(':local', $match['local'], PDO::PARAM_INT);
+                $u->bindValue(':visitante', $match['visitante'], PDO::PARAM_INT);
+                $u->bindValue(':id', $eventId, PDO::PARAM_INT);
+                $u->execute();
+                $actualizados++;
+            }
+
+            // Limpia eventos sobrantes si hay menos cruces asignables que placeholders.
+            for ($i = $limit; $i < count($eventIds); $i++) {
+                $u = $this->db->prepare('UPDATE evento SET id_equipo_local = NULL, id_equipo_visitante = NULL WHERE id = :id');
+                $u->bindValue(':id', $eventIds[$i], PDO::PARAM_INT);
+                $u->execute();
+            }
+        }
+
+        return $actualizados;
+    }
+
+    private function actualizarEventosCruceConAsignacion(int $idTorneo): int
+    {
+        $map = $this->buildMapPosicionGrupoEquipo($idTorneo);
+        $seedList = $this->buildSeedList($map);
+
+        $sql = "SELECT c.id, c.id_evento,
+                       c.origen_local_tipo, c.origen_local_valor,
+                       c.origen_visitante_tipo, c.origen_visitante_valor
+                FROM cruce_torneo c
+                INNER JOIN fase_torneo f ON f.id = c.id_fase_torneo
+                WHERE f.id_torneo = :id_torneo
+                  AND c.id_evento IS NOT NULL
+                ORDER BY c.id ASC";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->execute();
+        $cruces = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $actualizados = 0;
+        foreach ($cruces as $cruce) {
+            $local = $this->resolveOrigenEquipoId((string)$cruce['origen_local_tipo'], (string)$cruce['origen_local_valor'], $map, $seedList);
+            $visitante = $this->resolveOrigenEquipoId((string)$cruce['origen_visitante_tipo'], (string)$cruce['origen_visitante_valor'], $map, $seedList);
+
+            $u = $this->db->prepare('UPDATE evento SET id_equipo_local = :local, id_equipo_visitante = :visitante WHERE id = :id');
+            $u->bindValue(':local', $local, $local === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+            $u->bindValue(':visitante', $visitante, $visitante === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+            $u->bindValue(':id', (int)$cruce['id_evento'], PDO::PARAM_INT);
+            $u->execute();
+            $actualizados++;
+        }
+
+        return $actualizados;
+    }
+
+    private function buildMapPosicionGrupoEquipo(int $idTorneo): array
+    {
+        $sql = "SELECT g.nombre AS grupo_nombre, gte.posicion_inicial, et.id_equipo
+                FROM grupo_torneo_equipo gte
+                INNER JOIN grupo_torneo g ON g.id = gte.id_grupo_torneo
+                INNER JOIN fase_torneo f ON f.id = g.id_fase_torneo
+                INNER JOIN equipo_torneo et ON et.id = gte.id_equipo_torneo
+                WHERE f.id_torneo = :id_torneo
+                  AND UPPER(f.tipo_fase) = 'FASE_DE_GRUPOS'
+                ORDER BY g.orden ASC, gte.posicion_inicial ASC";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->execute();
+
+        $map = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $zona = $this->extractZonaFromGroupName((string)$row['grupo_nombre']);
+            if ($zona === null) {
+                continue;
+            }
+            $pos = (int)$row['posicion_inicial'];
+            $map[$zona][$pos] = (int)$row['id_equipo'];
+        }
+
+        ksort($map);
+        return $map;
+    }
+
+    private function buildSeedList(array $map): array
+    {
+        $seeds = [];
+        foreach ($map as $zona => $positions) {
+            ksort($positions);
+            foreach ($positions as $idEquipo) {
+                $seeds[] = (int)$idEquipo;
+            }
+        }
+        return $seeds;
+    }
+
+    private function resolveOrigenEquipoId(string $tipo, string $valor, array $map, array $seedList): ?int
+    {
+        if ($tipo === 'POSICION_GRUPO' && preg_match('/^(\d+)([A-Z])$/', $valor, $m)) {
+            $pos = (int)$m[1];
+            $zona = $m[2];
+            return isset($map[$zona][$pos]) ? (int)$map[$zona][$pos] : null;
+        }
+
+        if ($tipo === 'SEED_DIRECTO') {
+            $idx = max(0, ((int)$valor) - 1);
+            return $seedList[$idx] ?? null;
+        }
+
+        return null;
+    }
+
+    private function extractZonaFromGroupName(string $nombre): ?string
+    {
+        if (preg_match('/([A-Z])\s*$/', strtoupper($nombre), $m)) {
+            return $m[1];
+        }
+        return null;
+    }
+
+    private function buildRoundRobinMatches(array $teamIds, bool $idaVuelta): array
+    {
+        $teams = array_values($teamIds);
+        if (count($teams) < 2) {
+            return [];
+        }
+
+        if ((count($teams) % 2) !== 0) {
+            $teams[] = null;
+        }
+
+        $n = count($teams);
+        $rounds = $n - 1;
+        $half = intdiv($n, 2);
+
+        $allMatches = [];
+        for ($r = 0; $r < $rounds; $r++) {
+            for ($i = 0; $i < $half; $i++) {
+                $home = $teams[$i];
+                $away = $teams[$n - 1 - $i];
+
+                if ($home !== null && $away !== null) {
+                    $allMatches[] = ['local' => (int)$home, 'visitante' => (int)$away];
+                }
+            }
+
+            $fixed = $teams[0];
+            $tail = array_slice($teams, 1);
+            $last = array_pop($tail);
+            array_unshift($tail, $last);
+            $teams = array_merge([$fixed], $tail);
+        }
+
+        if ($idaVuelta) {
+            $reverse = [];
+            foreach ($allMatches as $m) {
+                $reverse[] = ['local' => $m['visitante'], 'visitante' => $m['local']];
+            }
+            $allMatches = array_merge($allMatches, $reverse);
+        }
+
+        return $allMatches;
+    }
+
+    private function torneoExiste(int $idTorneo): bool
+    {
+        $stmt = $this->db->prepare('SELECT 1 FROM torneo WHERE id = :id AND COALESCE(activo, 1) = 1 LIMIT 1');
+        $stmt->bindValue(':id', $idTorneo, PDO::PARAM_INT);
+        $stmt->execute();
+        return (bool)$stmt->fetchColumn();
+    }
+
+    private function crearTorneoDesdePlanificacion(array $torneoNuevo, array $payload): int
+    {
+        $nombre = trim((string)($torneoNuevo['nombre'] ?? ''));
+        if ($nombre === '') {
+            $this->respond(400, ['message' => 'torneo_nuevo.nombre es obligatorio.']);
+        }
+
+        $idDisciplina = $this->nullableInt($torneoNuevo['id_disciplina'] ?? null);
+        if ($idDisciplina === null) {
+            $this->respond(400, ['message' => 'torneo_nuevo.id_disciplina es obligatorio.']);
+        }
+
+        $descripcion = isset($torneoNuevo['descripcion']) ? trim((string)$torneoNuevo['descripcion']) : null;
+        if ($descripcion === '') {
+            $descripcion = null;
+        }
+
+        $fechaInicio = isset($torneoNuevo['fecha_inicio']) ? trim((string)$torneoNuevo['fecha_inicio']) : null;
+        if ($fechaInicio === '') {
+            $fechaInicio = date('Y-m-d');
+        }
+
+        $valorInscripcion = isset($torneoNuevo['valor_inscripcion'])
+            ? (float)$torneoNuevo['valor_inscripcion']
+            : 0.0;
+
+        $idEstadoTorneo = $this->resolveEstadoTorneoInicialId();
+        $formatoManual = $payload['usa_zonas'] ? 'MIXTO' : 'ELIMINACION';
+
+        $sql = "INSERT INTO torneo (
+                    nombre,
+                    descripcion,
+                    id_disciplina,
+                    id_estado_torneo,
+                    fecha_inicio,
+                    fecha_fin,
+                    fecha_fin_planificada,
+                    cupo_equipos,
+                    valor_inscripcion,
+                    formato_manual,
+                    configuracion_json
+                ) VALUES (
+                    :nombre,
+                    :descripcion,
+                    :id_disciplina,
+                    :id_estado_torneo,
+                    :fecha_inicio,
+                    NULL,
+                    NULL,
+                    :cupo_equipos,
+                    :valor_inscripcion,
+                    :formato_manual,
+                    :configuracion_json
+                )";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':nombre', $nombre);
+        $stmt->bindValue(':descripcion', $descripcion);
+        $stmt->bindValue(':id_disciplina', $idDisciplina, PDO::PARAM_INT);
+        $stmt->bindValue(':id_estado_torneo', $idEstadoTorneo, PDO::PARAM_INT);
+        $stmt->bindValue(':fecha_inicio', $fechaInicio);
+        $stmt->bindValue(':cupo_equipos', (int)$payload['cantidad_equipos'], PDO::PARAM_INT);
+        $stmt->bindValue(':valor_inscripcion', $valorInscripcion);
+        $stmt->bindValue(':formato_manual', $formatoManual);
+        $stmt->bindValue(':configuracion_json', json_encode($payload));
+        $stmt->execute();
+
+        return (int)$this->db->lastInsertId();
+    }
+
+    private function resolveEstadoTorneoInicialId(): int
+    {
+        $queries = [
+            "SELECT id FROM estado_torneo WHERE UPPER(descripcion) = 'PLANIFICADO' LIMIT 1",
+            "SELECT id FROM estado_torneo WHERE UPPER(descripcion) = 'BORRADOR' LIMIT 1",
+            "SELECT id FROM estado_torneo ORDER BY id ASC LIMIT 1",
+        ];
+
+        foreach ($queries as $query) {
+            $stmt = $this->db->prepare($query);
+            $stmt->execute();
+            $id = $stmt->fetchColumn();
+            if ($id) {
+                return (int)$id;
+            }
+        }
+
+        $this->respond(400, ['message' => 'No existe un estado_torneo configurado para crear el torneo.']);
+    }
+
+    private function existeConfirmadaVigente(int $idTorneo): bool
+    {
+        $stmt = $this->db->prepare("SELECT 1 FROM generacion_fixture WHERE id_torneo = :id_torneo AND estado = 'CONFIRMADA' LIMIT 1");
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->execute();
+        return (bool)$stmt->fetchColumn();
+    }
+
+    private function getEstadoEventoProgramadoId(): int
+    {
+        $stmt = $this->db->prepare("SELECT id FROM estado_evento WHERE UPPER(descripcion) = 'PROGRAMADO' LIMIT 1");
+        $stmt->execute();
+        $id = $stmt->fetchColumn();
+
+        if (!$id) {
+            $this->respond(400, ['message' => 'No existe estado_evento PROGRAMADO.']);
+        }
+
+        return (int)$id;
+    }
+
+    private function insertFase(int $idTorneo, string $nombre, string $tipoFase, int $orden, array $configuracion): int
+    {
+        $sql = "INSERT INTO fase_torneo (id_torneo, nombre, tipo_fase, orden, configuracion_json)
+                VALUES (:id_torneo, :nombre, :tipo_fase, :orden, :configuracion_json)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->bindValue(':nombre', $nombre);
+        $stmt->bindValue(':tipo_fase', $tipoFase);
+        $stmt->bindValue(':orden', $orden, PDO::PARAM_INT);
+        $stmt->bindValue(':configuracion_json', json_encode($configuracion));
+        $stmt->execute();
+
+        return (int)$this->db->lastInsertId();
+    }
+
+    private function insertGrupo(int $idFaseTorneo, string $nombre, int $orden, int $cantidadEquiposObjetivo, string $criterioAsignacion): int
+    {
+        $sql = "INSERT INTO grupo_torneo (id_fase_torneo, nombre, orden, cantidad_equipos_objetivo, criterio_asignacion)
+                VALUES (:id_fase_torneo, :nombre, :orden, :cantidad_equipos_objetivo, :criterio_asignacion)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':id_fase_torneo', $idFaseTorneo, PDO::PARAM_INT);
+        $stmt->bindValue(':nombre', $nombre);
+        $stmt->bindValue(':orden', $orden, PDO::PARAM_INT);
+        $stmt->bindValue(':cantidad_equipos_objetivo', $cantidadEquiposObjetivo, PDO::PARAM_INT);
+        $stmt->bindValue(':criterio_asignacion', $criterioAsignacion);
+        $stmt->execute();
+
+        return (int)$this->db->lastInsertId();
+    }
+
+    private function insertEventoPlanificado(
+        int $idTorneo,
+        int $idEstadoEvento,
+        string $titulo,
+        string $descripcion,
+        int $numeroFecha,
+        string $fechaHoraInicio
+    ): int {
+        $sql = "INSERT INTO evento (
+                    id_torneo,
+                    id_estado_evento,
+                    tipo_evento,
+                    titulo,
+                    descripcion,
+                    numero_fecha,
+                    fecha_hora_inicio,
+                    fecha_hora_fin,
+                    id_cancha,
+                    id_arbitro,
+                    id_equipo_local,
+                    id_equipo_visitante,
+                    resultado_local,
+                    resultado_visitante,
+                    resultado_penales_local,
+                    resultado_penales_visitante
+                ) VALUES (
+                    :id_torneo,
+                    :id_estado_evento,
+                    'partido',
+                    :titulo,
+                    :descripcion,
+                    :numero_fecha,
+                    :fecha_hora_inicio,
+                    NULL,
+                    NULL,
+                    NULL,
+                    NULL,
+                    NULL,
+                    NULL,
+                    NULL,
+                    NULL,
+                    NULL
+                )";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->bindValue(':id_estado_evento', $idEstadoEvento, PDO::PARAM_INT);
+        $stmt->bindValue(':titulo', $titulo);
+        $stmt->bindValue(':descripcion', $descripcion);
+        $stmt->bindValue(':numero_fecha', $numeroFecha, PDO::PARAM_INT);
+        $stmt->bindValue(':fecha_hora_inicio', $fechaHoraInicio);
+        $stmt->execute();
+
+        return (int)$this->db->lastInsertId();
+    }
+
+    private function insertCruce(
+        int $idFaseTorneo,
+        int $idEvento,
+        string $nombre,
+        int $orden,
+        array $origenLocal,
+        array $origenVisitante
+    ): int {
+        $sql = "INSERT INTO cruce_torneo (
+                    id_fase_torneo,
+                    id_grupo_torneo,
+                    id_evento,
+                    nombre,
+                    orden,
+                    origen_local_tipo,
+                    origen_local_valor,
+                    origen_visitante_tipo,
+                    origen_visitante_valor
+                ) VALUES (
+                    :id_fase_torneo,
+                    NULL,
+                    :id_evento,
+                    :nombre,
+                    :orden,
+                    :origen_local_tipo,
+                    :origen_local_valor,
+                    :origen_visitante_tipo,
+                    :origen_visitante_valor
+                )";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':id_fase_torneo', $idFaseTorneo, PDO::PARAM_INT);
+        $stmt->bindValue(':id_evento', $idEvento, PDO::PARAM_INT);
+        $stmt->bindValue(':nombre', $nombre);
+        $stmt->bindValue(':orden', $orden, PDO::PARAM_INT);
+        $stmt->bindValue(':origen_local_tipo', $origenLocal['tipo']);
+        $stmt->bindValue(':origen_local_valor', $origenLocal['valor']);
+        $stmt->bindValue(':origen_visitante_tipo', $origenVisitante['tipo']);
+        $stmt->bindValue(':origen_visitante_valor', $origenVisitante['valor']);
+        $stmt->execute();
+
+        return (int)$this->db->lastInsertId();
+    }
+
+    private function parseOrigen(string $texto): array
+    {
+        $value = trim($texto);
+
+        if (preg_match('/^(\d+)([A-Z])$/', $value, $matches)) {
+            return [
+                'tipo' => 'POSICION_GRUPO',
+                'valor' => $matches[1] . $matches[2],
+            ];
+        }
+
+        if (preg_match('/^Ganador\s+R(\d+)-P(\d+)$/i', $value, $matches)) {
+            return [
+                'tipo' => 'GANADOR_CRUCE',
+                'valor' => 'R' . $matches[1] . '-P' . $matches[2],
+            ];
+        }
+
+        if (preg_match('/^Equipo\s+(\d+)$/i', $value, $matches)) {
+            return [
+                'tipo' => 'SEED_DIRECTO',
+                'valor' => (string)$matches[1],
+            ];
+        }
+
+        if (strcasecmp($value, 'BYE') === 0) {
+            return [
+                'tipo' => 'BYE',
+                'valor' => 'BYE',
+            ];
+        }
+
+        return [
+            'tipo' => 'TBD',
+            'valor' => $value !== '' ? $value : 'TBD',
+        ];
+    }
+
+    private function insertEventosZona(
+        int $idTorneo,
+        int $idEstadoEvento,
+        string $zona,
+        int $equiposZona,
+        bool $idaVuelta
+    ): array {
+        $partidosPorFecha = max(1, intdiv($equiposZona, 2));
+        $factor = $idaVuelta ? 2 : 1;
+        $jornadas = (($equiposZona % 2) === 0 ? ($equiposZona - 1) : $equiposZona) * $factor;
+        $totalPartidos = $this->combinatoria2($equiposZona) * $factor;
+
+        $ids = [];
+        $creados = 0;
+
+        for ($fecha = 1; $fecha <= $jornadas; $fecha++) {
+            for ($i = 1; $i <= $partidosPorFecha; $i++) {
+                if ($creados >= $totalPartidos) {
+                    break 2;
+                }
+
+                $titulo = 'Zona ' . $zona . ' - Fecha ' . $fecha . ' - Partido ' . $i;
+                $fechaHoraInicio = date('Y-m-d H:i:s', strtotime('+' . (($fecha - 1) * 3) . ' days 20:00:00'));
+
+                $ids[] = $this->insertEventoPlanificado(
+                    $idTorneo,
+                    $idEstadoEvento,
+                    $titulo,
+                    'Evento de fase de zonas generado automaticamente.',
+                    $fecha,
+                    $fechaHoraInicio
+                );
+                $creados++;
+            }
+        }
+
+        return [$ids, $jornadas];
+    }
+
+    private function normalizePayload(array $data): array
+    {
+        $cantidadEquipos = (int)($data['cantidad_equipos'] ?? 0);
+        if ($cantidadEquipos < 2) {
+            $this->respond(400, ['message' => 'La cantidad de equipos debe ser al menos 2.']);
+        }
+
+        $usaZonas = (bool)($data['usa_zonas'] ?? false);
+        $idaVuelta = (bool)($data['ida_vuelta_zonas'] ?? false);
+        $tercerPuesto = (bool)($data['tercer_puesto'] ?? false);
+        $cantidadZonas = $this->nullableInt($data['cantidad_zonas'] ?? null);
+        $equiposPorZona = $this->nullableInt($data['equipos_por_zona'] ?? null);
+        $clasificadosPorZona = max(1, (int)($data['clasificados_por_zona'] ?? 1));
+        $llaveEquipos = $this->nullableInt($data['llave_equipos'] ?? null);
+
+        if ($usaZonas && $cantidadZonas === null && $equiposPorZona === null) {
+            $this->respond(400, ['message' => 'Si usas zonas, debes indicar cantidad de zonas o equipos por zona.']);
+        }
+
+        if ($usaZonas && $cantidadZonas !== null && $cantidadZonas < 1) {
+            $this->respond(400, ['message' => 'La cantidad de zonas debe ser mayor o igual a 1.']);
+        }
+
+        if ($usaZonas && $equiposPorZona !== null && $equiposPorZona < 2) {
+            $this->respond(400, ['message' => 'Los equipos por zona deben ser al menos 2.']);
+        }
+
+        if ($llaveEquipos !== null && (!$this->isPowerOfTwo($llaveEquipos) || $llaveEquipos < 2)) {
+            $this->respond(400, ['message' => 'La llave eliminatoria debe ser potencia de 2 (2, 4, 8, 16...).']);
+        }
+
+        return [
+            'cantidad_equipos' => $cantidadEquipos,
+            'usa_zonas' => $usaZonas,
+            'cantidad_zonas' => $cantidadZonas,
+            'equipos_por_zona' => $equiposPorZona,
+            'clasificados_por_zona' => $clasificadosPorZona,
+            'ida_vuelta_zonas' => $idaVuelta,
+            'llave_equipos' => $llaveEquipos,
+            'tercer_puesto' => $tercerPuesto,
+        ];
+    }
+
+    private function calcularFaseZonas(array $payload, array $warnings): array
+    {
+        $cantidadEquipos = $payload['cantidad_equipos'];
+        $cantidadZonas = $payload['cantidad_zonas'];
+        $equiposPorZona = $payload['equipos_por_zona'];
+        $idaVuelta = $payload['ida_vuelta_zonas'];
+        $clasificadosPorZona = $payload['clasificados_por_zona'];
+
+        if ($cantidadZonas === null && $equiposPorZona !== null) {
+            $cantidadZonas = (int)ceil($cantidadEquipos / $equiposPorZona);
+        }
+
+        if ($cantidadZonas === null) {
+            $cantidadZonas = 1;
+        }
+
+        if ($cantidadZonas > $cantidadEquipos) {
+            $this->respond(400, ['message' => 'No puede haber más zonas que equipos.']);
+        }
+
+        $base = intdiv($cantidadEquipos, $cantidadZonas);
+        $resto = $cantidadEquipos % $cantidadZonas;
+
+        if ($base < 2) {
+            $this->respond(400, ['message' => 'Con esa configuración, al menos una zona tendría menos de 2 equipos.']);
+        }
+
+        $zonas = [];
+        $minimoPartidosPorEquipo = PHP_INT_MAX;
+        $partidosFaseZonas = 0;
+
+        for ($i = 0; $i < $cantidadZonas; $i++) {
+            $equiposZona = $base + ($i < $resto ? 1 : 0);
+            $partidosZona = $this->combinatoria2($equiposZona) * ($idaVuelta ? 2 : 1);
+            $partidosEquipoZona = ($equiposZona - 1) * ($idaVuelta ? 2 : 1);
+
+            if ($clasificadosPorZona >= $equiposZona) {
+                $warnings[] = 'La zona ' . $this->zonaLabel($i) . ' clasifica casi todos los equipos; revisa competitividad.';
+            }
+
+            $partidosFaseZonas += $partidosZona;
+            $minimoPartidosPorEquipo = min($minimoPartidosPorEquipo, $partidosEquipoZona);
+
+            $zonas[] = [
+                'zona' => $this->zonaLabel($i),
+                'equipos' => $equiposZona,
+                'partidos' => $partidosZona,
+                'clasificados' => $clasificadosPorZona,
+            ];
+        }
+
+        return [$zonas, $partidosFaseZonas, $minimoPartidosPorEquipo, $warnings];
+    }
+
+    private function calcularLlave(array $payload, array $zonas, array $warnings): array
+    {
+        $cantidadEquipos = $payload['cantidad_equipos'];
+        $usaZonas = $payload['usa_zonas'];
+        $llavePedida = $payload['llave_equipos'];
+        $tercerPuesto = $payload['tercer_puesto'];
+
+        $maximosDisponibles = $usaZonas
+            ? (count($zonas) * max(1, (int)$payload['clasificados_por_zona']))
+            : $cantidadEquipos;
+
+        $llaveEquipos = $llavePedida ?? $this->nearestPowerOfTwoLessOrEqual($maximosDisponibles);
+        if ($llaveEquipos < 2) {
+            $this->respond(400, ['message' => 'No hay suficientes equipos para generar una llave eliminatoria.']);
+        }
+
+        if ($llaveEquipos > $maximosDisponibles) {
+            $this->respond(400, ['message' => 'La llave solicitada supera los equipos disponibles para clasificar.']);
+        }
+
+        if (!$usaZonas && $llaveEquipos < $cantidadEquipos) {
+            $warnings[] = 'La llave es menor a la cantidad de equipos; se asume etapa clasificatoria previa o recorte por ranking.';
+        }
+
+        $rondas = $this->buildRounds($llaveEquipos);
+        $entrantes = $usaZonas
+            ? $this->buildEntrantesDesdeZonas($zonas, (int)$payload['clasificados_por_zona'], $llaveEquipos)
+            : $this->buildEntrantesDirectos($cantidadEquipos, $llaveEquipos);
+
+        $rondas = $this->asignarPrimeraRonda($rondas, $entrantes);
+        $partidosEliminacion = ($llaveEquipos - 1) + ($tercerPuesto ? 1 : 0);
+
+        if ($tercerPuesto) {
+            $warnings[] = 'Se agregó partido por tercer puesto.';
+        }
+
+        return [
+            [
+                'equipos' => $llaveEquipos,
+                'rondas' => $rondas,
+            ],
+            $partidosEliminacion,
+            $warnings,
+        ];
+    }
+
+    private function buildRounds(int $llaveEquipos): array
+    {
+        $rondas = [];
+        $equiposEnRonda = $llaveEquipos;
+        $offset = 1;
+
+        while ($equiposEnRonda >= 2) {
+            $partidos = intdiv($equiposEnRonda, 2);
+            $items = [];
+            for ($i = 1; $i <= $partidos; $i++) {
+                $items[] = [
+                    'id' => 'R' . $offset . '-P' . $i,
+                    'local' => 'TBD',
+                    'visitante' => 'TBD',
+                ];
+            }
+
+            $rondas[] = [
+                'nombre' => $this->nombreRonda($equiposEnRonda),
+                'partidos' => $items,
+            ];
+
+            $equiposEnRonda = intdiv($equiposEnRonda, 2);
+            $offset++;
+        }
+
+        for ($i = 1; $i < count($rondas); $i++) {
+            foreach ($rondas[$i]['partidos'] as $idx => $partido) {
+                $matchA = $idx * 2 + 1;
+                $matchB = $idx * 2 + 2;
+                $rondas[$i]['partidos'][$idx]['local'] = 'Ganador R' . $i . '-P' . $matchA;
+                $rondas[$i]['partidos'][$idx]['visitante'] = 'Ganador R' . $i . '-P' . $matchB;
+            }
+        }
+
+        return $rondas;
+    }
+
+    private function asignarPrimeraRonda(array $rondas, array $entrantes): array
+    {
+        if (empty($rondas)) {
+            return $rondas;
+        }
+
+        $primera = $rondas[0]['partidos'];
+        $cursor = 0;
+        foreach ($primera as $idx => $partido) {
+            $rondas[0]['partidos'][$idx]['local'] = $entrantes[$cursor] ?? 'BYE';
+            $rondas[0]['partidos'][$idx]['visitante'] = $entrantes[$cursor + 1] ?? 'BYE';
+            $cursor += 2;
+        }
+
+        return $rondas;
+    }
+
+    private function buildEntrantesDesdeZonas(array $zonas, int $clasificadosPorZona, int $llaveEquipos): array
+    {
+        $entrantes = [];
+
+        // Cruce por ranking entre pares de zonas: 1A vs nB, 2A vs (n-1)B, etc.
+        for ($i = 0; $i < count($zonas); $i += 2) {
+            $zonaA = $zonas[$i]['zona'] ?? null;
+            $zonaB = $zonas[$i + 1]['zona'] ?? null;
+
+            if ($zonaA === null) {
+                break;
+            }
+
+            // Si queda una zona sin pareja, se la empareja consigo misma para no romper la simulación.
+            if ($zonaB === null) {
+                $zonaB = $zonaA;
+            }
+
+            for ($pos = 1; $pos <= $clasificadosPorZona; $pos++) {
+                if (count($entrantes) >= $llaveEquipos) {
+                    break 2;
+                }
+
+                $opuesto = ($clasificadosPorZona - $pos + 1);
+                $entrantes[] = $pos . $zonaA;
+
+                if (count($entrantes) >= $llaveEquipos) {
+                    break 2;
+                }
+
+                $entrantes[] = $opuesto . $zonaB;
+            }
+        }
+
+        return $entrantes;
+    }
+
+    private function buildEntrantesDirectos(int $cantidadEquipos, int $llaveEquipos): array
+    {
+        $entrantes = [];
+        $limit = min($cantidadEquipos, $llaveEquipos);
+        for ($i = 1; $i <= $limit; $i++) {
+            $entrantes[] = 'Equipo ' . $i;
+        }
+
+        return $entrantes;
+    }
+
+    private function nombreRonda(int $equipos): string
+    {
+        return match ($equipos) {
+            2 => 'Final',
+            4 => 'Semifinal',
+            8 => 'Cuartos de final',
+            16 => 'Octavos de final',
+            32 => 'Dieciseisavos',
+            default => 'Ronda de ' . $equipos,
+        };
+    }
+
+    private function zonaLabel(int $index): string
+    {
+        return chr(65 + $index);
+    }
+
+    private function combinatoria2(int $n): int
+    {
+        return (int)(($n * ($n - 1)) / 2);
+    }
+
+    private function nullableInt(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        return (int)$value;
+    }
+
+    private function isPowerOfTwo(int $n): bool
+    {
+        return $n > 0 && ($n & ($n - 1)) === 0;
+    }
+
+    private function nearestPowerOfTwoLessOrEqual(int $n): int
+    {
+        $value = 1;
+        while (($value * 2) <= $n) {
+            $value *= 2;
+        }
+        return $value;
+    }
+}

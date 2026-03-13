@@ -17,7 +17,7 @@ class Equipo
      */
     public function getAll(): array
     {
-        $sql = "SELECT id, activo, disciplina, nombre FROM {$this->table} ORDER BY nombre ASC";
+        $sql = "SELECT id, activo, disciplina, nombre, escudo FROM {$this->table} ORDER BY nombre ASC";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -28,7 +28,7 @@ class Equipo
      */
     public function getActivos(): array
     {
-        $sql = "SELECT id, activo, disciplina, nombre FROM {$this->table} WHERE activo = 1 ORDER BY nombre ASC";
+        $sql = "SELECT id, activo, disciplina, nombre, escudo FROM {$this->table} WHERE activo = 1 ORDER BY nombre ASC";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -39,7 +39,7 @@ class Equipo
      */
     public function getById(int $id): ?array
     {
-        $sql = "SELECT id, activo, disciplina, nombre FROM {$this->table} WHERE id = :id LIMIT 1";
+        $sql = "SELECT id, activo, disciplina, nombre, escudo FROM {$this->table} WHERE id = :id LIMIT 1";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         $stmt->execute();
@@ -52,7 +52,7 @@ class Equipo
      */
     public function getByDisciplina(string $disciplina): array
     {
-        $sql = "SELECT id, activo, disciplina, nombre FROM {$this->table} WHERE disciplina = :disciplina ORDER BY nombre ASC";
+        $sql = "SELECT id, activo, disciplina, nombre, escudo FROM {$this->table} WHERE disciplina = :disciplina ORDER BY nombre ASC";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':disciplina', $disciplina);
         $stmt->execute();
@@ -62,27 +62,29 @@ class Equipo
     /**
      * Crea un nuevo equipo
      */
-    public function create(int $id, string $nombre, string $disciplina, bool $activo = true): bool
+    public function create(int $id, string $nombre, string $disciplina, bool $activo = true, ?string $escudo = null): bool
     {
-        $sql = "INSERT INTO {$this->table} (id, nombre, disciplina, activo) VALUES (:id, :nombre, :disciplina, :activo)";
+        $sql = "INSERT INTO {$this->table} (id, nombre, disciplina, activo, escudo) VALUES (:id, :nombre, :disciplina, :activo, :escudo)";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         $stmt->bindValue(':nombre', $nombre);
         $stmt->bindValue(':disciplina', $disciplina);
         $stmt->bindValue(':activo', $activo ? 1 : 0, PDO::PARAM_INT);
+        $stmt->bindValue(':escudo', $escudo);
         return $stmt->execute();
     }
 
     /**
      * Actualiza un equipo
      */
-    public function update(int $id, string $nombre, string $disciplina, bool $activo): bool
+    public function update(int $id, string $nombre, string $disciplina, bool $activo, ?string $escudo = null): bool
     {
-        $sql = "UPDATE {$this->table} SET nombre = :nombre, disciplina = :disciplina, activo = :activo WHERE id = :id";
+        $sql = "UPDATE {$this->table} SET nombre = :nombre, disciplina = :disciplina, activo = :activo, escudo = :escudo WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':nombre', $nombre);
         $stmt->bindValue(':disciplina', $disciplina);
         $stmt->bindValue(':activo', $activo ? 1 : 0, PDO::PARAM_INT);
+        $stmt->bindValue(':escudo', $escudo);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         return $stmt->execute();
     }

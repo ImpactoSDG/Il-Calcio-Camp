@@ -19,6 +19,9 @@ const datosMaestrosService = {
   // --- Provincias (/provincias) --- solo lectura
   getProvincias: () => api.get('/provincias').then(r => r.data),
 
+  // --- Disciplinas (/disciplinas) --- solo lectura
+  getDisciplinas: () => api.get('/disciplinas').then(r => r.data),
+
   // --- Estados de Evento (/estados-evento) --- solo lectura
   getEstadosEvento: () => api.get('/estados-evento').then(r => r.data),
 
@@ -27,6 +30,12 @@ const datosMaestrosService = {
 
   // --- Torneos (/torneos) --- solo lectura
   getTorneos: () => api.get('/torneos').then(r => r.data),
+  eliminarTorneo: (id, motivoBaja = null) => api.delete('/torneos', {
+    data: {
+      id,
+      motivo_baja: motivoBaja,
+    },
+  }).then(r => r.data),
 
   // --- Equipos (/equipos) ---
   getEquipos: () => api.get('/equipos').then(r => r.data),

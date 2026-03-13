@@ -12,6 +12,7 @@ require_once __DIR__ . '/controllers/IngresoArticuloController.php';
 require_once __DIR__ . '/controllers/EstadoVentaController.php';
 require_once __DIR__ . '/controllers/CondicionIvaReceptorController.php';
 require_once __DIR__ . '/controllers/ProvinciaController.php';
+require_once __DIR__ . '/controllers/DisciplinaController.php';
 require_once __DIR__ . '/controllers/ClienteController.php';
 require_once __DIR__ . '/controllers/VentaController.php';
 require_once __DIR__ . '/controllers/ArticuloVentaController.php';
@@ -25,6 +26,7 @@ require_once __DIR__ . '/controllers/EventoController.php';
 require_once __DIR__ . '/controllers/EstadoEventoController.php';
 require_once __DIR__ . '/controllers/CanchaController.php';
 require_once __DIR__ . '/controllers/TorneoController.php';
+require_once __DIR__ . '/controllers/PlanTorneoController.php';
 require_once __DIR__ . '/controllers/ClienteEquipoController.php';
 require_once __DIR__ . '/controllers/ArticuloVentaIngresoArticuloController.php';
 require_once __DIR__ . '/controllers/TicketVentaController.php';
@@ -51,6 +53,7 @@ $ingresoArticuloController = new IngresoArticuloController($db);
 $estadoVentaController = new EstadoVentaController($db);
 $condicionIvaReceptorController = new CondicionIvaReceptorController($db);
 $provinciaController = new ProvinciaController($db);
+$disciplinaController = new DisciplinaController($db);
 $clienteController = new ClienteController($db);
 $ventaController = new VentaController($db);
 $articuloVentaController = new ArticuloVentaController($db);
@@ -64,6 +67,7 @@ $eventoController = new EventoController($db);
 $estadoEventoController = new EstadoEventoController($db);
 $canchaController = new CanchaController($db);
 $torneoController = new TorneoController($db);
+$planTorneoController = new PlanTorneoController($db);
 $clienteEquipoController = new ClienteEquipoController($db);
 $articuloVentaIngresoArticuloController = new ArticuloVentaIngresoArticuloController($db);
 $ticketVentaController = new TicketVentaController($db);
@@ -294,6 +298,15 @@ switch ($resource) {
         }
         break;
 
+    case 'disciplinas':
+        verifyAuth();
+        if ($method === 'GET') {
+            $disciplinaController->getAll();
+        } else {
+            http_response_code(405);
+        }
+        break;
+
     case 'medios-cobro':
         verifyAuth();
         if ($method === 'GET') {
@@ -419,6 +432,36 @@ switch ($resource) {
             } else {
                 $torneoController->getAll();
             }
+        } elseif ($method === 'DELETE') {
+            if ($id) {
+                $_GET['id'] = $id;
+            }
+            $torneoController->delete();
+        } else {
+            http_response_code(405);
+        }
+        break;
+
+    case 'planificacion-torneo':
+        verifyAuth();
+        if ($method === 'POST' && $id === 'confirmar') {
+            $planTorneoController->confirmar();
+        } elseif ($method === 'POST' && $id === 'subir-comprobante') {
+            $planTorneoController->subirComprobantePago();
+        } elseif ($method === 'GET' && $id === 'confirmada') {
+            $planTorneoController->getConfirmadaVigente();
+        } elseif ($method === 'GET' && $id === 'detalle') {
+            $planTorneoController->getDetalleGestion();
+        } elseif ($method === 'GET' && $id === 'equipos-disponibles') {
+            $planTorneoController->getEquiposDisponibles();
+        } elseif ($method === 'POST' && $id === 'inscribir-equipos') {
+            $planTorneoController->inscribirEquipos();
+        } elseif ($method === 'POST' && $id === 'eliminar-inscripcion') {
+            $planTorneoController->eliminarInscripcion();
+        } elseif ($method === 'POST' && $id === 'asignar-equipos') {
+            $planTorneoController->asignarEquipos();
+        } elseif ($method === 'POST') {
+            $planTorneoController->simular();
         } else {
             http_response_code(405);
         }
