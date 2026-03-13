@@ -18,7 +18,7 @@ class Articulo
     public function getAll(): array
     {
         $sql = "SELECT a.id, a.nombre, a.precio_actual, a.costo_actual, a.cod_barra, 
-                       a.id_categoria_articulo, a.activo,
+                       a.id_categoria_articulo, a.activo, a.url_imagen, a.ROP,
                        ca.descripcion AS categoria_descripcion
                 FROM {$this->table} a
                 LEFT JOIN categoria_articulo ca ON a.id_categoria_articulo = ca.id
@@ -34,13 +34,13 @@ class Articulo
     public function getActivos(): array
     {
         $sql = "SELECT a.id, a.nombre, a.precio_actual, a.costo_actual, a.cod_barra, 
-                       a.id_categoria_articulo, a.activo,
+                       a.id_categoria_articulo, a.activo, a.url_imagen, a.ROP,
                        ca.descripcion AS categoria_descripcion,
-                       (SELECT COALESCE(SUM(ia.cantidad), 0) FROM ingreso_articulo ia WHERE ia.id_articulo = a.id) - 
+                       (SELECT COALESCE(SUM(ia.cantidad), 0) FROM ingreso_articulo ia WHERE ia.id_articulo = a.id AND ia.confirmado = 1) - 
                        (SELECT COALESCE(SUM(avia.cantidad), 0) 
                         FROM articulo_venta_ingreso_articulo avia 
                         JOIN ingreso_articulo ia2 ON avia.ingreso_articulo_id = ia2.id
-                        WHERE ia2.id_articulo = a.id) as stock_actual
+                        WHERE ia2.id_articulo = a.id AND ia2.confirmado = 1) as stock_actual
                 FROM {$this->table} a
                 LEFT JOIN categoria_articulo ca ON a.id_categoria_articulo = ca.id
                 WHERE a.activo = 1
@@ -51,18 +51,25 @@ class Articulo
     }
 
     /**
-     * Obtiene los lotes (ingresos) disponibles con stock para un artículo específico (FIFO)
+     * Obtiene los lotes (ingresos) disponibles con stock para un artículo específico (FEFO: First Expired, First Out)
      */
     public function getLotesDisponibles(int $idArticulo): array
     {
+        // Prioridad 1: Fecha de vencimiento ascendente (los que vencen antes van primero).
+        // Nota: Los que NO tienen fecha de vencimiento (NULL) se consideran de vencimiento infinito y van al final.
+        // Prioridad 2: Fecha de ingreso ascendente (FIFO como criterio de desempate).
         $sql = "SELECT ia.id, ia.cantidad, ia.fecha_ingreso, ia.vencimiento,
                        (ia.cantidad - COALESCE((SELECT SUM(avia.cantidad) 
                                                 FROM articulo_venta_ingreso_articulo avia 
                                                 WHERE avia.ingreso_articulo_id = ia.id), 0)) as disponible
                 FROM ingreso_articulo ia
-                WHERE ia.id_articulo = :id_articulo
+                WHERE ia.id_articulo = :id_articulo AND ia.confirmado = 1
                 HAVING disponible > 0
-                ORDER BY ia.fecha_ingreso ASC, ia.id ASC";
+                ORDER BY 
+                    CASE WHEN ia.vencimiento IS NULL THEN 1 ELSE 0 END, 
+                    ia.vencimiento ASC, 
+                    ia.fecha_ingreso ASC, 
+                    ia.id ASC";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id_articulo', $idArticulo, PDO::PARAM_INT);
         $stmt->execute();
@@ -75,7 +82,7 @@ class Articulo
     public function getById(int $id): ?array
     {
         $sql = "SELECT a.id, a.nombre, a.precio_actual, a.costo_actual, a.cod_barra, 
-                       a.id_categoria_articulo, a.activo,
+                       a.id_categoria_articulo, a.activo, a.url_imagen, a.ROP,
                        ca.descripcion AS categoria_descripcion
                 FROM {$this->table} a
                 LEFT JOIN categoria_articulo ca ON a.id_categoria_articulo = ca.id
@@ -93,7 +100,7 @@ class Articulo
     public function getByCategoria(int $idCategoria): array
     {
         $sql = "SELECT a.id, a.nombre, a.precio_actual, a.costo_actual, a.cod_barra, 
-                       a.id_categoria_articulo, a.activo,
+                       a.id_categoria_articulo, a.activo, a.url_imagen,
                        ca.descripcion AS categoria_descripcion
                 FROM {$this->table} a
                 LEFT JOIN categoria_articulo ca ON a.id_categoria_articulo = ca.id
@@ -111,7 +118,7 @@ class Articulo
     public function getByCodBarra(string $codBarra): ?array
     {
         $sql = "SELECT a.id, a.nombre, a.precio_actual, a.costo_actual, a.cod_barra, 
-                       a.id_categoria_articulo, a.activo,
+                       a.id_categoria_articulo, a.activo, a.url_imagen,
                        ca.descripcion AS categoria_descripcion
                 FROM {$this->table} a
                 LEFT JOIN categoria_articulo ca ON a.id_categoria_articulo = ca.id
@@ -126,10 +133,10 @@ class Articulo
     /**
      * Crea un nuevo artículo
      */
-    public function create(string $nombre, ?float $precioActual, ?float $costoActual, ?string $codBarra, ?int $idCategoriaArticulo, bool $activo = true): int|false
+    public function create(string $nombre, ?float $precioActual, ?float $costoActual, ?string $codBarra, ?int $idCategoriaArticulo, bool $activo = true, ?string $urlImagen = null, ?int $ROP = 1): int|false
     {
-        $sql = "INSERT INTO {$this->table} (nombre, precio_actual, costo_actual, cod_barra, id_categoria_articulo, activo) 
-                VALUES (:nombre, :precio_actual, :costo_actual, :cod_barra, :id_categoria_articulo, :activo)";
+        $sql = "INSERT INTO {$this->table} (nombre, precio_actual, costo_actual, cod_barra, id_categoria_articulo, activo, url_imagen, ROP) 
+                VALUES (:nombre, :precio_actual, :costo_actual, :cod_barra, :id_categoria_articulo, :activo, :url_imagen, :ROP)";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':nombre', $nombre);
         $stmt->bindValue(':precio_actual', $precioActual);
@@ -137,6 +144,8 @@ class Articulo
         $stmt->bindValue(':cod_barra', $codBarra);
         $stmt->bindValue(':id_categoria_articulo', $idCategoriaArticulo, PDO::PARAM_INT);
         $stmt->bindValue(':activo', $activo ? 1 : 0, PDO::PARAM_INT);
+        $stmt->bindValue(':url_imagen', $urlImagen);
+        $stmt->bindValue(':ROP', $ROP, PDO::PARAM_INT);
         
         if ($stmt->execute()) {
             return (int)$this->conn->lastInsertId();
@@ -147,7 +156,7 @@ class Articulo
     /**
      * Actualiza un artículo
      */
-    public function update(int $id, string $nombre, ?float $precioActual, ?float $costoActual, ?string $codBarra, ?int $idCategoriaArticulo, bool $activo): bool
+    public function update(int $id, string $nombre, ?float $precioActual, ?float $costoActual, ?string $codBarra, ?int $idCategoriaArticulo, bool $activo, ?string $urlImagen = null, ?int $ROP = 1): bool
     {
         $sql = "UPDATE {$this->table} 
                 SET nombre = :nombre, 
@@ -155,7 +164,9 @@ class Articulo
                     costo_actual = :costo_actual, 
                     cod_barra = :cod_barra, 
                     id_categoria_articulo = :id_categoria_articulo, 
-                    activo = :activo 
+                    activo = :activo,
+                    url_imagen = COALESCE(:url_imagen, url_imagen),
+                    ROP = :ROP
                 WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':nombre', $nombre);
@@ -164,6 +175,20 @@ class Articulo
         $stmt->bindValue(':cod_barra', $codBarra);
         $stmt->bindValue(':id_categoria_articulo', $idCategoriaArticulo, PDO::PARAM_INT);
         $stmt->bindValue(':activo', $activo ? 1 : 0, PDO::PARAM_INT);
+        $stmt->bindValue(':url_imagen', $urlImagen);
+        $stmt->bindValue(':ROP', $ROP, PDO::PARAM_INT);
+        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+        return $stmt->execute();
+    }
+
+    /**
+     * Actualiza solo la imagen del artículo
+     */
+    public function updateImagen(int $id, string $urlImagen): bool
+    {
+        $sql = "UPDATE {$this->table} SET url_imagen = :url_imagen WHERE id = :id";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':url_imagen', $urlImagen);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         return $stmt->execute();
     }

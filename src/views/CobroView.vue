@@ -14,15 +14,24 @@
     <!-- ── Filtros ─────────────────────────────────────────────── -->
     <div class="filtros-card mb-4">
       <div class="row g-3 align-items-end">
-        <div class="col-6 col-md-3">
+        <div class="col-12 col-md-3">
+          <label class="form-label form-label-sm mb-1 text-uppercase fw-semibold text-secondary" style="font-size:0.7rem">Cliente</label>
+          <FuzzySearch
+            v-model="filtroCliente"
+            :data="[]"
+            :keys="[]"
+            placeholder="Nombre del cliente..."
+          />
+        </div>
+        <div class="col-6 col-md-2">
           <label class="form-label form-label-sm mb-1 text-uppercase fw-semibold text-secondary" style="font-size:0.7rem">Fecha desde</label>
           <input v-model="filtros.fecha_desde" type="date" class="form-control form-control-sm" />
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-2">
           <label class="form-label form-label-sm mb-1 text-uppercase fw-semibold text-secondary" style="font-size:0.7rem">Fecha hasta</label>
           <input v-model="filtros.fecha_hasta" type="date" class="form-control form-control-sm" />
         </div>
-        <div class="col-12 col-md-4">
+        <div class="col-12 col-md-3">
           <label class="form-label form-label-sm mb-1 text-uppercase fw-semibold text-secondary" style="font-size:0.7rem">Medio de pago</label>
           <select v-model="filtros.medio_pago_id" class="form-select form-select-sm">
             <option value="">Todos</option>
@@ -43,18 +52,10 @@
     <!-- ── Tabs ────────────────────────────────────────────────── -->
     <ul class="nav cobro-tabs mb-4">
       <li class="nav-item">
-        <button class="cobro-tab" :class="{ active: tabActiva === 'sin-cliente' }" @click="tabActiva = 'sin-cliente'">
-          <i class="bi bi-person-dash me-1"></i>Sin cliente
-          <span class="badge ms-1" :class="tabActiva === 'sin-cliente' ? 'bg-primary-custom' : 'bg-secondary-subtle text-secondary'">
-            {{ cobrosSinCliente.length }}
-          </span>
-        </button>
-      </li>
-      <li class="nav-item">
-        <button class="cobro-tab" :class="{ active: tabActiva === 'con-cliente' }" @click="tabActiva = 'con-cliente'">
-          <i class="bi bi-person-check me-1"></i>Con cliente
-          <span class="badge ms-1" :class="tabActiva === 'con-cliente' ? 'bg-primary-custom' : 'bg-secondary-subtle text-secondary'">
-            {{ cobrosConCliente.length }}
+        <button class="cobro-tab" :class="{ active: tabActiva === 'realizados' }" @click="tabActiva = 'realizados'">
+          <i class="bi bi-check-all me-1"></i>Cobros realizados
+          <span class="badge ms-1" :class="tabActiva === 'realizados' ? 'bg-primary-custom' : 'bg-secondary-subtle text-secondary'">
+            {{ cobrosRealizadosSorted.length }}
           </span>
         </button>
       </li>
@@ -62,7 +63,7 @@
         <button class="cobro-tab" :class="{ active: tabActiva === 'pendientes' }" @click="tabActiva = 'pendientes'">
           <i class="bi bi-exclamation-circle me-1"></i>Ventas pendientes
           <span class="badge ms-1" :class="tabActiva === 'pendientes' ? 'bg-danger' : 'bg-danger-subtle text-danger'">
-            {{ ventasPendientes.length }}
+            {{ ventasPendientesSorted.length }}
           </span>
         </button>
       </li>
@@ -76,65 +77,25 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════
-         SECCIÓN 1 – Cobros sin cliente
+         SECCIÓN 1 – Cobros realizados (Unificado)
     ════════════════════════════════════════════════════════════ -->
-    <template v-if="!loading && tabActiva === 'sin-cliente'">
-      <div v-if="cobrosSinCliente.length === 0" class="empty-state">
+    <template v-if="!loading && tabActiva === 'realizados'">
+      <div v-if="cobrosRealizadosSorted.length === 0" class="empty-state">
         <i class="bi bi-inbox fs-1 text-muted"></i>
-        <p class="text-muted mt-2">No hay cobros sin cliente para los filtros seleccionados.</p>
+        <p class="text-muted mt-2">No hay cobros realizados para los filtros seleccionados.</p>
       </div>
 
       <div v-else class="table-responsive cobro-table-wrapper">
         <table class="table cobro-table align-middle mb-0">
           <SortableTableHead
-            :columns="sinClienteColumnas"
-            :sort-key="sinClienteSort.sortKey.value"
-            :sort-dir="sinClienteSort.sortDir.value"
+            :columns="realizadosColumnas"
+            :sort-key="realizadosSort.sortKey.value"
+            :sort-dir="realizadosSort.sortDir.value"
             the-head-class="cobro-th-container"
-            @sort="sinClienteSort.handleSort"
+            @sort="realizadosSort.handleSort"
           />
           <tbody>
-            <tr v-for="cobro in cobrosSinClienteSorted" :key="cobro.id" class="cobro-row">
-              <td class="ps-4 fw-semibold text-muted">#{{ cobro.id }}</td>
-              <td>{{ formatFecha(cobro.fecha) }}</td>
-              <td class="text-end fw-semibold">${{ formatMonto(cobro.monto_total) }}</td>
-              <td>
-                <span v-if="cobro.medios_pago" class="medios-pago-text">{{ cobro.medios_pago }}</span>
-                <span v-else class="text-muted fst-italic small">—</span>
-              </td>
-            </tr>
-          </tbody>
-          <tfoot>
-            <tr class="cobro-total-row">
-              <td colspan="2" class="ps-4 fw-bold text-secondary text-uppercase small">Total</td>
-              <td class="text-end fw-bold">${{ formatMonto(totalSeccion(cobrosSinCliente)) }}</td>
-              <td></td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-    </template>
-
-    <!-- ═══════════════════════════════════════════════════════════
-         SECCIÓN 2 – Cobros con cliente
-    ════════════════════════════════════════════════════════════ -->
-    <template v-if="!loading && tabActiva === 'con-cliente'">
-      <div v-if="cobrosConCliente.length === 0" class="empty-state">
-        <i class="bi bi-inbox fs-1 text-muted"></i>
-        <p class="text-muted mt-2">No hay cobros con cliente para los filtros seleccionados.</p>
-      </div>
-
-      <div v-else class="table-responsive cobro-table-wrapper">
-        <table class="table cobro-table align-middle mb-0">
-          <SortableTableHead
-            :columns="conClienteColumnas"
-            :sort-key="conClienteSort.sortKey.value"
-            :sort-dir="conClienteSort.sortDir.value"
-            the-head-class="cobro-th-container"
-            @sort="conClienteSort.handleSort"
-          />
-          <tbody>
-            <tr v-for="cobro in cobrosConClienteSorted" :key="cobro.id" class="cobro-row">
+            <tr v-for="cobro in cobrosRealizadosSorted" :key="cobro.id" class="cobro-row">
               <td class="ps-4 fw-semibold text-muted">#{{ cobro.id }}</td>
               <td>{{ formatFecha(cobro.fecha) }}</td>
               <td class="fw-medium">{{ cobro.cliente_nombre }}</td>
@@ -148,7 +109,7 @@
           <tfoot>
             <tr class="cobro-total-row">
               <td colspan="3" class="ps-4 fw-bold text-secondary text-uppercase small">Total</td>
-              <td class="text-end fw-bold">${{ formatMonto(totalSeccion(cobrosConCliente)) }}</td>
+              <td class="text-end fw-bold">${{ formatMonto(totalSeccion(cobrosFiltrados)) }}</td>
               <td></td>
             </tr>
           </tfoot>
@@ -157,7 +118,7 @@
     </template>
 
     <!-- ═══════════════════════════════════════════════════════════
-         SECCIÓN 3 – Ventas con cobros pendientes
+         SECCIÓN 2 – Ventas con cobros pendientes
     ════════════════════════════════════════════════════════════ -->
     <template v-if="!loading && tabActiva === 'pendientes'">
       <div class="alert alert-warning d-flex align-items-center gap-2 mb-3 py-2 px-3 rounded-3 border-warning-subtle" style="font-size:0.85rem">
@@ -165,7 +126,7 @@
         <span>Estas ventas tienen un saldo pendiente de cobro.</span>
       </div>
 
-      <div v-if="ventasPendientes.length === 0" class="empty-state">
+      <div v-if="ventasPendientesSorted.length === 0" class="empty-state">
         <i class="bi bi-check-circle fs-1 text-success"></i>
         <p class="text-muted mt-2">¡Todo al día! No hay ventas con cobros pendientes.</p>
       </div>
@@ -208,10 +169,10 @@
           <tfoot>
             <tr class="cobro-total-row">
               <td colspan="4" class="ps-4 fw-bold text-secondary text-uppercase small">Saldo total pendiente</td>
-              <td class="text-end fw-bold">${{ formatMonto(ventasPendientes.reduce((a, v) => a + Number(v.total_venta), 0)) }}</td>
-              <td class="text-end fw-bold text-success">${{ formatMonto(ventasPendientes.reduce((a, v) => a + Number(v.total_cobrado), 0)) }}</td>
+              <td class="text-end fw-bold">${{ formatMonto(ventasPendientesSorted.reduce((a, v) => a + Number(v.total_venta), 0)) }}</td>
+              <td class="text-end fw-bold text-success">${{ formatMonto(ventasPendientesSorted.reduce((a, v) => a + Number(v.total_cobrado), 0)) }}</td>
               <td class="text-end">
-                <span class="badge-saldo">${{ formatMonto(ventasPendientes.reduce((a, v) => a + Number(v.saldo_pendiente), 0)) }}</span>
+                <span class="badge-saldo">${{ formatMonto(ventasPendientesSorted.reduce((a, v) => a + Number(v.saldo_pendiente), 0)) }}</span>
               </td>
               <td></td>
             </tr>
@@ -283,6 +244,7 @@ import cobrosService from '@/services/cobrosService';
 import datosMaestrosService from '@/services/datosMaestrosService';
 import { useToastStore } from '@/stores/toastStore';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
+import FuzzySearch from '@/components/FuzzySearch.vue';
 
 const toast = useToastStore();
 
@@ -297,9 +259,9 @@ const getAyer = () => {
 const loading          = ref(false);
 const tabActiva        = ref('pendientes');
 const mediosCobro      = ref([]);
-const cobrosSinCliente = ref([]);
-const cobrosConCliente = ref([]);
+const cobrosRealizados = ref([]);
 const ventasPendientes = ref([]);
+const filtroCliente    = ref('');
 
 // ── Modal Pago ────────────────────────────────────────────────
 const showModalPago      = ref(false);
@@ -356,29 +318,26 @@ const filtros = ref({
   medio_pago_id: '',
 });
 
-// ── Sorting para Cobros sin cliente ────────────────────────────
-const sinClienteSort = useSorting('fecha', 'desc');
-const sinClienteColumnas = [
-  { key: 'id', label: 'Nro.', thClass: 'ps-4', sortable: true },
-  { key: 'fecha', label: 'Fecha', sortable: true },
-  { key: 'monto_total', label: 'Monto', thClass: 'text-end', sortable: true },
-  { key: 'medios_pago', label: 'Medios de pago', sortable: false },
-];
-const cobrosSinClienteSorted = computed(() => 
-  sinClienteSort.sortItems(cobrosSinCliente.value)
-);
+// ── Filtrado Difuso para Cobros Realizados ───────────────────
+const cobrosFiltrados = computed(() => {
+  if (!filtroCliente.value.trim()) return cobrosRealizados.value;
+  const q = filtroCliente.value.toLowerCase();
+  return cobrosRealizados.value.filter(c => 
+    (c.cliente_nombre || 'Sin cliente').toLowerCase().includes(q)
+  );
+});
 
-// ── Sorting para Cobros con cliente ────────────────────────────
-const conClienteSort = useSorting('fecha', 'desc');
-const conClienteColumnas = [
+// ── Sorting para Cobros realizados ────────────────────────────
+const realizadosSort = useSorting('fecha', 'desc');
+const realizadosColumnas = [
   { key: 'id', label: 'Nro.', thClass: 'ps-4', sortable: true },
   { key: 'fecha', label: 'Fecha', sortable: true },
   { key: 'cliente_nombre', label: 'Cliente', sortable: true },
   { key: 'monto_total', label: 'Monto', thClass: 'text-end', sortable: true },
   { key: 'medios_pago', label: 'Medios de pago', sortable: false },
 ];
-const cobrosConClienteSorted = computed(() =>
-  conClienteSort.sortItems(cobrosConCliente.value)
+const cobrosRealizadosSorted = computed(() => 
+  realizadosSort.sortItems(cobrosFiltrados.value)
 );
 
 // ── Sorting para Ventas pendientes ────────────────────────────
@@ -394,7 +353,11 @@ const pendientesColumnas = [
   { key: 'acciones', label: 'Acciones', thClass: 'text-center', sortable: false },
 ];
 const ventasPendientesSorted = computed(() =>
-  pendientesSort.sortItems(ventasPendientes.value)
+  pendientesSort.sortItems(ventasPendientes.value.filter(v => {
+    if (!filtroCliente.value.trim()) return true;
+    const q = filtroCliente.value.toLowerCase();
+    return (v.cliente_nombre || '—').toLowerCase().includes(q);
+  }))
 );
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -431,8 +394,13 @@ const cargarDatos = async () => {
       cobrosService.getCobrosConCliente(params),
       cobrosService.getVentasPendientes(params),
     ]);
-    cobrosSinCliente.value = sinCliente;
-    cobrosConCliente.value = conCliente;
+    
+    // Unificar cobros con y sin cliente
+    cobrosRealizados.value = [
+      ...sinCliente.map(c => ({ ...c, cliente_nombre: 'Sin cliente' })),
+      ...conCliente
+    ];
+    
     ventasPendientes.value = pendientes;
   } catch (err) {
     toast.showToast({ message: 'Error al cargar los cobros.', type: 'danger' });
@@ -445,6 +413,7 @@ const aplicarFiltros = () => cargarDatos();
 
 const limpiarFiltros = () => {
   filtros.value = { fecha_desde: getAyer(), fecha_hasta: getHoy(), medio_pago_id: '' };
+  filtroCliente.value = '';
   cargarDatos();
 };
 

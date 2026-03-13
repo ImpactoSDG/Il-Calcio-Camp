@@ -57,7 +57,7 @@ class ArticuloVenta
     {
         $sql = "SELECT av.id_articulo_venta, av.id_articulo, av.id_venta, av.cantidad, 
                        av.precio_unitario, av.total,
-                       a.nombre AS articulo_nombre
+                       a.nombre AS articulo_nombre, a.url_imagen
                 FROM {$this->table} av
                 INNER JOIN articulo a ON av.id_articulo = a.id
                 WHERE av.id_venta = :id_venta

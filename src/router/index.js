@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+
+// --- Vistas Base ---
 import LoginView from '@/views/LoginView.vue'
 import RegisterView from '@/views/RegisterView.vue'
 import MenuView from '@/views/MenuView.vue'
@@ -7,20 +9,31 @@ import PermisosView from '@/views/PermisosView.vue'
 import GestionUsuariosView from '@/views/GestionUsuariosView.vue'
 import ConfiguracionesView from '@/views/ConfiguracionesView.vue'
 import SubmenuView from '@/views/SubmenuView.vue'
+
+// --- Vistas de Artículos y Stock ---
 import CategoriasArticuloView from '@/views/CategoriasArticuloView.vue'
+import ArticulosView from '@/views/ArticulosView.vue'
+import IngresoArticuloView from '@/views/IngresoArticuloView.vue'
+import StockView from '@/views/StockView.vue'
+import DescontarStockView from '@/views/DescontarStockView.vue'
+
+// --- Vistas Deportivas (Equipos, Torneos, etc.) ---
 import EquiposView from '@/views/EquiposView.vue'
 import JugadoresView from '@/views/JugadoresView.vue'
 import ArbitrosView from '@/views/ArbitrosView.vue'
 import EventosView from '@/views/EventosView.vue'
-import ArticulosView from '@/views/ArticulosView.vue'
-import IngresoArticuloView from '@/views/IngresoArticuloView.vue'
-import StockView from '@/views/StockView.vue'
+import PlanTorneoView from '@/views/PlanTorneoView.vue'
+import GestionTorneosView from '@/views/GestionTorneosView.vue'
+
+// --- Vistas de Clientes, Ventas y Cobros ---
 import ClientesView from '@/views/ClientesView.vue'
 import ClienteEquipoView from '@/views/ClienteEquipoView.vue'
 import VentasView from '@/views/VentasView.vue'
 import CobroView from '@/views/CobroView.vue'
-import PlanTorneoView from '@/views/PlanTorneoView.vue'
-import GestionTorneosView from '@/views/GestionTorneosView.vue'
+
+// --- Vistas de Proveedores y Compras ---
+import ProveedoresView from '@/views/ProveedoresView.vue'
+import PedidosProveedorView from '@/views/PedidosProveedorView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -70,6 +83,7 @@ const router = createRouter({
       component: SubmenuView,
       meta: { requiresAuth: true, useParamId: true }
     },
+
     // --- Artículos & Stock ---
     {
       path: '/categorias-articulo',
@@ -95,6 +109,12 @@ const router = createRouter({
       component: StockView,
       meta: { requiresAuth: true, idModulo: 16 }
     },
+    {
+      path: '/articulos/descontar-stock',
+      name: 'descontar-stock',
+      component: DescontarStockView,
+      meta: { requiresAuth: true, idModulo: 11 } 
+    },
 
     // --- Clientes & Equipos ---
     {
@@ -115,6 +135,8 @@ const router = createRouter({
       component: EquiposView,
       meta: { requiresAuth: true, idModulo: 10 }
     },
+
+    // --- Gestión Deportiva (Torneos, Jugadores, etc.) ---
     {
       path: '/jugadores',
       name: 'jugadores',
@@ -133,6 +155,18 @@ const router = createRouter({
       component: EventosView,
       meta: { requiresAuth: true }
     },
+    {
+      path: '/plantorneo',
+      name: 'plantorneo',
+      component: PlanTorneoView,
+      meta: { requiresAuth: true, idModulo: 22 }
+    },
+    {
+      path: '/gestiontorneos',
+      name: 'gestiontorneos',
+      component: GestionTorneosView,
+      meta: { requiresAuth: true }
+    },
 
     // --- Ventas ---
     {
@@ -149,16 +183,18 @@ const router = createRouter({
       component: CobroView,
       meta: { requiresAuth: true }
     },
+
+    // --- Compras / Proveedores ---
     {
-      path: '/plantorneo',
-      name: 'plantorneo',
-      component: PlanTorneoView,
-      meta: { requiresAuth: true, idModulo: 22 }
+      path: '/proveedores',
+      name: 'proveedores',
+      component: ProveedoresView,
+      meta: { requiresAuth: true }
     },
     {
-      path: '/gestiontorneos',
-      name: 'gestiontorneos',
-      component: GestionTorneosView,
+      path: '/compras/pedidos',
+      name: 'pedidos-proveedor',
+      component: PedidosProveedorView,
       meta: { requiresAuth: true }
     },
   ]

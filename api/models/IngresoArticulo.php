@@ -13,15 +13,21 @@ class IngresoArticulo
     }
 
     /**
-     * Obtiene todos los ingresos de artículos con información del artículo
+     * Obtiene todos los ingresos de artículos confirmados (confirmado = 1).
+     * Los ingresos pendientes de un pedido (confirmado = 0) no se muestran aquí.
      */
     public function getAll(): array
     {
         $sql = "SELECT ia.id, ia.fecha_ingreso, ia.vencimiento, ia.es_ajuste, ia.cantidad, 
                        ia.id_articulo, ia.precio_unitario, ia.total, ia.es_perecedero,
-                       a.nombre AS articulo_nombre
+                       ia.id_pedido_proveedor,
+                       a.nombre AS articulo_nombre, a.url_imagen,
+                       COALESCE(SUM(avia.cantidad), 0) AS cantidad_vendida
                 FROM {$this->table} ia
                 INNER JOIN articulo a ON ia.id_articulo = a.id
+                LEFT JOIN articulo_venta_ingreso_articulo avia ON ia.id = avia.ingreso_articulo_id
+                WHERE ia.confirmado = 1
+                GROUP BY ia.id
                 ORDER BY ia.fecha_ingreso DESC, ia.id DESC";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
@@ -47,7 +53,7 @@ class IngresoArticulo
     }
 
     /**
-     * Obtiene ingresos por artículo
+     * Obtiene ingresos confirmados por artículo
      */
     public function getByArticulo(int $idArticulo): array
     {
@@ -56,7 +62,7 @@ class IngresoArticulo
                        a.nombre AS articulo_nombre
                 FROM {$this->table} ia
                 INNER JOIN articulo a ON ia.id_articulo = a.id
-                WHERE ia.id_articulo = :id_articulo
+                WHERE ia.id_articulo = :id_articulo AND ia.confirmado = 1
                 ORDER BY ia.fecha_ingreso DESC";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id_articulo', $idArticulo, PDO::PARAM_INT);
@@ -65,7 +71,7 @@ class IngresoArticulo
     }
 
     /**
-     * Obtiene ingresos por rango de fechas
+     * Obtiene ingresos confirmados por rango de fechas
      */
     public function getByFechas(string $fechaDesde, string $fechaHasta): array
     {
@@ -75,6 +81,7 @@ class IngresoArticulo
                 FROM {$this->table} ia
                 INNER JOIN articulo a ON ia.id_articulo = a.id
                 WHERE ia.fecha_ingreso BETWEEN :fecha_desde AND :fecha_hasta
+                  AND ia.confirmado = 1
                 ORDER BY ia.fecha_ingreso DESC";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':fecha_desde', $fechaDesde);
@@ -84,12 +91,18 @@ class IngresoArticulo
     }
 
     /**
-     * Crea un nuevo ingreso de artículo
+     * Crea un nuevo ingreso de artículo.
+     * El parámetro $confirmado distingue entre ingresos manuales (1, default) e
+     * ítems de pedidos pendientes (0, gestionados por PedidoProveedor).
      */
-    public function create(string $fechaIngreso, ?string $vencimiento, bool $esAjuste, float $cantidad, int $idArticulo, float $precioUnitario, float $total, bool $esPerecedero): int|false
+    public function create(string $fechaIngreso, ?string $vencimiento, bool $esAjuste, float $cantidad, int $idArticulo, float $precioUnitario, float $total, bool $esPerecedero, ?int $idPedidoProveedor = null, int $confirmado = 1): int|false
     {
-        $sql = "INSERT INTO {$this->table} (fecha_ingreso, vencimiento, es_ajuste, cantidad, id_articulo, precio_unitario, total, es_perecedero) 
-                VALUES (:fecha_ingreso, :vencimiento, :es_ajuste, :cantidad, :id_articulo, :precio_unitario, :total, :es_perecedero)";
+        $sql = "INSERT INTO {$this->table}
+                    (fecha_ingreso, vencimiento, es_ajuste, cantidad, id_articulo,
+                     precio_unitario, total, es_perecedero, id_pedido_proveedor, confirmado)
+                VALUES
+                    (:fecha_ingreso, :vencimiento, :es_ajuste, :cantidad, :id_articulo,
+                     :precio_unitario, :total, :es_perecedero, :id_pedido_proveedor, :confirmado)";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':fecha_ingreso', $fechaIngreso);
         $stmt->bindValue(':vencimiento', $vencimiento);
@@ -99,6 +112,8 @@ class IngresoArticulo
         $stmt->bindValue(':precio_unitario', $precioUnitario);
         $stmt->bindValue(':total', $total);
         $stmt->bindValue(':es_perecedero', $esPerecedero ? 1 : 0, PDO::PARAM_INT);
+        $stmt->bindValue(':id_pedido_proveedor', $idPedidoProveedor, PDO::PARAM_INT);
+        $stmt->bindValue(':confirmado', $confirmado, PDO::PARAM_INT);
         
         if ($stmt->execute()) {
             return (int)$this->conn->lastInsertId();

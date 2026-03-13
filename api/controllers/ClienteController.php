@@ -91,24 +91,30 @@ class ClienteController extends BaseController
         try {
             $data = json_decode(file_get_contents("php://input"), true);
 
-            if (empty($data['id']) || empty($data['nombre_cliente'])) {
-                $this->respond(400, ['message' => 'ID y nombre de cliente requeridos.']);
+            if (empty($data['nombre_cliente'])) {
+                $this->respond(400, ['message' => 'El nombre del cliente es requerido.']);
             }
 
+            $id = !empty($data['id']) ? (int)$data['id'] : null;
             $condicionIva = $data['condicion_iva'] ?? null;
             $idCondicionIvaReceptor = $data['id_condicion_iva_receptor'] ?? null;
             $direccion = $data['direccion'] ?? null;
             $idProvincia = $data['id_provinica'] ?? null;
 
-            if ($this->model->create(
-                (int)$data['id'],
+            $newId = $this->model->create(
+                $id,
                 $data['nombre_cliente'],
                 $condicionIva,
                 $idCondicionIvaReceptor,
                 $direccion,
                 $idProvincia
-            )) {
-                $this->respond(201, ['message' => 'Cliente creado exitosamente.']);
+            );
+
+            if ($newId) {
+                $this->respond(201, [
+                    'message' => 'Cliente creado exitosamente.',
+                    'id' => $newId
+                ]);
             } else {
                 $this->respond(500, ['message' => 'Error al crear cliente.']);
             }

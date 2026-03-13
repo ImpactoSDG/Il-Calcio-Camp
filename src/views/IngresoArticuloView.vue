@@ -17,10 +17,15 @@
     <div class="row g-3 mb-4 align-items-end">
       <div class="col-md-3">
         <label class="form-label fs-xs fw-bold text-uppercase text-secondary mb-1">Buscar Artículo</label>
-        <FuzzySearch
-          v-model="searchQuery"
-          placeholder="Nombre del artículo..."
-        />
+        <div class="position-relative">
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="form-control"
+            placeholder="Nombre del artículo..."
+          />
+          <i class="bi bi-search position-absolute end-0 top-50 translate-middle-y me-3 text-muted opacity-50"></i>
+        </div>
       </div>
       <div class="col-md-2">
         <label class="form-label fs-xs fw-bold text-uppercase text-secondary mb-1">Desde</label>
@@ -43,6 +48,7 @@
           <span class="visually-hidden">Cargando...</span>
         </div>
       </div>
+    
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
           <SortableTableHead
@@ -53,23 +59,53 @@
           />
           <tbody class="bg-white">
             <tr v-for="item in ingresosFiltrados" :key="item.id" class="article-row">
-              <td class="ps-4 fw-semibold text-dark">{{ item.articulo_nombre }}</td>
-              <td class="text-muted small">
+              
+              <td class="ps-4" style="width: 60px;">
+                <div class="articulo-img-thumb shadow-sm border overflow-hidden rounded-2 d-flex align-items-center justify-content-center bg-light" style="width: 40px; height: 40px;">
+                  <img v-if="item.url_imagen" :src="`${apiBaseUrl}/${item.url_imagen}`" class="w-100 h-100 object-fit-cover" />
+                  <i v-else class="bi bi-image text-muted opacity-25" style="font-size: 1.2rem;"></i>
+                </div>
+              </td>
+            
+              <td class="fw-semibold text-dark w-25">
+                {{ item.articulo_nombre }}
+              </td>
+            
+              <td class="text-muted small text-nowrap">
                 <i class="bi bi-calendar3 me-1"></i>{{ formatFecha(item.fecha_ingreso) }}
               </td>
-              <td class="text-end fw-bold text-primary-custom">{{ item.cantidad }}</td>
-              <td class="text-end text-muted small">${{ Number(item.precio_unitario) % 1 === 0 ? Number(item.precio_unitario).toFixed(0) : Number(item.precio_unitario).toFixed(2) }}</td>
-              <td class="text-end fw-bold text-dark">${{ Number(item.total) % 1 === 0 ? Number(item.total).toFixed(0) : Number(item.total).toFixed(2) }}</td>
+            
+              <td class="text-muted small text-nowrap">
+                <span v-if="item.vencimiento">
+                  <i class="bi bi-calendar-x me-1"></i>{{ formatFecha(item.vencimiento) }}
+                </span>
+                <span v-else class="text-muted opacity-50">—</span>
+              </td>
+            
+              <td class="text-end fw-bold text-primary-custom">
+                {{ item.cantidad }}
+              </td>
+            
+              <td class="text-end text-muted small text-nowrap">
+                ${{ Number(item.precio_unitario) % 1 === 0 ? Number(item.precio_unitario).toFixed(0) : Number(item.precio_unitario).toFixed(2) }}
+              </td>
+            
+              <td class="text-end fw-bold text-dark text-nowrap">
+                ${{ Number(item.total) % 1 === 0 ? Number(item.total).toFixed(0) : Number(item.total).toFixed(2) }}
+              </td>
+            
               <td class="text-center">
                 <span :class="item.es_perecedero ? 'status-pill status-pill--danger' : 'status-pill status-pill--inactive'">
                   {{ item.es_perecedero ? 'Pered.' : 'No' }}
                 </span>
               </td>
+            
               <td class="text-center">
                 <span :class="item.es_ajuste ? 'status-pill status-pill--info' : 'status-pill status-pill--inactive'">
                   {{ item.es_ajuste ? 'Ajuste' : 'No' }}
                 </span>
               </td>
+            
               <td class="pe-4 text-end">
                 <div class="d-flex justify-content-end gap-1">
                   <button @click="openModal(item)" class="btn btn-icon btn-light-primary" title="Editar">
@@ -80,9 +116,11 @@
                   </button>
                 </div>
               </td>
+            
             </tr>
+          
             <tr v-if="ingresosFiltrados.length === 0 && !loading">
-              <td colspan="9" class="text-center py-5 text-muted">
+              <td colspan="10" class="text-center py-5 text-muted">
                 No hay ingresos que coincidan con la búsqueda.
               </td>
             </tr>
@@ -107,10 +145,28 @@
               <div class="row g-3">
                 <div class="col-md-8">
                   <label class="form-label">Artículo <span class="text-danger">*</span></label>
-                  <select v-model.number="form.id_articulo" class="form-select" required @change="onArticuloChange">
-                    <option :value="null" disabled>Seleccionar artículo...</option>
-                    <option v-for="art in articulos" :key="art.id" :value="art.id">{{ art.nombre }}</option>
-                  </select>
+                  <FuzzySearch 
+                    ref="fuzzySearchModal"
+                    v-model="modalSearchQuery"
+                    :data="articulos" 
+                    :keys="['nombre', 'cod_barra']" 
+                    placeholder="Buscar por nombre o código..."
+                    @selected="onArticuloSelected"
+                  >
+                    <template #default="{ item }">
+                      <div class="d-flex align-items-center w-100 py-1">
+                        <div class="articulo-img-thumb-mini border rounded-2 bg-light me-3 d-flex align-items-center justify-content-center overflow-hidden" 
+                             style="width: 35px; height: 35px; min-width: 35px;">
+                          <img v-if="item.url_imagen" :src="`${apiBaseUrl}/${item.url_imagen}`" class="w-100 h-100 object-fit-cover" />
+                          <i v-else class="bi bi-image text-muted opacity-50" style="font-size: 0.9rem;"></i>
+                        </div>
+                        <div class="d-flex flex-column">
+                          <span class="fw-semibold text-dark lh-sm">{{ item.nombre }}</span>
+                          <small class="text-muted" style="font-size: 0.75rem;">{{ item.cod_barra }}</small>
+                        </div>
+                      </div>
+                    </template>
+                  </FuzzySearch>
                 </div>
                 <div class="col-md-4">
                   <label class="form-label">Fecha de Ingreso <span class="text-danger">*</span></label>
@@ -170,21 +226,25 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import FuzzySearch from '@/components/FuzzySearch.vue';
 import CustomNumberInput from '@/components/CustomNumberInput.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
 import articulosService from '@/services/articulosService';
 import { useToastStore } from '@/stores/toastStore';
+import Fuse from 'fuse.js';
 
 const toast = useToastStore();
+const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost/Il-Calcio-Camp/api';
 
 const { sortKey, sortDir, handleSort, sortItems } = useSorting()
 
 const columns = [
-  { key: 'articulo_nombre',  label: 'Artículo',       sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 30%' },
-  { key: 'fecha_ingreso',    label: 'Fecha Ingreso',  sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 15%' },
+  { key: 'imagen',           label: '',               sortable: false, thClass: 'ps-4 py-3', thStyle: 'width: 50px' },
+  { key: 'articulo_nombre',  label: 'Artículo',       sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 20%' },
+  { key: 'fecha_ingreso',    label: 'Fecha Ingreso',  sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 12%' },
+  { key: 'vencimiento',      label: 'Vencimiento',    sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 12%' },
   { key: 'cantidad',         label: 'Cantidad',       sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-end', thStyle: 'width: 10%' },
   { key: 'precio_unitario',  label: 'Precio Unit.',   sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-end', thStyle: 'width: 10%' },
   { key: 'total',            label: 'Total',          sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-end', thStyle: 'width: 10%' },
@@ -197,6 +257,7 @@ const ingresos = ref([]);
 const articulos = ref([]);
 const loading = ref(false);
 const searchQuery = ref('');
+const modalSearchQuery = ref('');
 const filterDateFrom = ref('');
 const filterDateTo = ref('');
 const showFormModal = ref(false);
@@ -205,6 +266,24 @@ const isEditing = ref(false);
 const isSaving = ref(false);
 const isDeleting = ref(false);
 const idToDelete = ref(null);
+
+const fuzzySearchModal = ref(null);
+
+let fuseIngresos = null;
+
+const setupFuse = () => {
+  if (ingresos.value.length > 0) {
+    fuseIngresos = new Fuse(ingresos.value, {
+      keys: ['articulo_nombre'],
+      threshold: 0.3,
+      distance: 100
+    });
+  }
+};
+
+watch(ingresos, () => {
+  setupFuse();
+}, { deep: true });
 
 const emptyForm = () => ({
   id: null,
@@ -229,6 +308,12 @@ const onArticuloChange = () => {
   }
 };
 
+const onArticuloSelected = (art) => {
+  form.value.id_articulo = art.id;
+  modalSearchQuery.value = art.nombre; // Sincronizar el v-model del input del modal con el nombre seleccionado
+  onArticuloChange();
+};
+
 const recalculateFromQuantity = () => {
   const qty = Number(form.value.cantidad) || 0;
   const unit = Number(form.value.precio_unitario) || 0;
@@ -250,12 +335,16 @@ const recalculateFromTotal = () => {
 };
 
 const ingresosFiltrados = computed(() => {
-  let items = ingresos.value;
+  let items = [...ingresos.value];
 
-  // Filtro por búsqueda de texto
-  if (searchQuery.value) {
-    const q = searchQuery.value.toLowerCase();
-    items = items.filter(i => i.articulo_nombre?.toLowerCase().includes(q));
+  // Filtro por búsqueda de texto difusa
+  if (searchQuery.value.trim() !== '') {
+    if (fuseIngresos) {
+      items = fuseIngresos.search(searchQuery.value).map(res => res.item);
+    } else {
+      const q = searchQuery.value.toLowerCase();
+      items = items.filter(i => i.articulo_nombre?.toLowerCase().includes(q));
+    }
   }
 
   // Filtro por fechas
@@ -287,10 +376,13 @@ const formatFecha = (fecha) => {
 const fetchData = async () => {
   loading.value = true;
   try {
-    [ingresos.value, articulos.value] = await Promise.all([
+    const [resIngresos, resArticulos] = await Promise.all([
       articulosService.getIngresos(),
       articulosService.getArticulos(),
     ]);
+    ingresos.value = resIngresos;
+    articulos.value = resArticulos;
+    setupFuse();
   } catch {
     toast.showToast({ message: 'Error al cargar los ingresos.', type: 'danger' });
   } finally {
@@ -307,10 +399,20 @@ const openModal = (item = null) => {
       es_ajuste: Boolean(Number(item.es_ajuste)),
     };
     originalForm.value = { ...form.value };
+    // Sincronizar el nombre en el input del FuzzySearch al editar
+    modalSearchQuery.value = item.articulo_nombre || '';
   } else {
     isEditing.value = false;
     form.value = emptyForm();
+    modalSearchQuery.value = '';
   }
+
+  // Dar foco al input de productos tras abrir el modal
+  setTimeout(() => {
+    if (fuzzySearchModal.value) {
+      fuzzySearchModal.value.focus();
+    }
+  }, 100);
   showFormModal.value = true;
 };
 

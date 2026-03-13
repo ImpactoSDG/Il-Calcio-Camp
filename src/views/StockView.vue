@@ -12,15 +12,15 @@
     </div>
 
     <!-- Tarjetas de resumen -->
-    <div class="row g-3 mb-4">
-      <div class="col-6 col-lg-3">
+    <div class="row g-3 mb-4 flex-wrap">
+      <div class="col-6 col-md-4 col-lg">
         <div class="stock-summary-card stock-summary-card--total" @click="limpiarFiltros">
           <div class="stock-summary-card__icon"><i class="bi bi-boxes"></i></div>
           <div class="stock-summary-card__value">{{ stats.total }}</div>
           <div class="stock-summary-card__label">Total productos</div>
         </div>
       </div>
-      <div class="col-6 col-lg-3">
+      <div class="col-6 col-md-4 col-lg">
         <div
           class="stock-summary-card stock-summary-card--danger"
           :class="{ 'stock-summary-card--active': filtroAlerta === 'sin_stock' }"
@@ -32,7 +32,7 @@
           <div class="stock-summary-card__label">Sin stock</div>
         </div>
       </div>
-      <div class="col-6 col-lg-3">
+      <div class="col-6 col-md-4 col-lg">
         <div
           class="stock-summary-card stock-summary-card--warning"
           :class="{ 'stock-summary-card--active': filtroAlerta === 'stock_bajo' }"
@@ -41,10 +41,10 @@
         >
           <div class="stock-summary-card__icon"><i class="bi bi-arrow-down-circle"></i></div>
           <div class="stock-summary-card__value">{{ stats.stockBajo }}</div>
-          <div class="stock-summary-card__label">Stock bajo (≤{{ UMBRAL_STOCK_BAJO }})</div>
+          <div class="stock-summary-card__label">Stock bajo</div>
         </div>
       </div>
-      <div class="col-6 col-lg-3">
+      <div class="col-6 col-md-6 col-lg">
         <div
           class="stock-summary-card stock-summary-card--info"
           :class="{ 'stock-summary-card--active': filtroAlerta === 'por_vencer' }"
@@ -56,6 +56,18 @@
           <div class="stock-summary-card__label">Próx. a vencer ({{ DIAS_ALERTA_VENCIMIENTO }}d)</div>
         </div>
       </div>
+      <div class="col-6 col-md-6 col-lg">
+        <div
+          class="stock-summary-card stock-summary-card--vencido"
+          :class="{ 'stock-summary-card--active': filtroAlerta === 'vencido' }"
+          @click="toggleFiltroAlerta('vencido')"
+          style="cursor:pointer"
+        >
+          <div class="stock-summary-card__icon"><i class="bi bi-calendar-x"></i></div>
+          <div class="stock-summary-card__value">{{ stats.vencidos }}</div>
+          <div class="stock-summary-card__label">Vencidos</div>
+        </div>
+      </div>
     </div>
 
     <!-- Barra de filtros -->
@@ -63,8 +75,22 @@
       <div class="col-12 col-md-5">
         <FuzzySearch
           v-model="searchQuery"
+          :data="articulosUnicos"
+          :keys="['nombre', 'cod_barra', 'categoria_descripcion']"
           placeholder="Buscar por nombre, categoría o código de barras..."
-        />
+        >
+          <template #default="{ item }">
+            <div class="d-flex justify-content-between align-items-center w-100">
+              <div>
+                <span class="fw-medium d-block">{{ item.nombre }}</span>
+                <span class="text-muted extra-small" style="font-size: 0.7rem;">{{ item.categoria_descripcion || 'Sin categoría' }}</span>
+              </div>
+              <span v-if="item.cod_barra" class="badge bg-light text-dark border font-monospace ms-2" style="font-size: 0.65rem;">
+                {{ item.cod_barra }}
+              </span>
+            </div>
+          </template>
+        </FuzzySearch>
       </div>
       <div class="col-6 col-md-3">
         <select v-model="filtroCategoria" class="form-select">
@@ -108,11 +134,19 @@
           <tbody class="bg-white">
             <tr
               v-for="item in stockFiltrado"
-              :key="item.id"
+              :key="item.es_lote ? `ing-${item.id_lote}` : `art-${item.id}`"
               :class="{ 'table-danger-soft': Number(item.stock_actual) <= 0 }"
             >
-              <!-- Producto -->
+              <!-- Imagen -->
               <td class="ps-4">
+                <div class="articulo-img-thumb shadow-sm border overflow-hidden rounded-2 d-flex align-items-center justify-content-center bg-light" style="width: 40px; height: 40px;">
+                  <img v-if="item.url_imagen" :src="`${apiBaseUrl}/${item.url_imagen}`" class="w-100 h-100 object-fit-cover" />
+                  <i v-else class="bi bi-image text-muted opacity-25" style="font-size: 1.2rem;"></i>
+                </div>
+              </td>
+
+              <!-- Producto -->
+              <td>
                 <div class="fw-medium text-dark lh-sm">{{ item.nombre }}</div>
                 <span v-if="item.categoria_descripcion" class="badge bg-primary-subtle text-primary-custom rounded-pill px-2 mt-1" style="font-size:0.7rem">
                   {{ item.categoria_descripcion }}
@@ -124,14 +158,31 @@
                 {{ item.cod_barra || '—' }}
               </td>
 
+              <!-- Info de Lote -->
+              <td>
+                <div v-if="item.es_lote">
+                  <div class="small fw-semibold text-secondary">Lote: #{{ item.id_lote }}</div>
+                  <div class="text-muted" style="font-size:0.75rem">Ingreso: {{ formatFecha(item.fecha_ingreso_lote) }}</div>
+                </div>
+                <span v-else class="text-muted small">Sin ingresos</span>
+              </td>
+
+              <!-- Cantidad Original Ingreso -->
+              <td class="text-center">
+                <span v-if="item.es_lote" class="text-muted fw-medium" style="font-size:0.85rem">
+                  {{ item.cantidad_original }}
+                </span>
+                <span v-else class="text-muted">—</span>
+              </td>
+
               <!-- Stock actual -->
               <td class="text-center">
                 <div class="d-flex flex-column align-items-center gap-1">
-                  <span class="fw-bold fs-5 lh-1" :class="stockColorClass(item.stock_actual)">
-                    {{ Number(item.stock_actual) }}
+                  <span class="fw-bold fs-5 lh-1" :class="stockColorClass(item.cantidad_lote, item.ROP)">
+                    {{ Number(item.cantidad_lote) }}
                   </span>
-                  <span class="badge rounded-pill px-2" style="font-size:0.68rem" :class="stockBadgeClass(item.stock_actual)">
-                    {{ stockLabel(item.stock_actual) }}
+                  <span class="badge rounded-pill px-2" style="font-size:0.68rem" :class="stockBadgeClass(item.cantidad_lote, item.ROP)">
+                    {{ stockLabel(item.cantidad_lote, item.ROP) }}
                   </span>
                 </div>
               </td>
@@ -174,10 +225,10 @@
       <!-- Footer con total de resultados -->
       <div v-if="!loading && stockFiltrado.length > 0" class="px-4 py-2 border-top bg-light d-flex align-items-center justify-content-between">
         <span class="text-muted small">
-          Mostrando <strong>{{ stockFiltrado.length }}</strong> de <strong>{{ articulosEnriquecidos.length }}</strong> productos
+          Mostrando <strong>{{ stockFiltrado.length }}</strong> registros de ingresos/productos
         </span>
         <span class="text-muted small">
-          Stock total: <strong class="text-dark">{{ stockTotal }}</strong> unidades
+          Cantidad total en estos lotes: <strong class="text-dark">{{ stockTotal }}</strong> unidades
         </span>
       </div>
     </div>
@@ -212,10 +263,10 @@
             <!-- Métricas del artículo -->
             <div class="row g-3 mb-4">
               <div class="col-6 col-md-3">
-                <div class="detalle-metric-card detalle-metric-card--stock" :class="stockMetricVariant(detalleItem.stock_actual)">
+                <div class="detalle-metric-card detalle-metric-card--stock" :class="stockMetricVariant(detalleItem.stock_actual, detalleItem.ROP)">
                   <div class="detalle-metric-card__label">Stock actual</div>
                   <div class="detalle-metric-card__value">{{ Number(detalleItem.stock_actual) }}</div>
-                  <div class="detalle-metric-card__sublabel">{{ stockLabel(detalleItem.stock_actual) }}</div>
+                  <div class="detalle-metric-card__sublabel">Stock Mín. (ROP): {{ detalleItem.ROP || 1 }}</div>
                 </div>
               </div>
               <div class="col-6 col-md-3">
@@ -273,9 +324,9 @@
                 <thead class="table-light">
                   <tr>
                     <th class="ps-3 text-uppercase text-muted fw-bold py-2" style="font-size:0.7rem">Fecha ingreso</th>
-                    <th class="text-uppercase text-muted fw-bold py-2 text-end" style="font-size:0.7rem">Cantidad</th>
-                    <th class="text-uppercase text-muted fw-bold py-2 text-end" style="font-size:0.7rem">Precio unit.</th>
-                    <th class="text-uppercase text-muted fw-bold py-2 text-end" style="font-size:0.7rem">Total</th>
+                    <th class="text-uppercase text-muted fw-bold py-2 text-end" style="font-size:0.7rem">Cant. Orig</th>
+                    <th class="text-uppercase text-muted fw-bold py-2 text-end" style="font-size:0.7rem">Vendida</th>
+                    <th class="text-uppercase text-muted fw-bold py-2 text-end" style="font-size:0.7rem">Disponible</th>
                     <th class="text-uppercase text-muted fw-bold py-2 text-center" style="font-size:0.7rem">Vencimiento</th>
                     <th class="pe-3 text-uppercase text-muted fw-bold py-2 text-center" style="font-size:0.7rem">Perecedero</th>
                   </tr>
@@ -283,9 +334,11 @@
                 <tbody>
                   <tr v-for="lote in lotesDelDetalle" :key="lote.id">
                     <td class="ps-3 text-muted small">{{ formatFecha(lote.fecha_ingreso) }}</td>
-                    <td class="text-end fw-semibold small">{{ lote.cantidad }}</td>
-                    <td class="text-end text-muted small">${{ Number(lote.precio_unitario).toFixed(2) }}</td>
-                    <td class="text-end fw-semibold small">${{ Number(lote.total).toFixed(2) }}</td>
+                    <td class="text-end text-muted small">{{ lote.cantidad }}</td>
+                    <td class="text-end text-danger small">{{ lote.cantidad_vendida }}</td>
+                    <td class="text-end fw-bold small" :class="Number(lote.cantidad_disponible) > 0 ? 'text-success' : 'text-danger'">
+                      {{ lote.cantidad_disponible }}
+                    </td>
                     <td class="text-center">
                       <span v-if="lote.vencimiento" class="badge rounded-pill px-2" style="font-size:0.68rem" :class="vencimientoBadgeClass(lote.vencimiento)">
                         {{ formatFecha(lote.vencimiento) }}
@@ -306,9 +359,11 @@
                 </tbody>
                 <tfoot class="table-light">
                   <tr>
-                    <td class="ps-3 fw-bold text-dark small" colspan="1">Total ingresado</td>
-                    <td class="text-end fw-bold text-primary-custom small">{{ totalIngresadoDetalle }}</td>
-                    <td colspan="4"></td>
+                    <td class="ps-3 fw-bold text-dark small" colspan="1">Totales</td>
+                    <td class="text-end fw-bold text-secondary small">{{ totalIngresadoDetalle }}</td>
+                    <td colspan="1"></td>
+                    <td class="text-end fw-bold text-primary-custom small">{{ totalDisponibleDetalle }}</td>
+                    <td colspan="2"></td>
                   </tr>
                 </tfoot>
               </table>
@@ -334,18 +389,21 @@ import articulosService from '@/services/articulosService';
 import { useToastStore } from '@/stores/toastStore';
 
 const toast = useToastStore();
+const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost/Il-Calcio-Camp/api';
 const { sortKey, sortDir, handleSort, sortItems } = useSorting('nombre', 'asc');
 
 // ─── Constantes configurables ───────────────────────────────────────────────
-const UMBRAL_STOCK_BAJO = 5;
 const DIAS_ALERTA_VENCIMIENTO = 30;
 
 // ─── Columnas de la tabla ────────────────────────────────────────────────────
 const columns = [
-  { key: 'nombre',              label: 'Producto',          sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'imagen',              label: '',                  sortable: false, thClass: 'ps-4 py-3', thStyle: 'width: 50px' },
+  { key: 'nombre',              label: 'Producto',          sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'cod_barra',           label: 'Cód. Barra',        sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
-  { key: 'stock_actual',        label: 'Stock',             sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width:160px' },
-  { key: 'vencimiento_proximo', label: 'Próx. Vencimiento', sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width:175px' },
+  { key: 'id_lote',             label: 'Lote',              sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'cantidad_original',   label: 'Ingreso',          sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width:120px' },
+  { key: 'stock_actual',        label: 'Disponible',        sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width:140px' },
+  { key: 'vencimiento_proximo', label: 'Vencimiento',       sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width:175px' },
   { key: 'precio_actual',       label: 'Precio',            sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-end',   thStyle: 'width:110px' },
   { key: 'acciones',            label: 'Detalle',           sortable: false, thClass: 'pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary text-end', thStyle: 'width:80px' },
 ];
@@ -358,6 +416,16 @@ const loading   = ref(false);
 const searchQuery     = ref('');
 const filtroCategoria = ref('');
 const filtroAlerta    = ref('');
+
+/** Lista de productos únicos para el buscador desplegable */
+const articulosUnicos = computed(() => {
+  const seen = new Set();
+  return articulos.value.filter(a => {
+    if (seen.has(a.id)) return false;
+    seen.add(a.id);
+    return true;
+  });
+});
 
 const showDetalle = ref(false);
 const detalleItem = ref(null);
@@ -381,31 +449,35 @@ const diasHastaVencimiento = (fechaStr) => {
 };
 
 // ─── Helpers de stock ────────────────────────────────────────────────────────
-const stockColorClass = (stock) => {
+const stockColorClass = (stock, rop = 1) => {
   const s = Number(stock);
+  const r = Number(rop || 1);
   if (s <= 0) return 'text-danger';
-  if (s <= UMBRAL_STOCK_BAJO) return 'text-warning';
+  if (s <= r) return 'text-warning';
   return 'text-success';
 };
 
-const stockBadgeClass = (stock) => {
+const stockBadgeClass = (stock, rop = 1) => {
   const s = Number(stock);
+  const r = Number(rop || 1);
   if (s <= 0) return 'bg-danger text-white';
-  if (s <= UMBRAL_STOCK_BAJO) return 'bg-warning-subtle text-warning';
+  if (s <= r) return 'bg-warning-subtle text-warning';
   return 'bg-success-subtle text-success';
 };
 
-const stockLabel = (stock) => {
+const stockLabel = (stock, rop = 1) => {
   const s = Number(stock);
+  const r = Number(rop || 1);
   if (s <= 0) return 'Sin stock';
-  if (s <= UMBRAL_STOCK_BAJO) return 'Stock bajo';
+  if (s <= r) return 'Stock bajo';
   return 'Disponible';
 };
 
-const stockMetricVariant = (stock) => {
+const stockMetricVariant = (stock, rop = 1) => {
   const s = Number(stock);
+  const r = Number(rop || 1);
   if (s <= 0) return 'detalle-metric-card--danger';
-  if (s <= UMBRAL_STOCK_BAJO) return 'detalle-metric-card--warning';
+  if (s <= r) return 'detalle-metric-card--warning';
   return 'detalle-metric-card--success';
 };
 
@@ -432,28 +504,49 @@ const categorias = computed(() =>
   [...new Set(articulos.value.map(a => a.categoria_descripcion).filter(Boolean))].sort()
 );
 
-/** Artículos enriquecidos con el vencimiento próximo calculado desde los ingresos */
-const articulosEnriquecidos = computed(() =>
-  articulos.value.map(art => {
+/** Artículos enriquecidos y desagrupados por ingresos para mostrar trazabilidad de vencimientos */
+const articulosEnriquecidos = computed(() => {
+  const result = [];
+  
+  articulos.value.forEach(art => {
     const ingresosArt = ingresos.value.filter(i => Number(i.id_articulo) === Number(art.id));
 
-    const vencimientos = ingresosArt
-      .map(i => i.vencimiento ? String(i.vencimiento).split('T')[0] : null)
-      .filter(Boolean)
-      .sort(); // orden ascendente (el primero expira antes)
+    if (ingresosArt.length === 0) {
+      // Si no tiene ingresos registrados, mostrar al menos el registro base
+      result.push({
+        ...art,
+        stock_actual: Number(art.stock_actual ?? 0),
+        vencimiento_proximo: null,
+        fecha_ingreso_lote: null,
+        cantidad_lote: Number(art.stock_actual ?? 0),
+        cantidad_original: Number(art.stock_actual ?? 0),
+        cantidad_vendida: 0,
+        es_lote: false
+      });
+    } else {
+      // Desagrupar por cada ingreso
+      ingresosArt.forEach(ing => {
+        const cantOriginal = Number(ing.cantidad ?? 0);
+        const cantVendida = Number(ing.cantidad_vendida ?? 0);
+        const stockDisponibleLote = Math.max(0, cantOriginal - cantVendida);
 
-    const hoy = todayStr();
-    const proximos = vencimientos.filter(v => v >= hoy);
-    // Tomamos el vencimiento más próximo (aún vigente) o, si todos expiraron, el más reciente
-    const vencimiento_proximo = proximos[0] ?? vencimientos[vencimientos.length - 1] ?? null;
+        result.push({
+          ...art,
+          stock_actual: Number(art.stock_actual ?? 0), // Stock total del producto informado por API
+          vencimiento_proximo: ing.vencimiento ? String(ing.vencimiento).split('T')[0] : null,
+          fecha_ingreso_lote: ing.fecha_ingreso ? String(ing.fecha_ingreso).split('T')[0] : null,
+          cantidad_lote: stockDisponibleLote,
+          cantidad_original: cantOriginal,
+          cantidad_vendida: cantVendida,
+          es_lote: true,
+          id_lote: ing.id
+        });
+      });
+    }
+  });
 
-    return {
-      ...art,
-      stock_actual: Number(art.stock_actual ?? 0),
-      vencimiento_proximo,
-    };
-  })
-);
+  return result;
+});
 
 /** Estadísticas para las tarjetas de resumen */
 const stats = computed(() => {
@@ -461,19 +554,22 @@ const stats = computed(() => {
   return {
     total: articulosEnriquecidos.value.length,
     sinStock: articulosEnriquecidos.value.filter(a => a.stock_actual <= 0).length,
-    stockBajo: articulosEnriquecidos.value.filter(a => a.stock_actual > 0 && a.stock_actual <= UMBRAL_STOCK_BAJO).length,
+    stockBajo: articulosEnriquecidos.value.filter(a => a.stock_actual > 0 && a.stock_actual <= (a.ROP || 1)).length,
     porVencer: articulosEnriquecidos.value.filter(a => {
-      if (!a.vencimiento_proximo) return false;
+      if (!a.vencimiento_proximo || a.cantidad_lote <= 0) return false;
       const diff = Math.ceil((new Date(a.vencimiento_proximo) - new Date(hoy)) / 86_400_000);
       return diff >= 0 && diff <= DIAS_ALERTA_VENCIMIENTO;
+    }).length,
+    vencidos: articulosEnriquecidos.value.filter(a => {
+      if (!a.vencimiento_proximo || a.cantidad_lote <= 0) return false;
+      return a.vencimiento_proximo < hoy;
     }).length,
   };
 });
 
-/** Lista filtrada y ordenada */
 const stockFiltrado = computed(() => {
   const hoy = todayStr();
-  let items = articulosEnriquecidos.value;
+  let items = [...articulosEnriquecidos.value];
 
   // Búsqueda de texto
   if (searchQuery.value) {
@@ -493,19 +589,20 @@ const stockFiltrado = computed(() => {
   // Filtro por alerta
   if (filtroAlerta.value) {
     items = items.filter(a => {
-      const s = a.stock_actual;
+      const s = a.stock_actual; // Usamos el stock total del producto para alertas de stock bajo
+      const r = Number(a.ROP || 1);
       const venc = a.vencimiento_proximo;
       switch (filtroAlerta.value) {
         case 'sin_stock':   return s <= 0;
-        case 'stock_bajo':  return s > 0 && s <= UMBRAL_STOCK_BAJO;
+        case 'stock_bajo':  return s > 0 && s <= r;
         case 'por_vencer': {
-          if (!venc) return false;
+          if (!venc || a.cantidad_lote <= 0) return false;
           const diff = Math.ceil((new Date(venc) - new Date(hoy)) / 86_400_000);
           return diff >= 0 && diff <= DIAS_ALERTA_VENCIMIENTO;
         }
         case 'vencido': return venc ? venc < hoy : false;
         case 'ok': {
-          if (s <= UMBRAL_STOCK_BAJO) return false;
+          if (s <= r) return false;
           if (!venc) return true;
           const diff = Math.ceil((new Date(venc) - new Date(hoy)) / 86_400_000);
           return diff > DIAS_ALERTA_VENCIMIENTO;
@@ -515,12 +612,37 @@ const stockFiltrado = computed(() => {
     });
   }
 
+  // Aplicar lógica FEFO por defecto si no hay ordenamiento manual activo
+  // O si el usuario pide explícitamente ordenar por vencimiento
+  if (sortKey.value === 'nombre' && sortDir.value === 'asc') {
+    // Si es el orden por defecto, priorizamos FEFO: Vencimiento ASC, luego Fecha Ingreso ASC
+    items.sort((a, b) => {
+      // 1. Tratar nulos en vencimiento (mandar al final)
+      if (a.vencimiento_proximo && !b.vencimiento_proximo) return -1;
+      if (!a.vencimiento_proximo && b.vencimiento_proximo) return 1;
+      if (a.vencimiento_proximo && b.vencimiento_proximo) {
+        const diff = a.vencimiento_proximo.localeCompare(b.vencimiento_proximo);
+        if (diff !== 0) return diff;
+      }
+      
+      // 2. Criterio secundario: Fecha de ingreso
+      if (a.fecha_ingreso_lote && b.fecha_ingreso_lote) {
+        const diffIng = a.fecha_ingreso_lote.localeCompare(b.fecha_ingreso_lote);
+        if (diffIng !== 0) return diffIng;
+      }
+
+      // 3. Criterio terciario: Nombre
+      return (a.nombre || '').localeCompare(b.nombre || '');
+    });
+    return items;
+  }
+
   return sortItems(items);
 });
 
 /** Stock total visible en la tabla */
 const stockTotal = computed(() =>
-  stockFiltrado.value.reduce((acc, a) => acc + a.stock_actual, 0)
+  stockFiltrado.value.reduce((acc, a) => acc + Number(a.cantidad_lote ?? 0), 0)
 );
 
 // ─── Datos del modal de detalle ──────────────────────────────────────────────
@@ -528,11 +650,19 @@ const lotesDelDetalle = computed(() => {
   if (!detalleItem.value) return [];
   return ingresos.value
     .filter(i => Number(i.id_articulo) === Number(detalleItem.value.id))
+    .map(lote => ({
+      ...lote,
+      cantidad_disponible: Math.max(0, Number(lote.cantidad ?? 0) - Number(lote.cantidad_vendida ?? 0))
+    }))
     .sort((a, b) => String(b.fecha_ingreso).localeCompare(String(a.fecha_ingreso)));
 });
 
 const totalIngresadoDetalle = computed(() =>
   lotesDelDetalle.value.reduce((acc, l) => acc + Number(l.cantidad ?? 0), 0)
+);
+
+const totalDisponibleDetalle = computed(() =>
+  lotesDelDetalle.value.reduce((acc, l) => acc + Number(l.cantidad_disponible ?? 0), 0)
 );
 
 // ─── Acciones ────────────────────────────────────────────────────────────────
@@ -650,7 +780,11 @@ onMounted(fetchData);
   color: #0a6069;
   border-color: #a3d9df;
 }
-
+.stock-summary-card--vencido {
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  color: #495057;
+  border-color: #dee2e6;
+}
 /* ── Tarjetas métricas del modal ─────────────────────────────── */
 .detalle-metric-card {
   background: #f8f9fa;

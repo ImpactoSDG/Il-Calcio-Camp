@@ -1,296 +1,580 @@
--- MySQL Workbench Forward Engineering
+# 🗄️ Base de Datos — `impactos_Il_Calcio_Camp`
 
-SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
-SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0;
-SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION';
-
--- -----------------------------------------------------
--- Schema impactos_Il_Calcio_Camp
--- -----------------------------------------------------
-CREATE SCHEMA IF NOT EXISTS `impactos_Il_Calcio_Camp` DEFAULT CHARACTER SET utf8 ;
-USE `impactos_Il_Calcio_Camp` ;
-
--- -----------------------------------------------------
--- Table `impactos_Il_Calcio_Camp`.`categoria_articulo`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `impactos_Il_Calcio_Camp`.`categoria_articulo` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `descripcion` VARCHAR(45) NULL,
-  PRIMARY KEY (`id`))
-ENGINE = InnoDB;
+Documentación de la estructura de tablas de la base de datos del sistema.
 
 
--- -----------------------------------------------------
--- Table `impactos_Il_Calcio_Camp`.`articulo`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `impactos_Il_Calcio_Camp`.`articulo` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `nombre` VARCHAR(255) NULL,
-  `precio_actual` DECIMAL(10,2) NULL,
-  `costo_actual` DECIMAL(10,2) NULL COMMENT 'redundante',
-  `cod_barra` VARCHAR(1000) NULL,
-  `id_categoria_articulo` INT NULL,
-  `activo` TINYINT NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_articulo_categoria_articulo1_idx` (`id_categoria_articulo` ASC) VISIBLE,
-  CONSTRAINT `fk_articulo_categoria_articulo1`
-    FOREIGN KEY (`id_categoria_articulo`)
-    REFERENCES `impactos_Il_Calcio_Camp`.`categoria_articulo` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
+## 🏆 Gestión de Torneos
 
+### `torneo`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `nombre` | varchar(150) | Sí | NULL |
+| `descripcion` | varchar(255) | Sí | NULL |
+| `id_disciplina` | int | Sí | NULL |
+| `id_estado_torneo` | int | Sí | NULL |
+| `fecha_inicio` | date | Sí | NULL |
+| `fecha_fin` | date | Sí | NULL |
+| `fecha_fin_planificada` | date | Sí | NULL |
+| `cupo_equipos` | int | Sí | NULL |
+| `valor_inscripcion` | decimal(10,2) | Sí | NULL |
+| `formato_manual` | varchar(50) | Sí | NULL |
+| `configuracion_json` | text | Sí | NULL |
+| `activo` | tinyint(1) | No | 1 |
+| `deleted_at` | datetime | Sí | NULL |
+| `deleted_by` | int | Sí | NULL |
+| `motivo_baja` | varchar(255) | Sí | NULL |
 
--- -----------------------------------------------------
--- Table `impactos_Il_Calcio_Camp`.`ingreso_articulo`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `impactos_Il_Calcio_Camp`.`ingreso_articulo` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `fecha_ingreso` DATE NULL,
-  `vencimiento` DATE NULL,
-  `es_ajuste` TINYINT NULL COMMENT 'ajustes positivos',
-  `cantidad` DECIMAL(10,2) NULL,
-  `id_articulo` INT NOT NULL,
-  `precio_unitario` DECIMAL(10,2) NULL,
-  `total` DECIMAL(10,2) NULL,
-  `es_perecedero` TINYINT NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_ingreso_articulo_articulo_idx` (`id_articulo` ASC) VISIBLE,
-  CONSTRAINT `fk_ingreso_articulo_articulo`
-    FOREIGN KEY (`id_articulo`)
-    REFERENCES `impactos_Il_Calcio_Camp`.`articulo` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
+---
 
+### `disciplina`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `nombre` *(único)* | varchar(150) | No | — |
+| `fecha_creacion` | varchar(45) | Sí | NULL |
 
--- -----------------------------------------------------
--- Table `impactos_Il_Calcio_Camp`.`estado_venta`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `impactos_Il_Calcio_Camp`.`estado_venta` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `descripcion` VARCHAR(45) NULL COMMENT 'Abierta; Cerrada; Otros.',
-  PRIMARY KEY (`id`))
-ENGINE = InnoDB;
+---
 
+### `estado_torneo`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `descripcion` *(único)* | varchar(50) | No | — |
+| `activo` | tinyint | Sí | 1 |
 
--- -----------------------------------------------------
--- Table `impactos_Il_Calcio_Camp`.`condicion_iva_receptor`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `impactos_Il_Calcio_Camp`.`condicion_iva_receptor` (
-  `id` INT NOT NULL,
-  `descripcion_condicion` VARCHAR(45) NULL,
-  PRIMARY KEY (`id`))
-ENGINE = InnoDB;
+---
 
+### `estado_torneo_hist`
+Historial de cambios de estado de los torneos.
 
--- -----------------------------------------------------
--- Table `impactos_Il_Calcio_Camp`.`provincia`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `impactos_Il_Calcio_Camp`.`provincia` (
-  `id` INT NOT NULL,
-  `provincia` VARCHAR(100) NULL,
-  PRIMARY KEY (`id`))
-ENGINE = InnoDB;
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `id_torneo` | int | No | — |
+| `id_estado_torneo` | int | No | — |
+| `fecha_cambio` | datetime | Sí | NULL |
+| `observacion` | varchar(255) | Sí | NULL |
 
+---
 
--- -----------------------------------------------------
--- Table `impactos_Il_Calcio_Camp`.`cliente`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `impactos_Il_Calcio_Camp`.`cliente` (
-  `id` INT NOT NULL,
-  `nombre_cliente` VARCHAR(45) NULL,
-  `condicion_iva` VARCHAR(45) NULL,
-  `id_condicion_iva_receptor` INT NULL,
-  `direccion` VARCHAR(45) NULL,
-  `id_provinica` INT NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_cliente_condicion_iva_receptor1_idx` (`id_condicion_iva_receptor` ASC) VISIBLE,
-  INDEX `fk_cliente_provincia1_idx` (`id_provinica` ASC) VISIBLE,
-  CONSTRAINT `fk_cliente_condicion_iva_receptor1`
-    FOREIGN KEY (`id_condicion_iva_receptor`)
-    REFERENCES `impactos_Il_Calcio_Camp`.`condicion_iva_receptor` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_cliente_provincia1`
-    FOREIGN KEY (`id_provinica`)
-    REFERENCES `impactos_Il_Calcio_Camp`.`provincia` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
+### `fase_torneo`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `id_torneo` | int | No | — |
+| `nombre` | varchar(100) | Sí | NULL |
+| `tipo_fase` | varchar(50) | Sí | NULL |
+| `orden` | int | Sí | NULL |
+| `configuracion_json` | text | Sí | NULL |
 
+---
 
--- -----------------------------------------------------
--- Table `impactos_Il_Calcio_Camp`.`venta`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `impactos_Il_Calcio_Camp`.`venta` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `fecha` DATE NULL,
-  `id_equipo` INT NULL,
-  `descripcion_cliente` VARCHAR(255) NULL,
-  `id_estado_venta` INT NOT NULL,
-  `simbolo` VARCHAR(45) NOT NULL,
-  `id_cliente` INT NULL,
-  `tipo_vta` VARCHAR(45) NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_venta_estado_venta1_idx` (`id_estado_venta` ASC) VISIBLE,
-  INDEX `fk_venta_cliente1_idx` (`id_cliente` ASC) VISIBLE,
-  CONSTRAINT `fk_venta_estado_venta1`
-    FOREIGN KEY (`id_estado_venta`)
-    REFERENCES `impactos_Il_Calcio_Camp`.`estado_venta` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_venta_cliente1`
-    FOREIGN KEY (`id_cliente`)
-    REFERENCES `impactos_Il_Calcio_Camp`.`cliente` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
+### `grupo_torneo`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `id_fase_torneo` | int | No | — |
+| `nombre` | varchar(100) | Sí | NULL |
+| `orden` | int | Sí | NULL |
+| `cantidad_equipos_objetivo` | int | Sí | NULL |
+| `criterio_asignacion` | varchar(50) | Sí | NULL |
 
+---
 
--- -----------------------------------------------------
--- Table `impactos_Il_Calcio_Camp`.`articulo_venta`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `impactos_Il_Calcio_Camp`.`articulo_venta` (
-  `id_articulo_venta` INT NOT NULL AUTO_INCREMENT,
-  `id_articulo` INT NOT NULL,
-  `id_venta` INT NOT NULL,
-  `cantidad` DOUBLE(10,2) NOT NULL,
-  `precio_unitario` DOUBLE(10,2) NOT NULL,
-  `total` DOUBLE(10,2) NOT NULL,
-  PRIMARY KEY (`id_articulo_venta`),
-  INDEX `fk_articulo_has_venta_venta1_idx` (`id_venta` ASC) VISIBLE,
-  INDEX `fk_articulo_has_venta_articulo1_idx` (`id_articulo` ASC) VISIBLE,
-  CONSTRAINT `fk_articulo_has_venta_articulo1`
-    FOREIGN KEY (`id_articulo`)
-    REFERENCES `impactos_Il_Calcio_Camp`.`articulo` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_articulo_has_venta_venta1`
-    FOREIGN KEY (`id_venta`)
-    REFERENCES `impactos_Il_Calcio_Camp`.`venta` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
+### `grupo_torneo_equipo`
+Relación entre grupos y equipos dentro de un torneo.
 
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `id_grupo_torneo` | int | No | — |
+| `id_equipo_torneo` | int | No | — |
+| `posicion_inicial` | int | Sí | NULL |
 
--- -----------------------------------------------------
--- Table `impactos_Il_Calcio_Camp`.`medio_cobro`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `impactos_Il_Calcio_Camp`.`medio_cobro` (
-  `id` INT NOT NULL,
-  `descripcion` VARCHAR(255) NULL,
-  `activo` TINYINT NULL,
-  PRIMARY KEY (`id`))
-ENGINE = InnoDB;
+---
 
+### `equipo_torneo`
+Inscripciones de equipos a torneos.
 
--- -----------------------------------------------------
--- Table `impactos_Il_Calcio_Camp`.`cobro`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `impactos_Il_Calcio_Camp`.`cobro` (
-  `id` INT NOT NULL,
-  `cliente_id` INT NOT NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_cobro_cliente1_idx` (`cliente_id` ASC) VISIBLE,
-  CONSTRAINT `fk_cobro_cliente1`
-    FOREIGN KEY (`cliente_id`)
-    REFERENCES `impactos_Il_Calcio_Camp`.`cliente` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `id_equipo` | int | No | — |
+| `id_torneo` | int | No | — |
+| `id_estado_inscripcion` | int | Sí | NULL |
+| `fecha_inscripcion` | date | Sí | NULL |
+| `fecha_pago` | date | Sí | NULL |
+| `comprobante_pago` | varchar(255) | Sí | NULL |
+| `observacion` | varchar(255) | Sí | NULL |
 
+---
 
--- -----------------------------------------------------
--- Table `impactos_Il_Calcio_Camp`.`venta_cobro`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `impactos_Il_Calcio_Camp`.`venta_cobro` (
-  `id_venta_cobro` INT NOT NULL,
-  `id_venta` INT NOT NULL,
-  `id_cobro` INT NOT NULL,
-  `id_medio_pago` INT NOT NULL,
-  `monto` DOUBLE(10,2) NULL,
-  PRIMARY KEY (`id_venta_cobro`),
-  INDEX `fk_venta_has_cobro_cobro1_idx` (`id_cobro` ASC) VISIBLE,
-  INDEX `fk_venta_has_cobro_venta1_idx` (`id_venta` ASC) VISIBLE,
-  INDEX `fk_venta_cobro_medio_pago1_idx` (`id_medio_pago` ASC) VISIBLE,
-  CONSTRAINT `fk_venta_has_cobro_venta1`
-    FOREIGN KEY (`id_venta`)
-    REFERENCES `impactos_Il_Calcio_Camp`.`venta` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_venta_has_cobro_cobro1`
-    FOREIGN KEY (`id_cobro`)
-    REFERENCES `impactos_Il_Calcio_Camp`.`cobro` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_venta_cobro_medio_pago1`
-    FOREIGN KEY (`id_medio_pago`)
-    REFERENCES `impactos_Il_Calcio_Camp`.`medio_cobro` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
+### `estado_inscripcion`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `descripcion` *(único)* | varchar(50) | No | — |
+| `activo` | tinyint | Sí | 1 |
 
+---
 
--- -----------------------------------------------------
--- Table `impactos_Il_Calcio_Camp`.`equipo`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `impactos_Il_Calcio_Camp`.`equipo` (
-  `id` INT NOT NULL,
-  `activo` TINYINT NULL,
-  `disciplina` VARCHAR(45) NULL,
-  `nombre` VARCHAR(45) NULL,
-  PRIMARY KEY (`id`))
-ENGINE = InnoDB;
+### `cruce_torneo`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `id_fase_torneo` | int | No | — |
+| `id_grupo_torneo` | int | Sí | NULL |
+| `id_evento` | int | Sí | NULL |
+| `nombre` | varchar(100) | Sí | NULL |
+| `orden` | int | Sí | NULL |
+| `origen_local_tipo` | varchar(50) | Sí | NULL |
+| `origen_local_valor` | varchar(100) | Sí | NULL |
+| `origen_visitante_tipo` | varchar(50) | Sí | NULL |
+| `origen_visitante_valor` | varchar(100) | Sí | NULL |
 
+---
 
--- -----------------------------------------------------
--- Table `impactos_Il_Calcio_Camp`.`cliente_equipo`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `impactos_Il_Calcio_Camp`.`cliente_equipo` (
-  `id_cliente_equipo` INT NOT NULL,
-  `id_cliente` INT NOT NULL,
-  `id_equipo` INT NOT NULL,
-  PRIMARY KEY (`id_cliente_equipo`),
-  INDEX `fk_cliente_has_equipo_equipo1_idx` (`id_equipo` ASC) VISIBLE,
-  INDEX `fk_cliente_has_equipo_cliente1_idx` (`id_cliente` ASC) VISIBLE,
-  CONSTRAINT `fk_cliente_has_equipo_cliente1`
-    FOREIGN KEY (`id_cliente`)
-    REFERENCES `impactos_Il_Calcio_Camp`.`cliente` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_cliente_has_equipo_equipo1`
-    FOREIGN KEY (`id_equipo`)
-    REFERENCES `impactos_Il_Calcio_Camp`.`equipo` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
+### `generacion_fixture`
+Registro de generaciones automáticas de fixture.
 
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `id_torneo` | int | No | — |
+| `fecha_generacion` | datetime | Sí | NULL |
+| `motor_generacion` | varchar(100) | Sí | NULL |
+| `version_algoritmo` | varchar(50) | Sí | NULL |
+| `parametros_json` | text | Sí | NULL |
+| `resultado_json` | text | Sí | NULL |
+| `estado` | varchar(50) | Sí | NULL |
+| `observacion` | varchar(255) | Sí | NULL |
 
--- -----------------------------------------------------
--- Table `impactos_Il_Calcio_Camp`.`articulo_venta_ingreso_articulo`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `impactos_Il_Calcio_Camp`.`articulo_venta_ingreso_articulo` (
-  `id_articulo_venta_ingreso_articulo` VARCHAR(45) NOT NULL,
-  `articulo_venta_id_articulo_venta` INT NOT NULL,
-  `ingreso_articulo_id` INT NOT NULL,
-  `cantidad` VARCHAR(45) NULL,
-  PRIMARY KEY (`id_articulo_venta_ingreso_articulo`),
-  INDEX `fk_articulo_venta_has_ingreso_articulo_ingreso_articulo1_idx` (`ingreso_articulo_id` ASC) VISIBLE,
-  INDEX `fk_articulo_venta_has_ingreso_articulo_articulo_venta1_idx` (`articulo_venta_id_articulo_venta` ASC) VISIBLE,
-  CONSTRAINT `fk_articulo_venta_has_ingreso_articulo_articulo_venta1`
-    FOREIGN KEY (`articulo_venta_id_articulo_venta`)
-    REFERENCES `impactos_Il_Calcio_Camp`.`articulo_venta` (`id_articulo_venta`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_articulo_venta_has_ingreso_articulo_ingreso_articulo1`
-    FOREIGN KEY (`ingreso_articulo_id`)
-    REFERENCES `impactos_Il_Calcio_Camp`.`ingreso_articulo` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
+---
 
+## 👥 Equipos y Jugadores
 
-SET SQL_MODE=@OLD_SQL_MODE;
-SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
-SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;
+### `equipo`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `nombre` | varchar(45) | Sí | NULL |
+| `disciplina` | varchar(45) | Sí | NULL |
+| `id_disciplina` | int | Sí | NULL |
+| `escudo` | varchar(255) | Sí | NULL |
+| `activo` | tinyint | Sí | NULL |
+
+---
+
+### `jugador`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `nombre` | varchar(100) | Sí | NULL |
+| `apellido` | varchar(100) | Sí | NULL |
+| `dni` | varchar(20) | Sí | NULL |
+| `fecha_nac` | date | Sí | NULL |
+| `fecha_alta` | date | Sí | NULL |
+| `activo` | tinyint | Sí | 1 |
+
+---
+
+### `jugador_equipo`
+Vinculación activa de jugadores a equipos.
+
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `id_jugador` | int | No | — |
+| `id_equipo` | int | No | — |
+| `fecha_desde` | date | Sí | NULL |
+| `fecha_hasta` | date | Sí | NULL |
+
+---
+
+### `jugador_equipo_hist`
+Historial de cambios de equipo por jugador.
+
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `id_jugador_equipo` | int | No | — |
+| `id_jugador` | int | No | — |
+| `id_equipo` | int | No | — |
+| `fecha_desde` | date | Sí | NULL |
+| `fecha_hasta` | date | Sí | NULL |
+| `fecha_cambio` | datetime | Sí | NULL |
+| `accion` | varchar(50) | Sí | NULL |
+
+---
+
+### `arbitro`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `nombre` | varchar(100) | Sí | NULL |
+| `apellido` | varchar(100) | Sí | NULL |
+| `dni` | varchar(20) | Sí | NULL |
+| `telefono` | varchar(30) | Sí | NULL |
+| `email` | varchar(100) | Sí | NULL |
+| `activo` | tinyint | Sí | 1 |
+
+---
+
+### `cancha`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `nombre` | varchar(100) | Sí | NULL |
+| `descripcion` | varchar(255) | Sí | NULL |
+| `activo` | tinyint | Sí | 1 |
+
+---
+
+### `cliente`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `nombre_cliente` | varchar(45) | Sí | NULL |
+| `condicion_iva` | varchar(45) | Sí | NULL |
+| `id_condicion_iva_receptor` | int | Sí | NULL |
+| `direccion` | varchar(45) | Sí | NULL |
+| `id_provinica` | int | Sí | NULL |
+
+---
+
+### `cliente_equipo`
+Relación entre clientes y equipos.
+
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id_cliente_equipo` | int | No | — |
+| `id_cliente` | int | No | — |
+| `id_equipo` | int | No | — |
+
+---
+
+## ⚽ Eventos y Partidos
+
+### `evento`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `id_torneo` | int | Sí | NULL |
+| `id_estado_evento` | int | Sí | NULL |
+| `tipo_evento` | enum('partido','festejo','reunion','otro') | Sí | NULL |
+| `titulo` | varchar(150) | Sí | NULL |
+| `descripcion` | varchar(255) | Sí | NULL |
+| `numero_fecha` | int | Sí | NULL |
+| `fecha_hora_inicio` | datetime | Sí | NULL |
+| `fecha_hora_fin` | datetime | Sí | NULL |
+| `id_cancha` | int | Sí | NULL |
+| `id_arbitro` | int | Sí | NULL |
+| `id_equipo_local` | int | Sí | NULL |
+| `id_equipo_visitante` | int | Sí | NULL |
+| `resultado_local` | int | Sí | NULL |
+| `resultado_visitante` | int | Sí | NULL |
+| `resultado_penales_local` | int | Sí | NULL |
+| `resultado_penales_visitante` | int | Sí | NULL |
+
+---
+
+### `estado_evento`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `descripcion` *(único)* | varchar(50) | No | — |
+| `activo` | tinyint | Sí | 1 |
+
+---
+
+### `estado_evento_hist`
+Historial de cambios de estado de los eventos.
+
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `id_evento` | int | No | — |
+| `id_estado_evento` | int | No | — |
+| `fecha_cambio` | datetime | Sí | NULL |
+| `observacion` | varchar(255) | Sí | NULL |
+
+---
+
+### `evento_partido`
+Incidencias registradas durante un partido.
+
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `id_evento` | int | No | — |
+| `id_tipo_evento_partido` | int | No | — |
+| `id_jugador` | int | Sí | NULL |
+| `id_equipo` | int | Sí | NULL |
+| `minuto` | int | Sí | NULL |
+| `observacion` | varchar(255) | Sí | NULL |
+
+---
+
+### `tipo_evento_partido`
+Catálogo de tipos de incidencias (gol, tarjeta, etc.).
+
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `descripcion` *(único)* | varchar(50) | No | — |
+| `activo` | tinyint | Sí | 1 |
+
+---
+
+## 🛒 Ventas e Inventario
+
+### `articulo`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `nombre` | varchar(255) | Sí | NULL |
+| `precio_actual` | decimal(10,2) | Sí | NULL |
+| `costo_actual` | decimal(10,2) | Sí | NULL |
+| `cod_barra` | varchar(1000) | Sí | NULL |
+| `id_categoria_articulo` | int | Sí | NULL |
+| `url_imagen` | varchar(255) | Sí | NULL |
+| `ROP` | int | Sí | 1 |
+| `activo` | tinyint | Sí | NULL |
+
+---
+
+### `categoria_articulo`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `descripcion` | varchar(45) | Sí | NULL |
+
+---
+
+### `ingreso_articulo`
+Registros de stock entrante (compras o ajustes).
+
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `id_articulo` | int | No | — |
+| `fecha_ingreso` | date | Sí | NULL |
+| `vencimiento` | date | Sí | NULL |
+| `cantidad` | decimal(10,2) | Sí | NULL |
+| `precio_unitario` | decimal(10,2) | Sí | NULL |
+| `total` | decimal(10,2) | Sí | NULL |
+| `es_ajuste` | tinyint | Sí | NULL |
+| `es_perecedero` | tinyint | Sí | NULL |
+| `id_pedido_proveedor` | int | Sí | NULL |
+
+---
+
+### `venta`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `fecha` | date | Sí | NULL |
+| `id_equipo` | int | Sí | NULL |
+| `id_cliente` | int | Sí | NULL |
+| `descripcion_cliente` | varchar(255) | Sí | NULL |
+| `id_estado_venta` | int | No | — |
+| `simbolo` | varchar(45) | No | — |
+| `tipo_vta` | tinyint(1) | Sí | 1 |
+| `es_ajuste` | tinyint(1) | Sí | 0 |
+
+---
+
+### `estado_venta`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `descripcion` | varchar(45) | Sí | NULL |
+
+---
+
+### `articulo_venta`
+Líneas de detalle de cada venta.
+
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id_articulo_venta` | int | No | — |
+| `id_articulo` | int | No | — |
+| `id_venta` | int | No | — |
+| `cantidad` | double(10,2) | No | — |
+| `precio_unitario` | double(10,2) | No | — |
+| `total` | double(10,2) | No | — |
+
+---
+
+### `articulo_venta_ingreso_articulo`
+Relación entre artículos vendidos y su lote de ingreso (trazabilidad).
+
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id_articulo_venta_ingreso_articulo` | int | No | — |
+| `articulo_venta_id_articulo_venta` | int | No | — |
+| `ingreso_articulo_id` | int | No | — |
+| `cantidad` | decimal(10,2) | Sí | NULL |
+
+---
+
+### `cobro`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `cliente_id` | int | Sí | NULL |
+| `fecha` | timestamp | Sí | CURRENT_TIMESTAMP |
+
+---
+
+### `venta_cobro`
+Relación entre ventas y cobros (permite pagos parciales o múltiples medios).
+
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id_venta_cobro` | int | No | — |
+| `id_venta` | int | No | — |
+| `id_cobro` | int | No | — |
+| `id_medio_pago` | int | No | — |
+| `monto` | double(10,2) | Sí | NULL |
+
+---
+
+### `medio_cobro`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `descripcion` | varchar(255) | Sí | NULL |
+| `activo` | tinyint | Sí | NULL |
+
+---
+
+### `proveedor`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id_proveedor` | int | No | — |
+| `nombre` | varchar(150) | Sí | NULL |
+| `apellido` | varchar(150) | Sí | NULL |
+| `nombre_fantasia` | varchar(150) | Sí | NULL |
+| `telefono` | varchar(30) | Sí | NULL |
+| `direccion` | varchar(150) | Sí | NULL |
+| `activo` | tinyint | Sí | 1 |
+
+---
+
+### `pedido_proveedor`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id_pedido_proveedor` | int | No | — |
+| `id_proveedor` | int | No | — |
+| `fecha_pedido` | datetime | Sí | CURRENT_TIMESTAMP |
+| `fecha_entrega` | date | Sí | NULL |
+| `estado` | enum('pendiente','recibido','cancelado') | Sí | pendiente |
+| `observaciones` | varchar(255) | Sí | NULL |
+
+---
+
+### `pago_proveedor`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id_pago_proveedor` | int | No | — |
+| `id_proveedor` | int | No | — |
+| `fecha_pago` | datetime | Sí | CURRENT_TIMESTAMP |
+| `monto` | decimal(10,2) | No | — |
+| `id_medio_cobro` | int | No | — |
+| `observacion` | varchar(255) | Sí | NULL |
+
+---
+
+## ⚙️ Configuración del Sistema
+
+### `configuraciones`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `clave` *(único)* | varchar(100) | No | — |
+| `valor` | text | No | — |
+| `descripcion` | varchar(255) | Sí | NULL |
+| `fecha_modificacion` | timestamp | Sí | CURRENT_TIMESTAMP |
+
+---
+
+### `usuario`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `nombre` | varchar(255) | Sí | NULL |
+| `email` | varchar(50) | Sí | NULL |
+| `contrasena` | varchar(255) | Sí | NULL |
+| `id_rol` | int | No | — |
+
+---
+
+### `rol`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `nombre` | varchar(45) | Sí | NULL |
+| `descripcion` | varchar(255) | Sí | NULL |
+
+---
+
+### `modulo`
+Menú y rutas del sistema.
+
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `nombre` | varchar(45) | Sí | NULL |
+| `ruta` | varchar(100) | Sí | NULL |
+| `id_padre` | int | Sí | NULL |
+| `orden_visualizacion` | int | Sí | NULL |
+| `categoria` | varchar(255) | Sí | NULL |
+| `icon` | varchar(100) | Sí | bi-app-indicator |
+| `bg` | varchar(20) | Sí | #6c757d |
+
+---
+
+### `usuario_modulo`
+Permisos de acceso por usuario y módulo.
+
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `id_modulo` | int | No | — |
+| `id_usuario` | int | No | — |
+
+---
+
+### `condicion_iva_receptor`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `descripcion_condicion` | varchar(45) | Sí | NULL |
+
+---
+
+### `provincia`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `provincia` | varchar(100) | Sí | NULL |
+
+---
+
+### `impresoras_tiquetera`
+| Columna | Tipo | Nulo | Predeterminado |
+|---|---|---|---|
+| 🔑 `id` | int | No | — |
+| `nombre` | varchar(100) | No | — |
+| `descripcion` | varchar(255) | Sí | NULL |
+| `comando_corte` | varchar(20) | No | x1Dx56x00 |
+| `lineas_avance` | tinyint | No | 4 |
+| `es_default` | tinyint(1) | No | 0 |
+| `fecha_creacion` | datetime | No | CURRENT_TIMESTAMP |
+| `fecha_modificacion` | datetime | No | CURRENT_TIMESTAMP |
+
+---
+
+> 🔑 **PK** = Clave primaria  |  Las columnas marcadas como *único* tienen restricción `UNIQUE`
