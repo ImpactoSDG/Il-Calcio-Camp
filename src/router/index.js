@@ -141,13 +141,13 @@ const router = createRouter({
       path: '/proveedores',
       name: 'proveedores',
       component: ProveedoresView,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true , idModulo: 25}
     },
     {
       path: '/compras/pedidos',
       name: 'pedidos-proveedor',
       component: PedidosProveedorView,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true , idModulo: 26}
     },
   ]
 })

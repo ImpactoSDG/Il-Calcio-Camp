@@ -6,8 +6,8 @@ class PedidoProveedor
 {
     private PDO $conn;
     public string $table = 'pedido_proveedor';
-    // Los ítems del pedido se almacenan directamente en ingreso_articulo
-    // con confirmado = 0 (pendiente) hasta que el pedido sea recibido.
+    // Los ítems del pedido se almacenan en ingreso_articulo con id_pedido_proveedor.
+    // Cuentan como stock solo cuando el pedido está en estado 'recibido'.
     private string $ingresoTable = 'ingreso_articulo';
 
     public function __construct(PDO $db)
@@ -60,7 +60,7 @@ class PedidoProveedor
     {
         $sql = "SELECT ia.id, ia.id_articulo, ia.cantidad,
                        ia.precio_unitario AS precio_unitario_estimado,
-                       ia.total, ia.confirmado,
+                       ia.total,
                        a.nombre AS articulo_nombre, a.cod_barra
                 FROM {$this->ingresoTable} ia
                 INNER JOIN articulo a ON ia.id_articulo = a.id
@@ -73,8 +73,8 @@ class PedidoProveedor
     }
 
     /**
-     * Crea un pedido en estado 'pendiente' e inserta los ítems en ingreso_articulo
-     * con confirmado = 0 (NO cuentan como stock todavía).
+     * Crea un pedido en estado 'pendiente' e inserta los ítems en ingreso_articulo.
+     * Los ítems no cuentan como stock hasta que el pedido pase a 'recibido'.
      */
     public function create(int $idProveedor, ?string $fechaEntrega, ?string $observaciones, array $items): int
     {
@@ -102,7 +102,7 @@ class PedidoProveedor
     /**
      * Actualiza cabecera e ítems del pedido.
      * Solo permitido si está en estado 'pendiente'.
-     * Elimina y re-inserta los ítems en ingreso_articulo (confirmado = 0).
+     * Elimina y re-inserta todos los ítems del pedido.
      */
     public function update(int $id, int $idProveedor, ?string $fechaEntrega, ?string $observaciones, array $items): bool
     {
@@ -128,9 +128,9 @@ class PedidoProveedor
             $stmt->bindValue(':id', $id, PDO::PARAM_INT);
             $stmt->execute();
 
-            // Eliminar solo los registros pendientes (confirmado = 0)
+            // El pedido es 'pendiente', por lo tanto todos sus ingresos no cuentan aún como stock
             $stmtDel = $this->conn->prepare(
-                "DELETE FROM {$this->ingresoTable} WHERE id_pedido_proveedor = :id AND confirmado = 0"
+                "DELETE FROM {$this->ingresoTable} WHERE id_pedido_proveedor = :id"
             );
             $stmtDel->bindValue(':id', $id, PDO::PARAM_INT);
             $stmtDel->execute();
@@ -146,17 +146,17 @@ class PedidoProveedor
     }
 
     /**
-     * Inserta los ítems del pedido en ingreso_articulo con confirmado = 0.
-     * La fecha se registra ya pero no afecta el stock hasta la recepción.
+     * Inserta los ítems del pedido en ingreso_articulo.
+     * No cuentan como stock hasta que el pedido pase a estado 'recibido'.
      */
     private function insertItems(int $idPedido, array $items): void
     {
         $sql = "INSERT INTO {$this->ingresoTable}
                     (fecha_ingreso, es_ajuste, cantidad, id_articulo,
-                     precio_unitario, total, es_perecedero, id_pedido_proveedor, confirmado)
+                     precio_unitario, total, es_perecedero, id_pedido_proveedor)
                 VALUES
                     (:fecha_ingreso, 0, :cantidad, :id_articulo,
-                     :precio_unitario, :total, 0, :id_pedido_proveedor, 0)";
+                     :precio_unitario, :total, 0, :id_pedido_proveedor)";
         $stmt = $this->conn->prepare($sql);
         $fechaHoy = date('Y-m-d');
 
@@ -177,8 +177,8 @@ class PedidoProveedor
 
     /**
      * Cambia el estado del pedido y ejecuta la lógica asociada:
-     * - 'recibido': confirma los ingresos (confirmado = 1) → el stock sube.
-     * - 'cancelado': elimina los ingresos pendientes (confirmado = 0) → el stock no se ve afectado.
+     * - 'recibido': marca el pedido como recibido → los ingresos pasan a contar como stock.
+     * - 'cancelado': elimina los ingresos del pedido y lo marca como cancelado.
      */
     public function cambiarEstado(int $id, string $nuevoEstado): bool
     {
@@ -201,32 +201,26 @@ class PedidoProveedor
     }
 
     /**
-     * Transacción crítica de recepción:
-     * Cambia confirmado = 1 en todos los ingresos del pedido → el stock aumenta.
+     * Transacción de recepción:
+     * Marca el pedido como 'recibido' → sus ingresos pasan a contar como stock
+     * (la condición de stock es que el pedido asociado esté en 'recibido').
      * Registra la fecha de entrega real si no tenía una.
      */
     private function recibirPedido(int $id): bool
     {
-        // Verificar que tenga ítems antes de confirmar
+        // Verificar que tenga ítems
         $count = $this->conn->prepare(
-            "SELECT COUNT(*) FROM {$this->ingresoTable} WHERE id_pedido_proveedor = :id AND confirmado = 0"
+            "SELECT COUNT(*) FROM {$this->ingresoTable} WHERE id_pedido_proveedor = :id"
         );
         $count->bindValue(':id', $id, PDO::PARAM_INT);
         $count->execute();
         if ((int)$count->fetchColumn() === 0) {
-            throw new \RuntimeException("El pedido no tiene ítems pendientes de confirmar.");
+            throw new \RuntimeException("El pedido no tiene ítems.");
         }
 
         $this->conn->beginTransaction();
         try {
-            // Confirmar los ingresos → ahora sí cuentan como stock
-            $stmtConfirm = $this->conn->prepare(
-                "UPDATE {$this->ingresoTable} SET confirmado = 1 WHERE id_pedido_proveedor = :id AND confirmado = 0"
-            );
-            $stmtConfirm->bindValue(':id', $id, PDO::PARAM_INT);
-            $stmtConfirm->execute();
-
-            // Marcar el pedido como recibido
+            // Marcar el pedido como recibido → los ingresos ligados ya cuentan como stock
             $stmtPedido = $this->conn->prepare(
                 "UPDATE {$this->table}
                  SET estado = 'recibido',
@@ -246,18 +240,16 @@ class PedidoProveedor
     }
 
     /**
-     * Cancela el pedido y elimina los ingresos pendientes (confirmado = 0).
-     * El stock nunca fue afectado, por lo que no hay nada que revertir.
+     * Cancela el pedido manteniéndolo en la base de datos (con sus ítems) marcado como 'cancelado'.
+     * Los ingresos y stock ignoran los pedidos que NO tienen estado 'recibido'.
      */
     private function cancelarPedido(int $id): bool
     {
         $this->conn->beginTransaction();
         try {
-            $stmtDel = $this->conn->prepare(
-                "DELETE FROM {$this->ingresoTable} WHERE id_pedido_proveedor = :id AND confirmado = 0"
-            );
-            $stmtDel->bindValue(':id', $id, PDO::PARAM_INT);
-            $stmtDel->execute();
+            // Ya no eliminamos los registros de ingreso_articulo asociados al pedido.
+            // Simplemente cambiamos el estado del pedido a 'cancelado'.
+            // La lógica de cálculo de stock ya ignora pedidos que no están 'recibidos'.
 
             $stmtPedido = $this->conn->prepare(
                 "UPDATE {$this->table} SET estado = 'cancelado' WHERE id_pedido_proveedor = :id"
@@ -285,13 +277,13 @@ class PedidoProveedor
             throw new \RuntimeException("Pedido con ID {$id} no encontrado.");
         }
         if ($current['estado'] === 'recibido') {
-            throw new \RuntimeException("No se puede eliminar un pedido ya recibido porque tiene ingresos de stock confirmados.");
+            throw new \RuntimeException("No se puede eliminar un pedido ya recibido porque sus ingresos forman parte del stock.");
         }
 
         $this->conn->beginTransaction();
         try {
             $stmtDel = $this->conn->prepare(
-                "DELETE FROM {$this->ingresoTable} WHERE id_pedido_proveedor = :id AND confirmado = 0"
+                "DELETE FROM {$this->ingresoTable} WHERE id_pedido_proveedor = :id"
             );
             $stmtDel->bindValue(':id', $id, PDO::PARAM_INT);
             $stmtDel->execute();
