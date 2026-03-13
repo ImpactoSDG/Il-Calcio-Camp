@@ -315,12 +315,19 @@
             <button class="btn-close" @click="showFormModal = false"></button>
           </div>
 
-          <form @submit.prevent="save">
+          <form @submit.prevent>
             <div class="modal-panel__body">
               <div class="row g-3">
                 <div class="col-12">
                   <label class="form-label">Nombre <span class="text-danger">*</span></label>
-                  <input v-model.trim="form.nombre" type="text" class="form-control" placeholder="Ej: Coca Cola 500 ml" required />
+                  <input 
+                    v-model.trim="form.nombre" 
+                    type="text" 
+                    class="form-control" 
+                    placeholder="Ej: Coca Cola 500 ml" 
+                    required 
+                    @keydown.enter.prevent
+                  />
                 </div>
                 
                 <!-- Subida de Imagen -->
@@ -377,20 +384,33 @@
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Código de Barras</label>
-                  <input v-model.trim="form.cod_barra" type="text" class="form-control" placeholder="Ej: 7790001234567" />
+                  <input 
+                    v-model.trim="form.cod_barra" 
+                    type="text" 
+                    class="form-control" 
+                    placeholder="Ej: 7790001234567" 
+                    @keydown.enter.prevent
+                  />
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Precio Actual ($)</label>
-                  <CustomNumberInput v-model="form.precio_actual" :decimals="2" placeholder="0.00" />
+                  <CustomNumberInput v-model="form.precio_actual" :decimals="2" placeholder="0.00" @keydown.enter.prevent />
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Costo Actual ($)</label>
-                  <CustomNumberInput v-model="form.costo_actual" :decimals="2" placeholder="0.00" />
+                  <CustomNumberInput v-model="form.costo_actual" :decimals="2" placeholder="0.00" @keydown.enter.prevent />
                 </div>
                 <!-- Nuevo campo ROP -->
                 <div class="col-md-6">
                   <label class="form-label">Stock Mínimo (ROP)</label>
-                  <input v-model.number="form.ROP" type="number" class="form-control" placeholder="1" min="0" />
+                  <input 
+                    v-model.number="form.ROP" 
+                    type="number" 
+                    class="form-control" 
+                    placeholder="1" 
+                    min="0" 
+                    @keydown.enter.prevent
+                  />
                   <div class="form-text fs-xs">Nivel de reabastecimiento</div>
                 </div>
                 <!-- Sección de Estado: Solo visible al editar -->
@@ -420,7 +440,7 @@
             </div>
             <div class="modal-panel__footer">
               <button @click="showFormModal = false" type="button" class="btn btn-light px-4">Cancelar</button>
-              <button type="submit" class="btn-primary-modern px-4" :disabled="isSaving">
+              <button type="button" @click="save" class="btn-primary-modern px-4" :disabled="isSaving">
                 <span v-if="isSaving" class="spinner-border spinner-border-sm me-2"></span>
                 {{ isEditing ? 'Actualizar' : 'Guardar' }}
               </button>

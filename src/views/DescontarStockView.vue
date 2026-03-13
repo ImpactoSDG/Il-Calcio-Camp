@@ -121,7 +121,7 @@ import { ref, onMounted, computed } from 'vue';
 import api from '@/services/api';
 import { useToastStore } from '@/stores/toastStore';
 import FuzzySearch from '@/components/FuzzySearch.vue';
-import VentaModal from '@/components/VentaModal.vue';
+import VentaModal from '@/components/venta/VentaModal.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 
 const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost/Il-Calcio-Camp/api';

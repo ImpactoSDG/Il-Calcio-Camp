@@ -13,10 +13,6 @@
         </div>
 
         <div class="modal-body p-4 pt-2">
-          <p class="text-muted small mb-4">
-            Ingresa el nombre y apellido para identificar al cliente. 
-            <strong>Se guardará solo si confirmas la venta.</strong>
-          </p>
 
           <div class="mb-4">
             <label class="form-label fw-semibold text-secondary small mb-1">Nombre y Apellido <span class="text-danger">*</span></label>

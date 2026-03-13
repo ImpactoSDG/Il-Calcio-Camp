@@ -44,7 +44,7 @@
         <span class="ventas-section-badge ventas-section-badge--abierta">
           <i class="bi bi-folder2-open me-1"></i> ABIERTAS
         </span>
-        <span class="badge rounded-pill bg-warning-subtle text-warning fw-bold">{{ ventasAbiertas.length }}</span>
+        <span class="badge rounded-pill bg-success-subtle text-success fw-bold">{{ ventasAbiertas.length }}</span>
       </div>
 
       <div v-if="loading" class="text-center py-4">
@@ -69,12 +69,9 @@
           <!-- Cabecera de la tarjeta -->
           <div class="venta-card__header">
             <div class="d-flex align-items-start gap-3 flex-grow-1 min-w-0">
-              <div class="venta-card__icon-container">
-                <i class="bi bi-cart3"></i>
-              </div>
               <div class="min-w-0 flex-grow-1">
                 <div class="d-flex justify-content-between align-items-center mb-1">
-                  <span class="venta-card__id text-uppercase">Venta Nro: {{ venta.id }}-{{ venta.simbolo }}</span>
+                  <span class="venta-card__id text-uppercase text-dark">Venta Nro: {{ venta.id }}-{{ venta.simbolo }}</span>
                 </div>
                 <div class="fw-bold text-dark lh-sm text-truncate mb-1" style="font-size: 1.05rem;">
                   {{ venta.cliente_nombre || 'Consumidor Final' }}
@@ -178,7 +175,7 @@
         <span class="ventas-section-badge ventas-section-badge--cerrada">
           <i class="bi bi-check-circle me-1"></i> CERRADAS
         </span>
-        <span class="badge rounded-pill bg-success-subtle text-success fw-bold">{{ ventasCerradas.length }}</span>
+        <span class="badge rounded-pill bg-info-subtle text-info fw-bold">{{ ventasCerradas.length }}</span>
         <button class="btn btn-link link-secondary p-0 ms-1 small" @click="mostrarCerradas = !mostrarCerradas" style="font-size:0.8rem">
           {{ mostrarCerradas ? 'Ocultar' : 'Mostrar' }}
         </button>
@@ -195,72 +192,30 @@
               <SortableTableHead :columns="columnsCerradas" :sort-key="sortKey" :sort-dir="sortDir" @sort="handleSort" />
               <tbody class="bg-white">
                 <template v-for="venta in ventasCerradas" :key="venta.id">
-                  <tr :class="{ 'table-active': ventaExpandida === venta.id }">
-                    <td class="ps-4 text-muted fw-bold small">{{ venta.id }}-{{ venta.simbolo }}</td>
-                    <td class="text-muted small">{{ formatFecha(venta.fecha) }}</td>
-                    <td class="fw-medium text-dark small">{{ venta.cliente_nombre || '—' }}</td>
-                    <td class="small">
-                      <span v-if="venta.equipo_nombre" class="badge bg-primary-subtle text-primary-custom rounded-pill px-2">
-                        {{ venta.equipo_nombre }}
-                      </span>
-                      <span v-else class="text-muted">—</span>
-                    </td>
-                    <td class="text-muted small">
+                  <tr :class="{ 'table-active': ventaExpandida === venta.id }" class="cursor-pointer" @click="abrirDetalleVenta(venta)">
+                    <td class="ps-4 text-muted fw-bold small py-1">{{ venta.id }}-{{ venta.simbolo }}</td>
+                    <td class="text-muted small py-1">{{ formatFecha(venta.fecha) }}</td>
+                    <td class="fw-medium text-dark small py-1">{{ venta.cliente_nombre || '—' }}</td>
+                    <td class="text-muted small py-1">
                       {{ venta.descripcion_cliente || '—' }}
                     </td>
-                    <td class="text-muted small">
+                    <td class="text-muted small py-1">
                       <span v-if="venta.medio_cobro_nombre" class="badge bg-info-subtle text-info border border-info-subtle px-2">
                         {{ venta.medio_cobro_nombre }}
                       </span>
                       <span v-else class="text-muted">—</span>
                     </td>
-                    <td class="pe-4 text-end">
-                      <button @click="toggleDetalle(venta.id)" class="btn btn-link link-secondary p-1 me-1" :title="ventaExpandida === venta.id ? 'Ocultar' : 'Ver'">
-                        <i class="bi fs-5" :class="ventaExpandida === venta.id ? 'bi-chevron-up' : 'bi-list-ul'"></i>
+                    <td class="text-end fw-bold text-dark small py-1">
+                      ${{ venta.total_venta }}
+                    </td>
+                    <td class="pe-4 text-end py-1">
+                      <button @click.stop="abrirDetalleVenta(venta)" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 px-2 py-1" title="Ver detalle">
+                        <i class="bi bi-eye fs-6"></i>
+                        <span class="small fw-bold">Ver</span>
                       </button>
-                      <button @click="prepareDeleteVenta(venta.id)" class="btn btn-link link-danger p-1" title="Eliminar">
+                      <button @click.stop="prepareDeleteVenta(venta.id)" class="btn btn-link link-danger p-1 ms-1" title="Eliminar">
                         <i class="bi bi-trash3 fs-5"></i>
                       </button>
-                    </td>
-                  </tr>
-                  <!-- Detalle expandido de cerrada -->
-                  <tr v-if="ventaExpandida === venta.id" class="bg-light">
-                    <td colspan="6" class="px-4 py-3">
-                      <div v-if="loadingDetalle" class="text-center py-2">
-                        <div class="spinner-border spinner-border-sm text-primary-custom"></div>
-                      </div>
-                      <table v-else class="table table-sm align-middle mb-0">
-                        <thead>
-                          <tr>
-                            <th style="width: 44px"></th>
-                            <th class="text-uppercase fs-xs text-secondary fw-bold py-1">Artículo</th>
-                            <th class="text-uppercase fs-xs text-secondary fw-bold py-1 text-end">Cant.</th>
-                            <th class="text-uppercase fs-xs text-secondary fw-bold py-1 text-end">P.Unit.</th>
-                            <th class="text-uppercase fs-xs text-secondary fw-bold py-1 text-end">Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr v-for="av in articulosDeVenta" :key="av.id_articulo_venta">
-                            <td>
-                              <div class="articulo-img-thumb shadow-sm border overflow-hidden rounded-2 d-flex align-items-center justify-content-center bg-white" style="width: 40px; height: 40px;">
-                                <img v-if="av.url_imagen" :src="`${apiBaseUrl}/${av.url_imagen}`" class="w-100 h-100 object-fit-cover" />
-                                <i v-else class="bi bi-box-seam text-muted opacity-50" style="font-size: 1rem;"></i>
-                              </div>
-                            </td>
-                            <td class="fw-medium small">{{ av.articulo_nombre }}</td>
-                            <td class="text-end small">{{ av.cantidad }}</td>
-                            <td class="text-end small text-muted">${{ Number(av.precio_unitario).toFixed(2) }}</td>
-                            <td class="text-end small fw-semibold">${{ Number(av.total).toFixed(2) }}</td>
-                          </tr>
-                          <tr v-if="articulosDeVenta.length === 0">
-                            <td colspan="5" class="text-center text-muted py-2 small">Sin artículos.</td>
-                          </tr>
-                          <tr v-if="articulosDeVenta.length > 0" class="border-top">
-                            <td colspan="4" class="text-end fw-bold small py-1">Total:</td>
-                            <td class="text-end fw-bold small py-1">${{ totalDetalleVenta }}</td>
-                          </tr>
-                        </tbody>
-                      </table>
                     </td>
                   </tr>
                 </template>
@@ -310,6 +265,15 @@
       @save="handleSaveVenta"
       @client-created="handleQuickClientCreated"
       @assign-team="handleQuickTeamAssign"
+    />
+
+    <!-- Modal Detalle Venta para Ventas Cerradas -->
+    <DetallesVentaModal
+      v-model="showDetallesModal"
+      :venta="ventaSeleccionada"
+      :articulos="articulosDeVenta"
+      :api-base-url="apiBaseUrl"
+      @imprimir="reimprimirTicket"
     />
 
     <!-- Contenedor de Ticket para Impresión -->
@@ -366,7 +330,8 @@ import { setupQzSecurity, ensureQzConnected, imprimirTicketEscPos, QZ_CERT, QZ_P
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import FuzzySearch from '@/components/FuzzySearch.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
-import VentaModal from "@/components/VentaModal.vue";
+import VentaModal from "@/components/venta/VentaModal.vue";
+import DetallesVentaModal from "@/components/venta/DetallesVentaModal.vue";
 import ventasService from '@/services/ventasService';
 import clientesService from '@/services/clientesService';
 import articulosService from '@/services/articulosService';
@@ -403,9 +368,9 @@ const columnsCerradas = [
   { key: 'id',            label: 'Nro Venta',     sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width:100px' },
   { key: 'fecha',         label: 'Fecha',         sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'cliente_nombre',label: 'Cliente',     sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
-  { key: 'equipo_nombre', label: 'Equipo',      sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'descripcion_cliente', label: 'Descripción', sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'medio_cobro_nombre',  label: 'Medio pago',  sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'total_venta',    label: 'Total',        sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-end' },
   { key: 'acciones',      label: '',            sortable: false, thClass: 'pe-4 py-3 text-end' },
 ];
 
@@ -447,9 +412,11 @@ const articulosDeVenta  = ref([]);
 const loadingDetalle    = ref(false);
 const totalesVenta      = ref({});
 
-const showVentaModal = ref(false);
-const isEditing      = ref(false);
-const isSaving       = ref(false);
+const showVentaModal    = ref(false);
+const showDetallesModal = ref(false);
+const ventaSeleccionada = ref(null);
+const isEditing         = ref(false);
+const isSaving          = ref(false);
 
 const emptyVentaForm = () => ({
   id: null,
@@ -529,11 +496,15 @@ const ventasFiltradas = computed(() => {
     
     // Si la venta tiene detalle de artículos (por el getVentaById o similar), usamos la primera imagen
     const url_imagen_principal = v.articulos_venta?.[0]?.url_imagen || v.url_imagen_principal || null;
+    
+    // Asegurarse de que total_venta sea un número válido antes de formatear
+    const montoTotal = Number(v.total_venta || 0);
 
     return {
       ...v,
       medio_cobro_nombre: medio ? medio.descripcion : (v.medio_cobro_nombre || '—'),
-      url_imagen_principal
+      url_imagen_principal,
+      total_venta: montoTotal.toFixed(2)
     };
   });
   
@@ -616,6 +587,19 @@ const toggleDetalle = async (idVenta) => {
     totalesVenta.value[idVenta] = articulosDeVenta.value.reduce((acc, av) => acc + Number(av.total || 0), 0).toFixed(2);
   } catch {
     toast.showToast({ message: 'Error al cargar artículos.', type: 'danger' });
+  } finally {
+    loadingDetalle.value = false;
+  }
+};
+
+const abrirDetalleVenta = async (venta) => {
+  ventaSeleccionada.value = venta;
+  showDetallesModal.value = true;
+  loadingDetalle.value = true;
+  try {
+    articulosDeVenta.value = await ventasService.getArticulosDeVenta(venta.id);
+  } catch {
+    toast.showToast({ message: 'Error al cargar el detalle de la venta.', type: 'danger' });
   } finally {
     loadingDetalle.value = false;
   }
@@ -783,6 +767,10 @@ const imprimirTicketDirecto = async (idVenta) => {
   }
 };
 
+const reimprimirTicket = async (idVenta) => {
+  await imprimirTicketDirecto(idVenta);
+};
+
 const prepareDeleteVenta = (id) => {
   idVentaToDelete.value = id;
   showDeleteVentaModal.value = true;
@@ -887,25 +875,26 @@ onUnmounted(() => {
 
 .venta-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
-  border-color: var(--primary-color-subtle, rgba(0, 85, 140, 0.2));
+  box-shadow: 0 12px 24px -8px rgba(25, 135, 84, 0.15);
+  border-color: rgba(25, 135, 84, 0.3);
 }
 
 .venta-card--abierta {
-  border-left: 5px solid #ffc107;
+  border-left: 4px solid var(--color-primary);
+  background-color: #f0fdf4; /* Verde muy clarito */
 }
 
 .venta-card--expanded {
   transform: scale(1.005);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  border-color: rgba(0, 0, 0, 0.15);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.03);
+  border-color: var(--color-primary);
 }
 
 .venta-card__header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 1.25rem;
+  padding: 1rem;
 }
 
 .venta-card__icon-container {
@@ -919,38 +908,38 @@ onUnmounted(() => {
   font-size: 1.4rem;
   color: #6c757d;
   flex-shrink: 0;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.03);
 }
 
 .venta-card--abierta .venta-card__icon-container {
-  background-color: #fff9e6;
-  color: #ffc107;
+  background-color: #eafaf1;
+  color: var(--color-primary);
 }
 
 .venta-card__id {
   font-family: 'Monaco', 'Consolas', monospace;
-  font-size: 0.75rem;
-  color: #adb5bd;
+  font-size: 0.72rem;
+  color: #94a3b8;
   letter-spacing: 0.5px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .badge-equipo {
-  background-color: #e7f1ff;
-  color: #0d6efd;
+  background-color: #f1f5f9;
+  color: #475569;
   padding: 0.25rem 0.6rem;
-  border-radius: 8px;
-  font-size: 0.75rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
   font-weight: 600;
   display: inline-flex;
   align-items: center;
-  border: 1px solid #cfe2ff;
+  border: 1px solid #e2e8f0;
 }
 
 .venta-card__detalle {
-  padding: 1.25rem;
-  border-top: 1px dashed #e9ecef;
-  background-color: #fcfcfc;
+  padding: 1rem;
+  border-top: 1px solid #f1f5f9;
+  background-color: #fdfdfd;
 }
 
 /* ── Tablas con Profundidad ────────────────────────────────── */
@@ -1002,8 +991,8 @@ onUnmounted(() => {
 
 .ventas-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
 }
 
 .ventas-section-badge {
@@ -1016,15 +1005,15 @@ onUnmounted(() => {
 }
 
 .ventas-section-badge--abierta {
-  background: #fff8e1;
-  color: #856404;
-  border: 1px solid #ffe082;
+  background: #eafaf1;
+  color: #146c43;
+  border: 1px solid #d1e7dd;
 }
 
 .ventas-section-badge--cerrada {
-  background: #f0fdf4;
-  color: #166534;
-  border: 1px solid #bbf7d0;
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
 }
 
 .btn-success-modern {

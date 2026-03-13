@@ -65,7 +65,6 @@
                               Cliente <span v-if="esAbierto" class="text-danger">*</span>
                             </label>
                             <button 
-                              v-if="esAbierto" 
                               type="button" 
                               @click="showQuickClientModal = true" 
                               class="btn btn-link link-primary p-0 small text-decoration-none fw-bold" 
@@ -358,8 +357,8 @@
 <script setup>
 import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
 import { useToastStore } from '@/stores/toastStore';
-import QuickClientModal from './QuickClientModal.vue';
-import QuickAssignTeamModal from './QuickAssignTeamModal.vue';
+import QuickClientModal from '@/components/venta/QuickClientModal.vue';
+import QuickAssignTeamModal from '@/components/venta/QuickAssignTeamModal.vue';
 
 const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost/Il-Calcio-Camp/api';
 

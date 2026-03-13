@@ -35,7 +35,12 @@ class Venta
                            INNER JOIN articulo a ON av.id_articulo = a.id 
                            WHERE av.id_venta = v.id 
                            LIMIT 1
-                       ) AS url_imagen_principal
+                       ) AS url_imagen_principal,
+                       (
+                           SELECT SUM(av.total)
+                           FROM articulo_venta av
+                           WHERE av.id_venta = v.id
+                       ) AS total_venta
                 FROM {$this->table} v
                 LEFT JOIN estado_venta ev ON v.id_estado_venta = ev.id
                 LEFT JOIN cliente c ON v.id_cliente = c.id
