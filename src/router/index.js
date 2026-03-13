@@ -17,6 +17,8 @@ import ClientesView from '@/views/ClientesView.vue'
 import ClienteEquipoView from '@/views/ClienteEquipoView.vue'
 import VentasView from '@/views/VentasView.vue'
 import CobroView from '@/views/CobroView.vue'
+import ProveedoresView from '@/views/ProveedoresView.vue'
+import PedidosProveedorView from '@/views/PedidosProveedorView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -131,6 +133,20 @@ const router = createRouter({
       path: '/cobros',
       name: 'cobros',
       component: CobroView,
+      meta: { requiresAuth: true }
+    },
+
+    // --- Compras / Proveedores ---
+    {
+      path: '/proveedores',
+      name: 'proveedores',
+      component: ProveedoresView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/compras/pedidos',
+      name: 'pedidos-proveedor',
+      component: PedidosProveedorView,
       meta: { requiresAuth: true }
     },
   ]

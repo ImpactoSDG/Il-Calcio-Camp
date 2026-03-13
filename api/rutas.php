@@ -23,6 +23,9 @@ require_once __DIR__ . '/controllers/ClienteEquipoController.php';
 require_once __DIR__ . '/controllers/ArticuloVentaIngresoArticuloController.php';
 require_once __DIR__ . '/controllers/TicketVentaController.php';
 require_once __DIR__ . '/controllers/ImpresoraTiqueteraController.php';
+require_once __DIR__ . '/controllers/ProveedorController.php';
+require_once __DIR__ . '/controllers/PedidoProveedorController.php';
+require_once __DIR__ . '/controllers/PagoProveedorController.php';
 
 require_once __DIR__ . '/core/JwtHandler.php';
 require_once __DIR__ . '/core/BaseController.php';
@@ -56,6 +59,9 @@ $clienteEquipoController = new ClienteEquipoController($db);
 $articuloVentaIngresoArticuloController = new ArticuloVentaIngresoArticuloController($db);
 $ticketVentaController = new TicketVentaController($db);
 $impresoraTiqueteraController = new ImpresoraTiqueteraController($db);
+$proveedorController = new ProveedorController($db);
+$pedidoProveedorController = new PedidoProveedorController($db);
+$pagoProveedorController = new PagoProveedorController($db);
 
 function verifyAuth(): array {
     $headers = getallheaders();
@@ -624,6 +630,75 @@ switch ($resource) {
                 break;
             case 'DELETE':
                 $impresoraTiqueteraController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    // ============ MÓDULO DE COMPRAS ============
+
+    case 'proveedores':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) { $_GET['id'] = $id; $proveedorController->getById(); }
+                else { $proveedorController->getAll(); }
+                break;
+            case 'POST':
+                $proveedorController->store();
+                break;
+            case 'PUT':
+                $proveedorController->update();
+                break;
+            case 'DELETE':
+                $proveedorController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'pedidos-proveedor':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) { $_GET['id'] = $id; $pedidoProveedorController->getById(); }
+                else { $pedidoProveedorController->getAll(); }
+                break;
+            case 'POST':
+                if ($id === 'cambiar-estado') {
+                    $pedidoProveedorController->cambiarEstado();
+                } else {
+                    $pedidoProveedorController->store();
+                }
+                break;
+            case 'PUT':
+                $pedidoProveedorController->update();
+                break;
+            case 'DELETE':
+                $pedidoProveedorController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'pagos-proveedor':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) { $_GET['id'] = $id; $pagoProveedorController->getById(); }
+                else { $pagoProveedorController->getAll(); }
+                break;
+            case 'POST':
+                $pagoProveedorController->store();
+                break;
+            case 'DELETE':
+                $pagoProveedorController->delete();
                 break;
             default:
                 http_response_code(405);
