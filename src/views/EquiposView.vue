@@ -32,7 +32,10 @@
           />
           <tbody class="bg-white">
             <tr v-for="item in sortedEquipos" :key="item.id">
-              <td class="ps-4 text-muted fw-bold">{{ item.id }}</td>
+              <td class="ps-4 text-center">
+                <img v-if="item.escudo" :src="resolveEscudoUrl(item.escudo)" alt="escudo" class="escudo-thumb" />
+                <span v-else class="text-muted">-</span>
+              </td>
               <td class="fw-medium text-dark">{{ item.nombre }}</td>
               <td class="text-muted">
                 <span class="badge bg-primary-subtle text-primary-custom rounded-pill px-3">{{ item.disciplina }}</span>
@@ -76,24 +79,25 @@
           <form @submit.prevent="save">
             <div class="modal-body">
               <div class="mb-3">
-                <label class="form-label">ID</label>
-                <input
-                  v-model.number="form.id"
-                  type="number"
-                  class="form-control"
-                  placeholder="Ej: 1"
-                  :readonly="isEditing"
-                  :class="{ 'bg-light text-muted': isEditing }"
-                  required
-                />
-              </div>
-              <div class="mb-3">
                 <label class="form-label">Nombre del Equipo</label>
                 <input v-model.trim="form.nombre" type="text" class="form-control" placeholder="Ej: Sub-15 Fútbol" required />
               </div>
               <div class="mb-3">
                 <label class="form-label">Disciplina</label>
                 <input v-model.trim="form.disciplina" type="text" class="form-control" placeholder="Ej: Fútbol" required />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Escudo (imagen/logo)</label>
+                <input
+                  type="file"
+                  class="form-control"
+                  accept="image/*,.svg"
+                  @change="onEscudoFileChange"
+                />
+                <div v-if="form.escudo" class="form-text d-flex align-items-center gap-2 mt-2">
+                  <img :src="resolveEscudoUrl(form.escudo)" alt="escudo" class="escudo-thumb" />
+                  <a :href="resolveEscudoUrl(form.escudo)" target="_blank" rel="noopener noreferrer">Ver escudo actual</a>
+                </div>
               </div>
               <div class="mb-0">
                 <div class="form-check form-switch ps-4">
@@ -141,7 +145,7 @@ const toast = useToastStore();
 const { sortKey, sortDir, handleSort, sortItems } = useSorting()
 
 const columns = [
-  { key: 'id',         label: 'ID',         sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 80px' },
+  { key: 'escudo',     label: '',           sortable: false, thClass: 'ps-4 py-3', thStyle: 'width: 70px' },
   { key: 'nombre',     label: 'Nombre',     sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'disciplina', label: 'Disciplina', sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'activo',     label: 'Estado',     sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width: 120px' },
@@ -159,7 +163,7 @@ const isSaving = ref(false);
 const isDeleting = ref(false);
 const idToDelete = ref(null);
 
-const form = ref({ id: null, nombre: '', disciplina: '', activo: true });
+const form = ref({ id: null, nombre: '', disciplina: '', activo: true, escudo: null, escudoFile: null });
 const originalForm = ref({});
 
 const fetchData = async () => {
@@ -176,46 +180,94 @@ const fetchData = async () => {
 const openModal = (item = null) => {
   if (item) {
     isEditing.value = true;
-    form.value = { ...item, activo: Boolean(Number(item.activo)) };
+    form.value = { ...item, activo: Boolean(Number(item.activo)), escudoFile: null };
     originalForm.value = { ...form.value };
   } else {
     isEditing.value = false;
-    form.value = { id: null, nombre: '', disciplina: '', activo: true };
+    form.value = { id: null, nombre: '', disciplina: '', activo: true, escudo: null, escudoFile: null };
   }
   showFormModal.value = true;
 };
 
+const onEscudoFileChange = (event) => {
+  const file = event?.target?.files?.[0] || null;
+  form.value.escudoFile = file;
+};
+
+const resolveEscudoUrl = (escudo) => {
+  if (!escudo) return '';
+
+  const value = String(escudo).trim();
+  if (value === '') return '';
+  if (/^https?:\/\//i.test(value) || value.startsWith('data:')) return value;
+
+  const apiBase = import.meta.env.VITE_API_URL;
+  if (!apiBase) return value;
+
+  try {
+    const apiUrl = new URL(apiBase, window.location.origin);
+    const apiPath = String(apiUrl.pathname || '').replace(/\/+$/, '');
+    const projectBasePath = apiPath.endsWith('/api') ? apiPath.slice(0, -4) : '';
+
+    if (value.startsWith('/')) {
+      if (projectBasePath && !value.startsWith(projectBasePath + '/')) {
+        return `${apiUrl.origin}${projectBasePath}${value}`;
+      }
+      return `${apiUrl.origin}${value}`;
+    }
+
+    if (projectBasePath && value.startsWith('uploads/')) {
+      return `${apiUrl.origin}${projectBasePath}/${value}`;
+    }
+
+    return new URL(value, apiUrl.href).toString();
+  } catch {
+    return value;
+  }
+};
+
 const save = async () => {
-  if (!form.value.id || !form.value.nombre || !form.value.disciplina) {
-    toast.showToast({ message: 'ID, nombre y disciplina son obligatorios.', type: 'warning' });
+  if (!form.value.nombre || !form.value.disciplina) {
+    toast.showToast({ message: 'Nombre y disciplina son obligatorios.', type: 'warning' });
     return;
   }
-  if (isEditing.value && JSON.stringify(form.value) === JSON.stringify(originalForm.value)) {
+  const hayArchivoNuevo = Boolean(form.value.escudoFile);
+  if (isEditing.value && !hayArchivoNuevo && JSON.stringify({ ...form.value, escudoFile: null }) === JSON.stringify({ ...originalForm.value, escudoFile: null })) {
     toast.showToast({ message: 'No se detectaron cambios.', type: 'info' });
     showFormModal.value = false;
     return;
   }
-  if (!isEditing.value) {
-    const existe = equipos.value.some(e => Number(e.id) === Number(form.value.id));
-    if (existe) {
-      toast.showToast({ message: 'Ya existe un equipo con ese ID.', type: 'danger' });
-      return;
-    }
-  }
 
   isSaving.value = true;
   try {
+    let escudoPath = form.value.escudo || null;
+    if (form.value.escudoFile) {
+      const formData = new FormData();
+      formData.append('escudo', form.value.escudoFile);
+      const uploadResp = await datosMaestrosService.subirEscudoEquipo(formData);
+      escudoPath = uploadResp?.escudo || escudoPath;
+    }
+
+    const payload = {
+      id: form.value.id,
+      nombre: form.value.nombre,
+      disciplina: form.value.disciplina,
+      activo: form.value.activo,
+      escudo: escudoPath,
+    };
+
     if (isEditing.value) {
-      await datosMaestrosService.actualizarEquipo(form.value);
+      await datosMaestrosService.actualizarEquipo(payload);
       toast.showToast({ message: 'Equipo actualizado correctamente.', type: 'success' });
     } else {
-      await datosMaestrosService.crearEquipo(form.value);
+      await datosMaestrosService.crearEquipo(payload);
       toast.showToast({ message: 'Equipo creado correctamente.', type: 'success' });
     }
     showFormModal.value = false;
     fetchData();
-  } catch {
-    toast.showToast({ message: 'Error al guardar el equipo.', type: 'danger' });
+  } catch (err) {
+    const msg = err?.response?.data?.message || 'Error al guardar el equipo.';
+    toast.showToast({ message: msg, type: 'danger' });
   } finally {
     isSaving.value = false;
   }
@@ -251,5 +303,13 @@ onMounted(fetchData);
   top: 0; left: 0; width: 100%; height: 100%;
   background-color: rgba(255, 255, 255, 0.85);
   z-index: 10;
+}
+
+.escudo-thumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 1px solid #cbd5e1;
 }
 </style>

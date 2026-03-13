@@ -103,6 +103,11 @@
               </span>
             </button>
           </li>
+          <li class="nav-item">
+            <button class="torneo-tab" :class="{ active: tabActiva === 'programacion' }" @click="tabActiva = 'programacion'">
+              <i class="bi bi-calendar3 me-1"></i>Programación
+            </button>
+          </li>
         </ul>
 
         <template v-if="tabActiva === 'resumen'">
@@ -118,6 +123,8 @@
             <div class="col-12 col-lg-6">
               <div class="resumen-box h-100">
                 <p class="mb-1 text-muted">Eventos: {{ detalle.eventos.total }} (zonas: {{ detalle.eventos.zona }}, eliminación: {{ detalle.eventos.eliminacion }})</p>
+                <p class="mb-1 text-muted">Partidos programados: {{ detalle.eventos.programados || 0 }} de {{ detalle.eventos.total || 0 }}</p>
+                <p class="mb-1 text-muted">Partidos finalizados: {{ detalle.eventos.finalizados || 0 }}</p>
                 <p class="mb-1 text-muted">Inscripciones: {{ detalle.inscripciones?.total || 0 }}</p>
                 <p class="mb-1 text-muted">Pagas: {{ detalle.inscripciones?.pagas || 0 }}</p>
                 <p class="mb-0 text-muted">Equipos asignados: {{ detalle.inscripciones?.asignadas || 0 }}</p>
@@ -160,7 +167,7 @@
                 <tr v-for="item in detalle.inscriptos" :key="item.id">
                   <td>
                     <div class="d-flex align-items-center gap-2">
-                      <img v-if="item.escudo" :src="item.escudo" alt="escudo" class="escudo-thumb" />
+                      <img v-if="item.escudo" :src="resolveEscudoUrl(item.escudo)" alt="escudo" class="escudo-thumb" />
                       <span>{{ item.equipo_nombre }}</span>
                     </div>
                   </td>
@@ -227,7 +234,7 @@
                 <div v-for="equipo in poolTeams" :key="equipo.id" class="col-12 col-md-6">
                   <label class="pool-item">
                     <input type="checkbox" :value="Number(equipo.id)" v-model="selectedPool" />
-                    <img v-if="equipo.escudo" :src="equipo.escudo" alt="escudo" class="escudo-thumb" />
+                    <img v-if="equipo.escudo" :src="resolveEscudoUrl(equipo.escudo)" alt="escudo" class="escudo-thumb" />
                     <span class="me-auto">{{ equipo.nombre }}</span>
                     <span v-if="equipo.pagada" class="badge rounded-pill bg-success-subtle text-success">Paga</span>
                     <span v-else class="badge rounded-pill bg-warning-subtle text-warning">Pendiente</span>
@@ -254,7 +261,7 @@
                       </option>
                     </select>
                     <div v-if="getSelectedTeam(grupo.id, pos)?.escudo" class="mt-1 small text-muted d-flex align-items-center gap-2">
-                      <img :src="getSelectedTeam(grupo.id, pos).escudo" alt="escudo" class="escudo-thumb" />
+                      <img :src="resolveEscudoUrl(getSelectedTeam(grupo.id, pos).escudo)" alt="escudo" class="escudo-thumb" />
                       Escudo cargado
                     </div>
                   </div>
@@ -271,6 +278,205 @@
                 <span v-if="savingAsignacion" class="spinner-border spinner-border-sm me-2"></span>
                 Guardar asignación
               </button>
+            </div>
+          </template>
+        </template>
+
+        <template v-if="tabActiva === 'programacion'">
+          <div v-if="loadingProgramacion" class="text-center py-4 text-muted">
+            <span class="spinner-border spinner-border-sm me-2"></span>
+            Cargando datos de programación...
+          </div>
+
+          <template v-else>
+            <div class="row g-3 mb-3">
+              <div class="col-12 col-md-4">
+                <div class="resumen-box h-100">
+                  <div class="small text-muted">Partidos totales</div>
+                  <div class="h5 mb-0">{{ programacionData?.resumen?.total_eventos || 0 }}</div>
+                </div>
+              </div>
+              <div class="col-12 col-md-4">
+                <div class="resumen-box h-100">
+                  <div class="small text-muted">Pendientes de programar</div>
+                  <div class="h5 mb-0 text-warning">{{ programacionData?.resumen?.pendientes_programar || 0 }}</div>
+                </div>
+              </div>
+              <div class="col-12 col-md-4">
+                <div class="resumen-box h-100">
+                  <div class="small text-muted">Ya programados</div>
+                  <div class="h5 mb-0 text-success">{{ programacionData?.resumen?.ya_programados || 0 }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="programacion-box mb-3">
+              <h3 class="h6 mb-3">Programación automática</h3>
+              <div class="row g-3">
+                <div class="col-12 col-md-4">
+                  <label class="form-label small mb-1">Fase a programar</label>
+                  <select class="form-select" v-model="programacionForm.fase_programar" @change="onFaseProgramarChange">
+                    <option value="todas">Todas</option>
+                    <option value="zonas">Solo fase de grupos</option>
+                    <option value="eliminacion">Solo eliminación</option>
+                    <option value="seleccionados">Partidos seleccionados</option>
+                  </select>
+                </div>
+                <div class="col-12 col-md-4">
+                  <label class="form-label small mb-1">Fecha inicio</label>
+                  <input type="date" class="form-control" v-model="programacionForm.fecha_inicio" />
+                </div>
+                <div class="col-12 col-md-4">
+                  <label class="form-label small mb-1">Duración por partido (min)</label>
+                  <input type="number" min="20" max="240" step="5" class="form-control" v-model.number="programacionForm.duracion_minutos" />
+                </div>
+                <div class="col-12 col-md-4">
+                  <label class="form-label small mb-1">Máx. días de búsqueda</label>
+                  <input type="number" min="7" max="365" step="1" class="form-control" v-model.number="programacionForm.max_dias_busqueda" />
+                </div>
+              </div>
+
+              <div v-if="programacionForm.fase_programar === 'seleccionados'" class="mt-3">
+                <div class="small fw-semibold mb-2">Partidos pendientes a programar (seleccionables)</div>
+                <div class="selector-box">
+                  <label v-for="ev in eventosPendientesProgramacion" :key="ev.id" class="selector-item">
+                    <input type="checkbox" :value="Number(ev.id)" v-model="programacionForm.id_eventos" />
+                    <span class="me-auto">{{ ev.titulo }}</span>
+                    <span class="small text-muted">#{{ ev.id }}</span>
+                  </label>
+                  <div v-if="!eventosPendientesProgramacion.length" class="small text-muted px-1 py-2">
+                    No hay partidos pendientes para seleccionar.
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-3">
+                <div class="small fw-semibold mb-2">Franjas por día</div>
+                <div class="row g-2">
+                  <div v-for="franja in programacionForm.franjas" :key="franja.dia_semana" class="col-12 col-lg-6">
+                    <div class="franja-row">
+                      <div class="d-flex align-items-center gap-2">
+                        <input type="checkbox" v-model="franja.activa" />
+                        <span class="small fw-semibold">{{ franja.nombre }}</span>
+                      </div>
+                      <div class="d-flex align-items-center gap-2">
+                        <input type="time" class="form-control form-control-sm" style="max-width: 120px" v-model="franja.hora_inicio" :disabled="!franja.activa" />
+                        <span class="small text-muted">a</span>
+                        <input type="time" class="form-control form-control-sm" style="max-width: 120px" v-model="franja.hora_fin" :disabled="!franja.activa" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="row g-3 mt-1">
+                <div class="col-12 col-lg-6">
+                  <div class="small fw-semibold mb-2">Canchas</div>
+                  <div class="selector-box">
+                    <label v-for="c in (programacionData?.canchas || [])" :key="c.id" class="selector-item">
+                      <input type="checkbox" :value="Number(c.id)" v-model="programacionForm.id_canchas" />
+                      <span>{{ c.nombre }}</span>
+                    </label>
+                  </div>
+                </div>
+                <div class="col-12 col-lg-6">
+                  <div class="small fw-semibold mb-2">Árbitros</div>
+                  <div class="selector-box">
+                    <label v-for="a in (programacionData?.arbitros || [])" :key="a.id" class="selector-item">
+                      <input type="checkbox" :value="Number(a.id)" v-model="programacionForm.id_arbitros" />
+                      <span>{{ a.nombre_completo || `${a.apellido || ''} ${a.nombre || ''}`.trim() }}</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="d-flex justify-content-end mt-3">
+                <div class="d-flex gap-2">
+                  <button class="btn btn-outline-danger" @click="deshacerProgramacion" :disabled="savingProgramacion">
+                    <span v-if="savingProgramacion" class="spinner-border spinner-border-sm me-2"></span>
+                    Deshacer programación
+                  </button>
+                  <button class="btn btn-primary" @click="programarAutomatico" :disabled="savingProgramacion">
+                    <span v-if="savingProgramacion" class="spinner-border spinner-border-sm me-2"></span>
+                    Programar automáticamente
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Partido</th>
+                    <th>Estado</th>
+                    <th>Fecha/Hora</th>
+                    <th>Cancha</th>
+                    <th>Árbitro</th>
+                    <th class="text-end">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="ev in (programacionData?.eventos || [])" :key="ev.id">
+                    <td>{{ ev.titulo }}</td>
+                    <td>{{ ev.estado_evento_descripcion || '-' }}</td>
+                    <td>
+                      <template v-if="isEditingProgramacionEvento(ev.id)">
+                        <input type="datetime-local" class="form-control form-control-sm" v-model="editProgramacionForm.fecha_hora_inicio" />
+                      </template>
+                      <template v-else>
+                        {{ ev.fecha_hora_inicio || '-' }}
+                      </template>
+                    </td>
+                    <td>
+                      <template v-if="isEditingProgramacionEvento(ev.id)">
+                        <select class="form-select form-select-sm" v-model.number="editProgramacionForm.id_cancha">
+                          <option :value="null">Seleccionar cancha</option>
+                          <option v-for="c in (programacionData?.canchas || [])" :key="c.id" :value="Number(c.id)">
+                            {{ c.nombre }}
+                          </option>
+                        </select>
+                      </template>
+                      <template v-else>
+                        {{ ev.cancha_nombre || '-' }}
+                      </template>
+                    </td>
+                    <td>
+                      <template v-if="isEditingProgramacionEvento(ev.id)">
+                        <select class="form-select form-select-sm" v-model.number="editProgramacionForm.id_arbitro">
+                          <option :value="null">Seleccionar árbitro</option>
+                          <option v-for="a in (programacionData?.arbitros || [])" :key="a.id" :value="Number(a.id)">
+                            {{ a.nombre_completo || `${a.apellido || ''} ${a.nombre || ''}`.trim() }}
+                          </option>
+                        </select>
+                      </template>
+                      <template v-else>
+                        {{ ev.arbitro_nombre_completo || '-' }}
+                      </template>
+                    </td>
+                    <td class="text-end">
+                      <div class="d-inline-flex gap-2">
+                        <template v-if="isEditingProgramacionEvento(ev.id)">
+                          <button class="btn btn-sm btn-success" @click="guardarEdicionProgramacionEvento" :disabled="savingProgramacion">
+                            Guardar
+                          </button>
+                          <button class="btn btn-sm btn-outline-secondary" @click="cancelarEdicionProgramacionEvento" :disabled="savingProgramacion">
+                            Cancelar
+                          </button>
+                        </template>
+                        <template v-else>
+                          <button class="btn btn-sm btn-outline-secondary" @click="iniciarEdicionProgramacionEvento(ev)">
+                            Editar
+                          </button>
+                        </template>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr v-if="!(programacionData?.eventos || []).length">
+                    <td colspan="6" class="text-center text-muted py-3">No hay partidos para mostrar.</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </template>
         </template>
@@ -404,6 +610,8 @@ const loadingDetalle = ref(false)
 const savingAsignacion = ref(false)
 const savingInscripciones = ref(false)
 const savingEliminarTorneo = ref(false)
+const savingProgramacion = ref(false)
+const loadingProgramacion = ref(false)
 const selected = ref({})
 const selectedPool = ref([])
 const showInscripcionModal = ref(false)
@@ -411,6 +619,32 @@ const showEliminarTorneoModal = ref(false)
 const showAccionesMenu = ref(false)
 const confirmNombreEliminar = ref('')
 const motivoBajaTorneo = ref('')
+const programacionData = ref(null)
+const editingProgramacionEventoId = ref(null)
+const editProgramacionForm = ref({
+  id_evento: null,
+  fecha_hora_inicio: '',
+  id_cancha: null,
+  id_arbitro: null,
+})
+const programacionForm = ref({
+  fase_programar: 'todas',
+  fecha_inicio: new Date().toISOString().slice(0, 10),
+  duracion_minutos: 70,
+  max_dias_busqueda: 120,
+  id_canchas: [],
+  id_arbitros: [],
+  id_eventos: [],
+  franjas: [
+    { dia_semana: 1, nombre: 'Lunes', activa: true, hora_inicio: '13:00', hora_fin: '18:00' },
+    { dia_semana: 2, nombre: 'Martes', activa: true, hora_inicio: '13:00', hora_fin: '18:00' },
+    { dia_semana: 3, nombre: 'Miércoles', activa: true, hora_inicio: '13:00', hora_fin: '18:00' },
+    { dia_semana: 4, nombre: 'Jueves', activa: true, hora_inicio: '13:00', hora_fin: '18:00' },
+    { dia_semana: 5, nombre: 'Viernes', activa: true, hora_inicio: '13:00', hora_fin: '18:00' },
+    { dia_semana: 6, nombre: 'Sábado', activa: true, hora_inicio: '13:00', hora_fin: '18:00' },
+    { dia_semana: 7, nombre: 'Domingo', activa: true, hora_inicio: '13:00', hora_fin: '18:00' },
+  ],
+})
 const inscripcionForm = ref({
   id_equipo: '',
   id_estado_inscripcion: '',
@@ -422,6 +656,50 @@ const inscripcionForm = ref({
 const tabActiva = ref('resumen')
 
 const getApiMessage = (error, fallback) => error?.response?.data?.message || fallback
+
+const toDateTimeLocal = (value) => {
+  if (!value) return ''
+  const txt = String(value).trim().replace(' ', 'T')
+  return txt.length >= 16 ? txt.slice(0, 16) : txt
+}
+
+const isEventoPendienteProgramacion = (ev) => {
+  const estado = Number(ev?.id_estado_evento || 0)
+  if (estado === 1) return true
+  return !ev?.fecha_hora_inicio || !ev?.id_cancha || !ev?.id_arbitro
+}
+
+const resolveEscudoUrl = (escudo) => {
+  if (!escudo) return ''
+
+  const value = String(escudo).trim()
+  if (value === '') return ''
+  if (/^https?:\/\//i.test(value) || value.startsWith('data:')) return value
+
+  const apiBase = import.meta.env.VITE_API_URL
+  if (!apiBase) return value
+
+  try {
+    const apiUrl = new URL(apiBase, window.location.origin)
+    const apiPath = String(apiUrl.pathname || '').replace(/\/+$/, '')
+    const projectBasePath = apiPath.endsWith('/api') ? apiPath.slice(0, -4) : ''
+
+    if (value.startsWith('/')) {
+      if (projectBasePath && !value.startsWith(projectBasePath + '/')) {
+        return `${apiUrl.origin}${projectBasePath}${value}`
+      }
+      return `${apiUrl.origin}${value}`
+    }
+
+    if (projectBasePath && value.startsWith('uploads/')) {
+      return `${apiUrl.origin}${projectBasePath}/${value}`
+    }
+
+    return new URL(value, apiUrl.href).toString()
+  } catch {
+    return value
+  }
+}
 
 const cargarTorneos = async () => {
   loadingTorneos.value = true
@@ -444,14 +722,17 @@ const cargarDetalle = async (idTorneo = null) => {
 
   if (!idTorneoSeleccionado.value) return
   loadingDetalle.value = true
+  loadingProgramacion.value = true
   try {
-    const [detalleData, disponibles] = await Promise.all([
+    const [detalleData, disponibles, dataProgramacion] = await Promise.all([
       planTorneoService.getDetalleGestion(idTorneoSeleccionado.value),
       planTorneoService.getEquiposDisponibles(idTorneoSeleccionado.value),
+      planTorneoService.getProgramacionData(idTorneoSeleccionado.value, programacionForm.value.fase_programar),
     ])
 
     detalle.value = detalleData
     equiposDisponibles.value = disponibles
+    programacionData.value = dataProgramacion
 
     const next = {}
     for (const item of (detalleData.asignaciones || [])) {
@@ -459,12 +740,46 @@ const cargarDetalle = async (idTorneo = null) => {
     }
     selected.value = next
     selectedPool.value = (detalleData.inscriptos || []).map(i => Number(i.id_equipo))
+
+    programacionForm.value.id_canchas = (dataProgramacion?.canchas || []).map(c => Number(c.id))
+    programacionForm.value.id_arbitros = (dataProgramacion?.arbitros || []).map(a => Number(a.id))
   } catch (error) {
     detalle.value = null
+    programacionData.value = null
     toast.showToast({ message: getApiMessage(error, 'No se pudo cargar el detalle del torneo.'), type: 'danger' })
   } finally {
     loadingDetalle.value = false
+    loadingProgramacion.value = false
   }
+}
+
+const cargarProgramacionData = async () => {
+  if (!idTorneoSeleccionado.value) return
+  loadingProgramacion.value = true
+  try {
+    const dataProgramacion = await planTorneoService.getProgramacionData(
+      idTorneoSeleccionado.value,
+      programacionForm.value.fase_programar,
+    )
+    programacionData.value = dataProgramacion
+    if (programacionForm.value.fase_programar === 'seleccionados') {
+      const permitidos = new Set(eventosPendientesProgramacion.value.map(ev => Number(ev.id)))
+      programacionForm.value.id_eventos = (programacionForm.value.id_eventos || [])
+        .map(Number)
+        .filter(id => permitidos.has(id))
+    }
+  } catch (error) {
+    toast.showToast({ message: getApiMessage(error, 'No se pudo cargar la programación.'), type: 'danger' })
+  } finally {
+    loadingProgramacion.value = false
+  }
+}
+
+const onFaseProgramarChange = async () => {
+  if (programacionForm.value.fase_programar !== 'seleccionados') {
+    programacionForm.value.id_eventos = []
+  }
+  await cargarProgramacionData()
 }
 
 const allTeamsMap = computed(() => {
@@ -542,6 +857,10 @@ const totalSlots = computed(() => {
   }
   return total
 })
+
+const eventosPendientesProgramacion = computed(() =>
+  (programacionData.value?.eventos || []).filter(isEventoPendienteProgramacion)
+)
 
 const selectedIds = computed(() => {
   const ids = []
@@ -808,6 +1127,147 @@ const guardarInscripciones = async () => {
   }
 }
 
+const programarAutomatico = async () => {
+  if (!idTorneoSeleccionado.value) return
+
+  const franjas = (programacionForm.value.franjas || [])
+    .filter(f => f.activa)
+    .map(f => ({ dia_semana: Number(f.dia_semana), hora_inicio: f.hora_inicio, hora_fin: f.hora_fin }))
+
+  if (!franjas.length) {
+    toast.showToast({ message: 'Activa al menos una franja horaria para programar.', type: 'warning' })
+    return
+  }
+  if (!(programacionForm.value.id_canchas || []).length) {
+    toast.showToast({ message: 'Selecciona al menos una cancha.', type: 'warning' })
+    return
+  }
+  if (!(programacionForm.value.id_arbitros || []).length) {
+    toast.showToast({ message: 'Selecciona al menos un árbitro.', type: 'warning' })
+    return
+  }
+  if (programacionForm.value.fase_programar === 'seleccionados' && !(programacionForm.value.id_eventos || []).length) {
+    toast.showToast({ message: 'Selecciona al menos un partido pendiente para programar.', type: 'warning' })
+    return
+  }
+
+  savingProgramacion.value = true
+  try {
+    const resp = await planTorneoService.autoProgramar({
+      id_torneo: idTorneoSeleccionado.value,
+      fase_programar: programacionForm.value.fase_programar,
+      fecha_inicio: programacionForm.value.fecha_inicio,
+      duracion_minutos: Number(programacionForm.value.duracion_minutos || 70),
+      max_dias_busqueda: Number(programacionForm.value.max_dias_busqueda || 120),
+      id_canchas: (programacionForm.value.id_canchas || []).map(Number),
+      id_arbitros: (programacionForm.value.id_arbitros || []).map(Number),
+      id_eventos: (programacionForm.value.id_eventos || []).map(Number),
+      franjas,
+      force_reprogramar: false,
+    })
+
+    toast.showToast({
+      message: `${resp?.programados || 0} partidos programados automáticamente.`,
+      type: 'success',
+    })
+
+    await cargarDetalle()
+  } catch (error) {
+    toast.showToast({ message: getApiMessage(error, 'No se pudo ejecutar la programación automática.'), type: 'danger' })
+  } finally {
+    savingProgramacion.value = false
+  }
+}
+
+const deshacerProgramacion = async () => {
+  if (!idTorneoSeleccionado.value) return
+
+  const etiquetaFase =
+    programacionForm.value.fase_programar === 'zonas'
+      ? 'fase de grupos'
+      : programacionForm.value.fase_programar === 'eliminacion'
+        ? 'fase eliminatoria'
+        : 'todas las fases'
+
+  const ok = window.confirm(
+    `Se deshará la programación de los partidos en estado Programado para ${etiquetaFase}.\n` +
+      'Esto limpiará fecha/hora, cancha y árbitro, y los devolverá a Programación pendiente.\n\n' +
+      '¿Deseas continuar?'
+  )
+  if (!ok) return
+
+  savingProgramacion.value = true
+  try {
+    const resp = await planTorneoService.deshacerProgramacion({
+      id_torneo: idTorneoSeleccionado.value,
+      fase_programar: programacionForm.value.fase_programar,
+      id_eventos: (programacionForm.value.id_eventos || []).map(Number),
+    })
+
+    toast.showToast({
+      message: `${resp?.revertidos || 0} partidos pasaron a Programación pendiente.`,
+      type: 'success',
+    })
+
+    await cargarDetalle()
+  } catch (error) {
+    toast.showToast({ message: getApiMessage(error, 'No se pudo deshacer la programación.'), type: 'danger' })
+  } finally {
+    savingProgramacion.value = false
+  }
+}
+
+const isEditingProgramacionEvento = (idEvento) => Number(editingProgramacionEventoId.value) === Number(idEvento)
+
+const iniciarEdicionProgramacionEvento = (ev) => {
+  editingProgramacionEventoId.value = Number(ev.id)
+  editProgramacionForm.value = {
+    id_evento: Number(ev.id),
+    fecha_hora_inicio: toDateTimeLocal(ev.fecha_hora_inicio),
+    id_cancha: ev.id_cancha ? Number(ev.id_cancha) : null,
+    id_arbitro: ev.id_arbitro ? Number(ev.id_arbitro) : null,
+  }
+}
+
+const cancelarEdicionProgramacionEvento = () => {
+  editingProgramacionEventoId.value = null
+  editProgramacionForm.value = {
+    id_evento: null,
+    fecha_hora_inicio: '',
+    id_cancha: null,
+    id_arbitro: null,
+  }
+}
+
+const guardarEdicionProgramacionEvento = async () => {
+  if (!idTorneoSeleccionado.value || !editProgramacionForm.value.id_evento) return
+
+  if (!editProgramacionForm.value.fecha_hora_inicio || !editProgramacionForm.value.id_cancha || !editProgramacionForm.value.id_arbitro) {
+    toast.showToast({ message: 'Debes completar fecha/hora, cancha y árbitro.', type: 'warning' })
+    return
+  }
+
+  savingProgramacion.value = true
+  try {
+    await planTorneoService.actualizarProgramacionEvento({
+      id_torneo: idTorneoSeleccionado.value,
+      id_evento: Number(editProgramacionForm.value.id_evento),
+      fecha_hora_inicio: editProgramacionForm.value.fecha_hora_inicio,
+      id_cancha: Number(editProgramacionForm.value.id_cancha),
+      id_arbitro: Number(editProgramacionForm.value.id_arbitro),
+      duracion_minutos: Number(programacionForm.value.duracion_minutos || 70),
+    })
+
+    toast.showToast({ message: 'Partido actualizado correctamente.', type: 'success' })
+    cancelarEdicionProgramacionEvento()
+    await cargarDetalle()
+  } catch (error) {
+    toast.showToast({ message: getApiMessage(error, 'No se pudo actualizar el partido.'), type: 'danger' })
+  } finally {
+    savingProgramacion.value = false
+  }
+}
+
 onMounted(cargarTorneos)
 </script>
 
@@ -836,6 +1296,41 @@ onMounted(cargarTorneos)
   border-radius: 12px;
   padding: 12px;
   background: #f8fafc;
+}
+
+.programacion-box {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.franja-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fff;
+}
+
+.selector-box {
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px;
+}
+
+.selector-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px;
+  font-size: 0.9rem;
 }
 
 .acciones-menu {

@@ -34,4 +34,44 @@ class Cancha
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         return $result ?: null;
     }
+
+    public function create(string $nombre, ?string $descripcion, bool $activo = true): int|false
+    {
+        $sql = "INSERT INTO {$this->table} (nombre, descripcion, activo)
+                VALUES (:nombre, :descripcion, :activo)";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':nombre', $nombre);
+        $stmt->bindValue(':descripcion', $descripcion);
+        $stmt->bindValue(':activo', $activo ? 1 : 0, PDO::PARAM_INT);
+
+        if ($stmt->execute()) {
+            return (int)$this->conn->lastInsertId();
+        }
+
+        return false;
+    }
+
+    public function update(int $id, string $nombre, ?string $descripcion, bool $activo): bool
+    {
+        $sql = "UPDATE {$this->table}
+                SET nombre = :nombre,
+                    descripcion = :descripcion,
+                    activo = :activo
+                WHERE id = :id";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+        $stmt->bindValue(':nombre', $nombre);
+        $stmt->bindValue(':descripcion', $descripcion);
+        $stmt->bindValue(':activo', $activo ? 1 : 0, PDO::PARAM_INT);
+
+        return $stmt->execute();
+    }
+
+    public function delete(int $id): bool
+    {
+        $sql = "DELETE FROM {$this->table} WHERE id = :id";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+        return $stmt->execute();
+    }
 }

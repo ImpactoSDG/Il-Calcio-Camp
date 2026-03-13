@@ -20,6 +20,7 @@ import DescontarStockView from '@/views/DescontarStockView.vue'
 // --- Vistas Deportivas (Equipos, Torneos, etc.) ---
 import EquiposView from '@/views/EquiposView.vue'
 import JugadoresView from '@/views/JugadoresView.vue'
+import CanchasView from '@/views/CanchasView.vue'
 import ArbitrosView from '@/views/ArbitrosView.vue'
 import EventosView from '@/views/EventosView.vue'
 import PlanTorneoView from '@/views/PlanTorneoView.vue'
@@ -141,6 +142,12 @@ const router = createRouter({
       path: '/jugadores',
       name: 'jugadores',
       component: JugadoresView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/canchas',
+      name: 'canchas',
+      component: CanchasView,
       meta: { requiresAuth: true }
     },
     {

@@ -325,6 +325,10 @@ switch ($resource) {
 
     case 'equipos':
         verifyAuth();
+        if ($method === 'POST' && $id === 'subir-escudo') {
+            $equipoController->subirEscudo();
+            break;
+        }
         switch ($method) {
             case 'GET':
                 if ($id) {
@@ -417,15 +421,27 @@ switch ($resource) {
 
     case 'canchas':
         verifyAuth();
-        if ($method === 'GET') {
-            if ($id) {
-                $_GET['id'] = $id;
-                $canchaController->getById();
-            } else {
-                $canchaController->getAll();
-            }
-        } else {
-            http_response_code(405);
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $canchaController->getById();
+                } else {
+                    $canchaController->getAll();
+                }
+                break;
+            case 'POST':
+                $canchaController->store();
+                break;
+            case 'PUT':
+                $canchaController->update();
+                break;
+            case 'DELETE':
+                $canchaController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
         }
         break;
 
@@ -458,12 +474,20 @@ switch ($resource) {
             $planTorneoController->getConfirmadaVigente();
         } elseif ($method === 'GET' && $id === 'detalle') {
             $planTorneoController->getDetalleGestion();
+        } elseif ($method === 'GET' && $id === 'programacion-data') {
+            $planTorneoController->getProgramacionData();
         } elseif ($method === 'GET' && $id === 'equipos-disponibles') {
             $planTorneoController->getEquiposDisponibles();
         } elseif ($method === 'POST' && $id === 'inscribir-equipos') {
             $planTorneoController->inscribirEquipos();
         } elseif ($method === 'POST' && $id === 'eliminar-inscripcion') {
             $planTorneoController->eliminarInscripcion();
+        } elseif ($method === 'POST' && $id === 'auto-programar') {
+            $planTorneoController->autoProgramarEventos();
+        } elseif ($method === 'POST' && $id === 'actualizar-programacion-evento') {
+            $planTorneoController->actualizarProgramacionEvento();
+        } elseif ($method === 'POST' && $id === 'deshacer-programacion') {
+            $planTorneoController->deshacerProgramacionEventos();
         } elseif ($method === 'POST' && $id === 'asignar-equipos') {
             $planTorneoController->asignarEquipos();
         } elseif ($method === 'POST') {

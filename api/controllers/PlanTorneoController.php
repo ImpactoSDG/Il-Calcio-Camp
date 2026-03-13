@@ -6,6 +6,9 @@ require_once __DIR__ . '/../core/BaseController.php';
 
 class PlanTorneoController extends BaseController
 {
+    private const ESTADO_EVENTO_PROGRAMACION_PENDIENTE_ID = 1;
+    private const ESTADO_EVENTO_PROGRAMADO_ID = 2;
+
     public function simular(): void
     {
         try {
@@ -100,7 +103,7 @@ class PlanTorneoController extends BaseController
 
             $idGeneracion = (int)$this->db->lastInsertId();
 
-            $estadoEventoProgramadoId = $this->getEstadoEventoProgramadoId();
+            $estadoEventoPendienteProgramacionId = $this->getEstadoEventoProgramacionPendienteId();
             $idsFases = [];
             $idsGrupos = [];
             $idsCruces = [];
@@ -134,7 +137,7 @@ class PlanTorneoController extends BaseController
 
                     [$idsEventosZona, $maxFechaZona] = $this->insertEventosZona(
                         $idTorneo,
-                        $estadoEventoProgramadoId,
+                        $estadoEventoPendienteProgramacionId,
                         (string)$zona['zona'],
                         (int)$zona['equipos'],
                         (bool)$payload['ida_vuelta_zonas']
@@ -168,7 +171,7 @@ class PlanTorneoController extends BaseController
 
                     $idEvento = $this->insertEventoPlanificado(
                         $idTorneo,
-                        $estadoEventoProgramadoId,
+                        $estadoEventoPendienteProgramacionId,
                         $tituloEvento,
                         'Evento generado automaticamente desde planificación confirmada.',
                         $numeroFecha,
@@ -342,11 +345,14 @@ class PlanTorneoController extends BaseController
             }
 
             $sqlEventos = "SELECT
-                               SUM(CASE WHEN titulo LIKE 'Zona % - Fecha % - Partido %' THEN 1 ELSE 0 END) AS eventos_zona,
-                               SUM(CASE WHEN titulo NOT LIKE 'Zona % - Fecha % - Partido %' THEN 1 ELSE 0 END) AS eventos_eliminacion,
+                               SUM(CASE WHEN ev.titulo LIKE 'Zona % - Fecha % - Partido %' THEN 1 ELSE 0 END) AS eventos_zona,
+                               SUM(CASE WHEN ev.titulo NOT LIKE 'Zona % - Fecha % - Partido %' THEN 1 ELSE 0 END) AS eventos_eliminacion,
+                               SUM(CASE WHEN ev.id_estado_evento = 2 THEN 1 ELSE 0 END) AS eventos_programados,
+                               SUM(CASE WHEN ev.id_estado_evento = 4 THEN 1 ELSE 0 END) AS eventos_finalizados,
+                               SUM(CASE WHEN ev.id_estado_evento = 1 OR ev.fecha_hora_inicio IS NULL OR ev.id_cancha IS NULL OR ev.id_arbitro IS NULL THEN 1 ELSE 0 END) AS eventos_a_programar,
                                COUNT(*) AS total
-                           FROM evento
-                           WHERE id_torneo = :id_torneo";
+                           FROM evento ev
+                           WHERE ev.id_torneo = :id_torneo";
             $stmt = $this->db->prepare($sqlEventos);
             $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
             $stmt->execute();
@@ -368,6 +374,9 @@ class PlanTorneoController extends BaseController
                 'eventos' => [
                     'zona' => (int)($eventos['eventos_zona'] ?? 0),
                     'eliminacion' => (int)($eventos['eventos_eliminacion'] ?? 0),
+                    'programados' => (int)($eventos['eventos_programados'] ?? 0),
+                    'finalizados' => (int)($eventos['eventos_finalizados'] ?? 0),
+                    'a_programar' => (int)($eventos['eventos_a_programar'] ?? 0),
                     'total' => (int)($eventos['total'] ?? 0),
                 ],
             ]);
@@ -770,6 +779,378 @@ class PlanTorneoController extends BaseController
         }
     }
 
+    public function getProgramacionData(): void
+    {
+        try {
+            $idTorneo = $this->nullableInt($_GET['id_torneo'] ?? null);
+            if ($idTorneo === null) {
+                $this->respond(400, ['message' => 'id_torneo es obligatorio.']);
+            }
+            $faseProgramar = $this->normalizeFaseProgramar($_GET['fase_programar'] ?? 'todas');
+
+            if (!$this->torneoExiste($idTorneo)) {
+                $this->respond(404, ['message' => 'Torneo no encontrado.']);
+            }
+
+            $canchas = $this->getCanchasActivasMap();
+            $arbitros = $this->getArbitrosActivosMap();
+            // La grilla debe mostrar siempre todos los partidos del torneo.
+            $eventos = $this->getEventosPartido($idTorneo, false, 'todas');
+            // El filtro de fase define el universo a programar, no lo visible en la grilla.
+            $eventosObjetivoProgramacion = $this->getEventosPartido($idTorneo, true, $faseProgramar);
+
+            $pendientes = 0;
+            foreach ($eventos as $ev) {
+                if (empty($ev['fecha_hora_inicio']) || empty($ev['id_cancha']) || empty($ev['id_arbitro'])) {
+                    $pendientes++;
+                }
+            }
+
+            $this->respond(200, [
+                'canchas' => array_values($canchas),
+                'arbitros' => array_values($arbitros),
+                'eventos' => $eventos,
+                'resumen' => [
+                    'total_eventos' => count($eventos),
+                    'pendientes_programar' => $pendientes,
+                    'ya_programados' => max(0, count($eventos) - $pendientes),
+                ],
+                'resumen_objetivo_programacion' => [
+                    'fase_programar' => $faseProgramar,
+                    'pendientes_en_fase' => count($eventosObjetivoProgramacion),
+                ],
+                'fase_programar' => $faseProgramar,
+            ]);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al obtener datos de programación del torneo');
+        }
+    }
+
+    public function autoProgramarEventos(): void
+    {
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($data)) {
+                $this->respond(400, ['message' => 'Datos inválidos para programación automática.']);
+            }
+
+            $idTorneo = $this->nullableInt($data['id_torneo'] ?? null);
+            if ($idTorneo === null) {
+                $this->respond(400, ['message' => 'id_torneo es obligatorio.']);
+            }
+            if (!$this->torneoExiste($idTorneo)) {
+                $this->respond(404, ['message' => 'Torneo no encontrado.']);
+            }
+
+            $fechaInicioRaw = trim((string)($data['fecha_inicio'] ?? date('Y-m-d')));
+            $fechaInicio = DateTime::createFromFormat('Y-m-d', $fechaInicioRaw);
+            if (!$fechaInicio) {
+                $this->respond(400, ['message' => 'fecha_inicio debe tener formato YYYY-MM-DD.']);
+            }
+
+            $duracionMinutos = (int)($data['duracion_minutos'] ?? 70);
+            if ($duracionMinutos < 20 || $duracionMinutos > 240) {
+                $this->respond(422, ['message' => 'duracion_minutos debe estar entre 20 y 240.']);
+            }
+
+            $maxDiasBusqueda = (int)($data['max_dias_busqueda'] ?? 120);
+            if ($maxDiasBusqueda < 7) {
+                $maxDiasBusqueda = 7;
+            }
+            if ($maxDiasBusqueda > 365) {
+                $maxDiasBusqueda = 365;
+            }
+
+            $franjas = $this->normalizeFranjas((array)($data['franjas'] ?? []));
+            if (empty($franjas)) {
+                $this->respond(422, ['message' => 'Debes configurar al menos una franja horaria para programar.']);
+            }
+
+            $idsCanchas = $this->normalizeIdList($data['id_canchas'] ?? []);
+            $idsArbitros = $this->normalizeIdList($data['id_arbitros'] ?? []);
+            $forceReprogramar = (bool)($data['force_reprogramar'] ?? false);
+            $faseProgramar = $this->normalizeFaseProgramar($data['fase_programar'] ?? 'todas');
+            $idsEventosSeleccionados = $this->normalizeIdList($data['id_eventos'] ?? []);
+
+            $canchas = $this->getCanchasActivasMap($idsCanchas);
+            $arbitros = $this->getArbitrosActivosMap($idsArbitros);
+
+            if (empty($canchas)) {
+                $this->respond(422, ['message' => 'No hay canchas activas seleccionadas para programar.']);
+            }
+            if (empty($arbitros)) {
+                $this->respond(422, ['message' => 'No hay árbitros activos seleccionados para programar.']);
+            }
+
+            $eventos = $this->getEventosPartido($idTorneo, !$forceReprogramar, $faseProgramar);
+            if ($faseProgramar === 'seleccionados') {
+                if (empty($idsEventosSeleccionados)) {
+                    $this->respond(422, ['message' => 'Debes seleccionar al menos un partido pendiente para programar.']);
+                }
+                $eventos = $this->filterEventosByIds($eventos, $idsEventosSeleccionados);
+            }
+            if (empty($eventos)) {
+                $this->respond(200, [
+                    'message' => 'No hay partidos pendientes para programar con la configuración actual.',
+                    'programados' => 0,
+                    'sin_programar' => 0,
+                ]);
+            }
+
+            $idsEventosAProgramar = array_map(static fn(array $ev): int => (int)$ev['id'], $eventos);
+            $ocupacion = $this->getResourceOccupancy($idTorneo, $idsEventosAProgramar);
+
+            $slots = $this->buildSchedulingSlots(
+                clone $fechaInicio,
+                $franjas,
+                $duracionMinutos,
+                array_map('intval', array_keys($canchas)),
+                array_map('intval', array_keys($arbitros)),
+                $maxDiasBusqueda,
+                $ocupacion,
+            );
+
+            if (empty($slots)) {
+                $this->respond(422, ['message' => 'No se generaron slots válidos con las franjas y recursos seleccionados.']);
+            }
+
+            $totalEventos = count($eventos);
+            $totalSlots = count($slots);
+            $aProgramar = min($totalEventos, $totalSlots);
+            $idEstadoProgramado = $this->getEstadoEventoProgramadoId();
+
+            $this->db->beginTransaction();
+            for ($i = 0; $i < $aProgramar; $i++) {
+                $ev = $eventos[$i];
+                $slot = $slots[$i];
+
+                $stmt = $this->db->prepare("UPDATE evento
+                                           SET fecha_hora_inicio = :inicio,
+                                               fecha_hora_fin = :fin,
+                                               id_cancha = :id_cancha,
+                                               id_arbitro = :id_arbitro,
+                                               id_estado_evento = :id_estado_evento
+                                           WHERE id = :id_evento");
+                $stmt->bindValue(':inicio', $slot['inicio']);
+                $stmt->bindValue(':fin', $slot['fin']);
+                $stmt->bindValue(':id_cancha', (int)$slot['id_cancha'], PDO::PARAM_INT);
+                $stmt->bindValue(':id_arbitro', (int)$slot['id_arbitro'], PDO::PARAM_INT);
+                $stmt->bindValue(':id_estado_evento', $idEstadoProgramado, PDO::PARAM_INT);
+                $stmt->bindValue(':id_evento', (int)$ev['id'], PDO::PARAM_INT);
+                $stmt->execute();
+            }
+            $this->db->commit();
+
+            $this->respond(200, [
+                'message' => 'Programación automática aplicada correctamente.',
+                'programados' => $aProgramar,
+                'sin_programar' => max(0, $totalEventos - $aProgramar),
+                'slots_generados' => $totalSlots,
+                'eventos_pendientes' => $totalEventos,
+                'fase_programar' => $faseProgramar,
+            ]);
+        } catch (Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->handleError($e, 'Error al programar automáticamente los partidos');
+        }
+    }
+
+    public function deshacerProgramacionEventos(): void
+    {
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($data)) {
+                $this->respond(400, ['message' => 'Datos inválidos para deshacer programación.']);
+            }
+
+            $idTorneo = $this->nullableInt($data['id_torneo'] ?? null);
+            if ($idTorneo === null) {
+                $this->respond(400, ['message' => 'id_torneo es obligatorio.']);
+            }
+            if (!$this->torneoExiste($idTorneo)) {
+                $this->respond(404, ['message' => 'Torneo no encontrado.']);
+            }
+
+            $faseProgramar = $this->normalizeFaseProgramar($data['fase_programar'] ?? 'todas');
+            $idsEventosSeleccionados = $this->normalizeIdList($data['id_eventos'] ?? []);
+            $idEstadoProgramado = $this->getEstadoEventoProgramadoId();
+            $idEstadoPendiente = $this->getEstadoEventoProgramacionPendienteId();
+
+            $whereFase = '';
+            if ($faseProgramar === 'zonas') {
+                $whereFase = " AND titulo LIKE 'Zona % - Fecha % - Partido %'";
+            } elseif ($faseProgramar === 'eliminacion') {
+                $whereFase = " AND titulo NOT LIKE 'Zona % - Fecha % - Partido %'";
+            }
+
+            $whereSeleccionados = '';
+            $selectedParamMap = [];
+            if ($faseProgramar === 'seleccionados') {
+                if (empty($idsEventosSeleccionados)) {
+                    $this->respond(422, ['message' => 'Debes seleccionar al menos un partido programado para deshacer.']);
+                }
+                $named = [];
+                foreach ($idsEventosSeleccionados as $idx => $idEvento) {
+                    $param = ':id_evento_sel_' . $idx;
+                    $named[] = $param;
+                    $selectedParamMap[$param] = (int)$idEvento;
+                }
+                $whereSeleccionados = ' AND id IN (' . implode(',', $named) . ')';
+            }
+
+            $sqlCount = "SELECT COUNT(*)
+                         FROM evento
+                         WHERE id_torneo = :id_torneo
+                           AND LOWER(tipo_evento) = 'partido'
+                           AND id_estado_evento = :id_estado_programado" . $whereFase . $whereSeleccionados;
+            $stmtCount = $this->db->prepare($sqlCount);
+            $stmtCount->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmtCount->bindValue(':id_estado_programado', $idEstadoProgramado, PDO::PARAM_INT);
+            if ($faseProgramar === 'seleccionados') {
+                foreach ($selectedParamMap as $param => $idEvento) {
+                    $stmtCount->bindValue($param, $idEvento, PDO::PARAM_INT);
+                }
+            }
+            $stmtCount->execute();
+            $totalARevertir = (int)$stmtCount->fetchColumn();
+
+            if ($totalARevertir <= 0) {
+                $this->respond(200, [
+                    'message' => 'No hay partidos en estado Programado para deshacer con el filtro actual.',
+                    'revertidos' => 0,
+                    'fase_programar' => $faseProgramar,
+                ]);
+            }
+
+            $sqlUpdate = "UPDATE evento
+                          SET fecha_hora_inicio = NULL,
+                              fecha_hora_fin = NULL,
+                              id_cancha = NULL,
+                              id_arbitro = NULL,
+                              id_estado_evento = :id_estado_pendiente
+                          WHERE id_torneo = :id_torneo
+                            AND LOWER(tipo_evento) = 'partido'
+                            AND id_estado_evento = :id_estado_programado" . $whereFase . $whereSeleccionados;
+            $stmtUpdate = $this->db->prepare($sqlUpdate);
+            $stmtUpdate->bindValue(':id_estado_pendiente', $idEstadoPendiente, PDO::PARAM_INT);
+            $stmtUpdate->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmtUpdate->bindValue(':id_estado_programado', $idEstadoProgramado, PDO::PARAM_INT);
+            if ($faseProgramar === 'seleccionados') {
+                foreach ($selectedParamMap as $param => $idEvento) {
+                    $stmtUpdate->bindValue($param, $idEvento, PDO::PARAM_INT);
+                }
+            }
+            $stmtUpdate->execute();
+
+            $this->respond(200, [
+                'message' => 'Programación deshecha correctamente.',
+                'revertidos' => (int)$stmtUpdate->rowCount(),
+                'fase_programar' => $faseProgramar,
+            ]);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al deshacer la programación de partidos');
+        }
+    }
+
+    public function actualizarProgramacionEvento(): void
+    {
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($data)) {
+                $this->respond(400, ['message' => 'Datos inválidos para actualizar programación del partido.']);
+            }
+
+            $idTorneo = $this->nullableInt($data['id_torneo'] ?? null);
+            $idEvento = $this->nullableInt($data['id_evento'] ?? null);
+            $idCancha = $this->nullableInt($data['id_cancha'] ?? null);
+            $idArbitro = $this->nullableInt($data['id_arbitro'] ?? null);
+            $fechaHoraInicio = trim((string)($data['fecha_hora_inicio'] ?? ''));
+
+            if ($idTorneo === null || $idEvento === null || $idCancha === null || $idArbitro === null || $fechaHoraInicio === '') {
+                $this->respond(400, ['message' => 'id_torneo, id_evento, fecha_hora_inicio, id_cancha e id_arbitro son obligatorios.']);
+            }
+
+            if (!$this->torneoExiste($idTorneo)) {
+                $this->respond(404, ['message' => 'Torneo no encontrado.']);
+            }
+
+            $evento = $this->getEventoPartidoById($idTorneo, $idEvento);
+            if (!$evento) {
+                $this->respond(404, ['message' => 'Partido no encontrado para el torneo indicado.']);
+            }
+
+            $canchas = $this->getCanchasActivasMap([$idCancha]);
+            if (!isset($canchas[$idCancha])) {
+                $this->respond(422, ['message' => 'La cancha seleccionada no está activa o no existe.']);
+            }
+
+            $arbitros = $this->getArbitrosActivosMap([$idArbitro]);
+            if (!isset($arbitros[$idArbitro])) {
+                $this->respond(422, ['message' => 'El árbitro seleccionado no está activo o no existe.']);
+            }
+
+            $duracionMinutos = (int)($data['duracion_minutos'] ?? 70);
+            if ($duracionMinutos < 20 || $duracionMinutos > 240) {
+                $this->respond(422, ['message' => 'duracion_minutos debe estar entre 20 y 240.']);
+            }
+
+            $inicioNormalizado = str_replace('T', ' ', $fechaHoraInicio);
+            if (strlen($inicioNormalizado) === 16) {
+                $inicioNormalizado .= ':00';
+            }
+
+            $inicio = DateTime::createFromFormat('Y-m-d H:i:s', $inicioNormalizado);
+            if (!$inicio) {
+                $this->respond(400, ['message' => 'fecha_hora_inicio debe tener formato YYYY-MM-DD HH:MM o YYYY-MM-DDTHH:MM.']);
+            }
+
+            $fin = clone $inicio;
+            $fin->modify('+' . $duracionMinutos . ' minutes');
+
+            $ocupacion = $this->getResourceOccupancy($idTorneo, [$idEvento]);
+
+            if ($this->hasOverlap((array)($ocupacion['canchas'][$idCancha] ?? []), $inicio, $fin)) {
+                $this->respond(422, ['message' => 'La cancha seleccionada no está disponible en el horario indicado.']);
+            }
+
+            if ($this->hasOverlap((array)($ocupacion['arbitros'][$idArbitro] ?? []), $inicio, $fin)) {
+                $this->respond(422, ['message' => 'El árbitro seleccionado no está disponible en el horario indicado.']);
+            }
+
+            $idEstadoProgramado = $this->getEstadoEventoProgramadoId();
+
+            $sql = "UPDATE evento
+                    SET fecha_hora_inicio = :inicio,
+                        fecha_hora_fin = :fin,
+                        id_cancha = :id_cancha,
+                        id_arbitro = :id_arbitro,
+                        id_estado_evento = :id_estado_evento
+                    WHERE id = :id_evento
+                      AND id_torneo = :id_torneo
+                      AND LOWER(tipo_evento) = 'partido'";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindValue(':inicio', $inicio->format('Y-m-d H:i:s'));
+            $stmt->bindValue(':fin', $fin->format('Y-m-d H:i:s'));
+            $stmt->bindValue(':id_cancha', $idCancha, PDO::PARAM_INT);
+            $stmt->bindValue(':id_arbitro', $idArbitro, PDO::PARAM_INT);
+            $stmt->bindValue(':id_estado_evento', $idEstadoProgramado, PDO::PARAM_INT);
+            $stmt->bindValue(':id_evento', $idEvento, PDO::PARAM_INT);
+            $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $this->respond(200, [
+                'message' => 'Partido actualizado correctamente.',
+                'id_evento' => $idEvento,
+                'fecha_hora_inicio' => $inicio->format('Y-m-d H:i:s'),
+                'fecha_hora_fin' => $fin->format('Y-m-d H:i:s'),
+            ]);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al actualizar manualmente la programación del partido');
+        }
+    }
+
     private function buildSimulation(array $payload): array
     {
         $warnings = [];
@@ -877,6 +1258,357 @@ class PlanTorneoController extends BaseController
         $stmt->execute();
     }
 
+    private function getCanchasActivasMap(array $idsFiltrados = []): array
+    {
+        $sql = "SELECT id, nombre, descripcion
+                FROM cancha
+                WHERE activo = 1";
+        if (!empty($idsFiltrados)) {
+            $placeholders = implode(',', array_fill(0, count($idsFiltrados), '?'));
+            $sql .= " AND id IN ($placeholders)";
+        }
+        $sql .= " ORDER BY nombre ASC, id ASC";
+
+        $stmt = $this->db->prepare($sql);
+        foreach ($idsFiltrados as $i => $id) {
+            $stmt->bindValue($i + 1, $id, PDO::PARAM_INT);
+        }
+        $stmt->execute();
+
+        $map = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $map[(int)$row['id']] = $row;
+        }
+        return $map;
+    }
+
+    private function getArbitrosActivosMap(array $idsFiltrados = []): array
+    {
+        $sql = "SELECT id, nombre, apellido
+                FROM arbitro
+                WHERE activo = 1";
+        if (!empty($idsFiltrados)) {
+            $placeholders = implode(',', array_fill(0, count($idsFiltrados), '?'));
+            $sql .= " AND id IN ($placeholders)";
+        }
+        $sql .= " ORDER BY apellido ASC, nombre ASC, id ASC";
+
+        $stmt = $this->db->prepare($sql);
+        foreach ($idsFiltrados as $i => $id) {
+            $stmt->bindValue($i + 1, $id, PDO::PARAM_INT);
+        }
+        $stmt->execute();
+
+        $map = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $row['nombre_completo'] = trim((string)$row['apellido'] . ' ' . (string)$row['nombre']);
+            $map[(int)$row['id']] = $row;
+        }
+        return $map;
+    }
+
+    private function getEventosPartido(int $idTorneo, bool $soloPendientes = false, string $faseProgramar = 'todas'): array
+    {
+        $sql = "SELECT ev.id, ev.titulo, ev.numero_fecha, ev.fecha_hora_inicio, ev.fecha_hora_fin,
+                   ev.id_estado_evento,
+                       ev.id_cancha, ev.id_arbitro,
+                   ee.descripcion AS estado_evento_descripcion,
+                       c.nombre AS cancha_nombre,
+                       CONCAT(COALESCE(a.apellido, ''), ' ', COALESCE(a.nombre, '')) AS arbitro_nombre_completo
+                FROM evento ev
+            LEFT JOIN estado_evento ee ON ee.id = ev.id_estado_evento
+                LEFT JOIN cancha c ON c.id = ev.id_cancha
+                LEFT JOIN arbitro a ON a.id = ev.id_arbitro
+                WHERE ev.id_torneo = :id_torneo
+                  AND LOWER(tipo_evento) = 'partido'";
+
+        if ($faseProgramar === 'zonas') {
+            $sql .= " AND ev.titulo LIKE 'Zona % - Fecha % - Partido %'";
+        } elseif ($faseProgramar === 'eliminacion') {
+            $sql .= " AND ev.titulo NOT LIKE 'Zona % - Fecha % - Partido %'";
+        }
+
+        if ($soloPendientes) {
+            $sql .= " AND (fecha_hora_inicio IS NULL OR id_cancha IS NULL OR id_arbitro IS NULL)";
+        }
+
+        $sql .= " ORDER BY COALESCE(numero_fecha, 9999) ASC, id ASC";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    private function normalizeFaseProgramar(mixed $value): string
+    {
+        $raw = strtolower(trim((string)$value));
+        if ($raw === 'zonas' || $raw === 'eliminacion' || $raw === 'seleccionados') {
+            return $raw;
+        }
+        return 'todas';
+    }
+
+    private function filterEventosByIds(array $eventos, array $ids): array
+    {
+        if (empty($ids)) {
+            return [];
+        }
+        $set = [];
+        foreach ($ids as $id) {
+            $set[(int)$id] = true;
+        }
+
+        $out = [];
+        foreach ($eventos as $ev) {
+            $idEvento = (int)($ev['id'] ?? 0);
+            if ($idEvento > 0 && isset($set[$idEvento])) {
+                $out[] = $ev;
+            }
+        }
+        return $out;
+    }
+
+    private function getEventoPartidoById(int $idTorneo, int $idEvento): ?array
+    {
+        $sql = "SELECT id, id_torneo, tipo_evento
+                FROM evento
+                WHERE id = :id_evento
+                  AND id_torneo = :id_torneo
+                  AND LOWER(tipo_evento) = 'partido'
+                LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':id_evento', $idEvento, PDO::PARAM_INT);
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    private function normalizeFranjas(array $franjas): array
+    {
+        $out = [];
+        foreach ($franjas as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $dia = (int)($item['dia_semana'] ?? 0);
+            $inicio = trim((string)($item['hora_inicio'] ?? ''));
+            $fin = trim((string)($item['hora_fin'] ?? ''));
+            if ($dia < 1 || $dia > 7 || !$this->isHoraValida($inicio) || !$this->isHoraValida($fin)) {
+                continue;
+            }
+            if ($inicio >= $fin) {
+                continue;
+            }
+            $out[] = [
+                'dia_semana' => $dia,
+                'hora_inicio' => $inicio,
+                'hora_fin' => $fin,
+            ];
+        }
+        return $out;
+    }
+
+    private function isHoraValida(string $value): bool
+    {
+        return (bool)preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $value);
+    }
+
+    private function normalizeIdList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+        $ids = [];
+        foreach ($value as $v) {
+            $id = (int)$v;
+            if ($id > 0) {
+                $ids[$id] = true;
+            }
+        }
+        return array_map('intval', array_keys($ids));
+    }
+
+    private function buildSchedulingSlots(
+        DateTime $fechaInicio,
+        array $franjas,
+        int $duracionMinutos,
+        array $idCanchas,
+        array $idArbitros,
+        int $maxDiasBusqueda,
+        array $ocupacion,
+    ): array {
+        $franjasPorDia = [];
+        foreach ($franjas as $f) {
+            $franjasPorDia[(int)$f['dia_semana']][] = $f;
+        }
+
+        $slots = [];
+        $arbCursor = 0;
+
+        for ($d = 0; $d < $maxDiasBusqueda; $d++) {
+            $fecha = clone $fechaInicio;
+            if ($d > 0) {
+                $fecha->modify('+' . $d . ' day');
+            }
+            $diaSemana = (int)$fecha->format('N');
+            $franjasDia = $franjasPorDia[$diaSemana] ?? [];
+            if (empty($franjasDia)) {
+                continue;
+            }
+
+            $fechaStr = $fecha->format('Y-m-d');
+            foreach ($franjasDia as $franja) {
+                $slotInicio = DateTime::createFromFormat('Y-m-d H:i', $fechaStr . ' ' . $franja['hora_inicio']);
+                $slotFin = DateTime::createFromFormat('Y-m-d H:i', $fechaStr . ' ' . $franja['hora_fin']);
+                if (!$slotInicio || !$slotFin || $slotInicio >= $slotFin) {
+                    continue;
+                }
+
+                $cursor = clone $slotInicio;
+                while ($cursor < $slotFin) {
+                    $inicio = clone $cursor;
+                    $fin = clone $cursor;
+                    $fin->modify('+' . $duracionMinutos . ' minutes');
+                    if ($fin > $slotFin) {
+                        break;
+                    }
+
+                    $arbitrosUsadosEnHorario = [];
+                    foreach ($idCanchas as $idCancha) {
+                        if ($this->hasOverlap((array)($ocupacion['canchas'][$idCancha] ?? []), $inicio, $fin)) {
+                            continue;
+                        }
+
+                        $idArbitro = $this->pickNextArbitro(
+                            $idArbitros,
+                            $arbitrosUsadosEnHorario,
+                            (array)($ocupacion['arbitros'] ?? []),
+                            $inicio,
+                            $fin,
+                            $arbCursor,
+                        );
+                        if ($idArbitro === null) {
+                            break;
+                        }
+
+                        $slots[] = [
+                            'inicio' => $inicio->format('Y-m-d H:i:s'),
+                            'fin' => $fin->format('Y-m-d H:i:s'),
+                            'id_cancha' => $idCancha,
+                            'id_arbitro' => $idArbitro,
+                        ];
+
+                        $ocupacion['canchas'][$idCancha][] = ['inicio' => clone $inicio, 'fin' => clone $fin];
+                        $ocupacion['arbitros'][$idArbitro][] = ['inicio' => clone $inicio, 'fin' => clone $fin];
+                        $arbitrosUsadosEnHorario[$idArbitro] = true;
+                    }
+
+                    $cursor->modify('+' . $duracionMinutos . ' minutes');
+                }
+            }
+        }
+
+        usort($slots, static function (array $a, array $b): int {
+            if ($a['inicio'] === $b['inicio']) {
+                return $a['id_cancha'] <=> $b['id_cancha'];
+            }
+            return strcmp((string)$a['inicio'], (string)$b['inicio']);
+        });
+
+        return $slots;
+    }
+
+    private function pickNextArbitro(
+        array $idArbitros,
+        array $arbitrosUsadosEnHorario,
+        array $ocupacionArbitros,
+        DateTime $inicio,
+        DateTime $fin,
+        int &$cursor,
+    ): ?int
+    {
+        $total = count($idArbitros);
+        if ($total === 0) {
+            return null;
+        }
+
+        for ($i = 0; $i < $total; $i++) {
+            $idx = ($cursor + $i) % $total;
+            $id = (int)$idArbitros[$idx];
+            if (isset($arbitrosUsadosEnHorario[$id])) {
+                continue;
+            }
+            if ($this->hasOverlap((array)($ocupacionArbitros[$id] ?? []), $inicio, $fin)) {
+                continue;
+            }
+            if (!isset($arbitrosUsadosEnHorario[$id])) {
+                $cursor = $idx + 1;
+                return $id;
+            }
+        }
+
+        return null;
+    }
+
+    private function hasOverlap(array $intervalos, DateTime $inicio, DateTime $fin): bool
+    {
+        $iniTs = $inicio->getTimestamp();
+        $finTs = $fin->getTimestamp();
+        foreach ($intervalos as $r) {
+            if (!isset($r['inicio'], $r['fin']) || !($r['inicio'] instanceof DateTime) || !($r['fin'] instanceof DateTime)) {
+                continue;
+            }
+            $rIni = $r['inicio']->getTimestamp();
+            $rFin = $r['fin']->getTimestamp();
+            if ($iniTs < $rFin && $finTs > $rIni) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function getResourceOccupancy(int $idTorneo, array $excludeEventoIds = []): array
+    {
+        $sql = "SELECT id, fecha_hora_inicio, fecha_hora_fin, id_cancha, id_arbitro
+                FROM evento
+                                WHERE id_torneo = ?
+                  AND LOWER(tipo_evento) = 'partido'
+                  AND fecha_hora_inicio IS NOT NULL
+                  AND fecha_hora_fin IS NOT NULL";
+
+        if (!empty($excludeEventoIds)) {
+            $sql .= ' AND id NOT IN (' . implode(',', array_fill(0, count($excludeEventoIds), '?')) . ')';
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(1, $idTorneo, PDO::PARAM_INT);
+        foreach ($excludeEventoIds as $i => $idEv) {
+            $stmt->bindValue($i + 2, (int)$idEv, PDO::PARAM_INT);
+        }
+        $stmt->execute();
+
+        $ocupacion = ['canchas' => [], 'arbitros' => []];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $inicio = DateTime::createFromFormat('Y-m-d H:i:s', (string)$row['fecha_hora_inicio']);
+            $fin = DateTime::createFromFormat('Y-m-d H:i:s', (string)$row['fecha_hora_fin']);
+            if (!$inicio || !$fin || $inicio >= $fin) {
+                continue;
+            }
+
+            $idCancha = (int)($row['id_cancha'] ?? 0);
+            $idArbitro = (int)($row['id_arbitro'] ?? 0);
+            if ($idCancha > 0) {
+                $ocupacion['canchas'][$idCancha][] = ['inicio' => clone $inicio, 'fin' => clone $fin];
+            }
+            if ($idArbitro > 0) {
+                $ocupacion['arbitros'][$idArbitro][] = ['inicio' => clone $inicio, 'fin' => clone $fin];
+            }
+        }
+
+        return $ocupacion;
+    }
+
     private function resolveEstadoInscripcionByDescripcion(array $descripciones): int
     {
         foreach ($descripciones as $desc) {
@@ -962,7 +1694,7 @@ class PlanTorneoController extends BaseController
         if ($configured !== '') {
             $candidates[] = $configured;
         }
-        $candidates[] = '/home/impactos/il-calcio-camp.impactosdg.com/uploads';
+        // Default: always use uploads under current project root.
         $candidates[] = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'uploads';
 
         foreach ($candidates as $candidate) {
@@ -975,7 +1707,7 @@ class PlanTorneoController extends BaseController
             }
         }
 
-        $this->respond(500, ['message' => 'No se pudo resolver el directorio de uploads. Configura UPLOADS_DIR.']);
+        $this->respond(500, ['message' => 'No se pudo resolver el directorio de uploads en el proyecto. Configura UPLOADS_DIR.']);
     }
 
     private function sanitizeFileBaseName(string $baseName): string
@@ -1364,15 +2096,12 @@ class PlanTorneoController extends BaseController
 
     private function getEstadoEventoProgramadoId(): int
     {
-        $stmt = $this->db->prepare("SELECT id FROM estado_evento WHERE UPPER(descripcion) = 'PROGRAMADO' LIMIT 1");
-        $stmt->execute();
-        $id = $stmt->fetchColumn();
+        return self::ESTADO_EVENTO_PROGRAMADO_ID;
+    }
 
-        if (!$id) {
-            $this->respond(400, ['message' => 'No existe estado_evento PROGRAMADO.']);
-        }
-
-        return (int)$id;
+    private function getEstadoEventoProgramacionPendienteId(): int
+    {
+        return self::ESTADO_EVENTO_PROGRAMACION_PENDIENTE_ID;
     }
 
     private function insertFase(int $idTorneo, string $nombre, string $tipoFase, int $orden, array $configuracion): int

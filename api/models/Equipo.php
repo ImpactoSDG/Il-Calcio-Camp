@@ -62,16 +62,18 @@ class Equipo
     /**
      * Crea un nuevo equipo
      */
-    public function create(int $id, string $nombre, string $disciplina, bool $activo = true, ?string $escudo = null): bool
+    public function create(string $nombre, string $disciplina, bool $activo = true, ?string $escudo = null): int|false
     {
-        $sql = "INSERT INTO {$this->table} (id, nombre, disciplina, activo, escudo) VALUES (:id, :nombre, :disciplina, :activo, :escudo)";
+        $sql = "INSERT INTO {$this->table} (nombre, disciplina, activo, escudo) VALUES (:nombre, :disciplina, :activo, :escudo)";
         $stmt = $this->conn->prepare($sql);
-        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         $stmt->bindValue(':nombre', $nombre);
         $stmt->bindValue(':disciplina', $disciplina);
         $stmt->bindValue(':activo', $activo ? 1 : 0, PDO::PARAM_INT);
         $stmt->bindValue(':escudo', $escudo);
-        return $stmt->execute();
+        if ($stmt->execute()) {
+            return (int)$this->conn->lastInsertId();
+        }
+        return false;
     }
 
     /**
