@@ -36,11 +36,17 @@ class Articulo
         $sql = "SELECT a.id, a.nombre, a.precio_actual, a.costo_actual, a.cod_barra, 
                        a.id_categoria_articulo, a.activo, a.url_imagen, a.ROP,
                        ca.descripcion AS categoria_descripcion,
-                       (SELECT COALESCE(SUM(ia.cantidad), 0) FROM ingreso_articulo ia WHERE ia.id_articulo = a.id AND ia.confirmado = 1) - 
+                       (SELECT COALESCE(SUM(ia.cantidad), 0)
+                        FROM ingreso_articulo ia
+                        LEFT JOIN pedido_proveedor pp ON ia.id_pedido_proveedor = pp.id_pedido_proveedor
+                        WHERE ia.id_articulo = a.id
+                          AND (ia.id_pedido_proveedor IS NULL OR pp.estado = 'recibido')) - 
                        (SELECT COALESCE(SUM(avia.cantidad), 0) 
                         FROM articulo_venta_ingreso_articulo avia 
                         JOIN ingreso_articulo ia2 ON avia.ingreso_articulo_id = ia2.id
-                        WHERE ia2.id_articulo = a.id AND ia2.confirmado = 1) as stock_actual
+                        LEFT JOIN pedido_proveedor pp2 ON ia2.id_pedido_proveedor = pp2.id_pedido_proveedor
+                        WHERE ia2.id_articulo = a.id
+                          AND (ia2.id_pedido_proveedor IS NULL OR pp2.estado = 'recibido')) as stock_actual
                 FROM {$this->table} a
                 LEFT JOIN categoria_articulo ca ON a.id_categoria_articulo = ca.id
                 WHERE a.activo = 1
@@ -63,7 +69,9 @@ class Articulo
                                                 FROM articulo_venta_ingreso_articulo avia 
                                                 WHERE avia.ingreso_articulo_id = ia.id), 0)) as disponible
                 FROM ingreso_articulo ia
-                WHERE ia.id_articulo = :id_articulo AND ia.confirmado = 1
+                LEFT JOIN pedido_proveedor pp ON ia.id_pedido_proveedor = pp.id_pedido_proveedor
+                WHERE ia.id_articulo = :id_articulo
+                  AND (ia.id_pedido_proveedor IS NULL OR pp.estado = 'recibido')
                 HAVING disponible > 0
                 ORDER BY 
                     CASE WHEN ia.vencimiento IS NULL THEN 1 ELSE 0 END, 
