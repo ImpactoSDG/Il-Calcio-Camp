@@ -9,7 +9,16 @@
               <i class="bi bi-receipt fs-4"></i>
             </div>
             <div>
-              <h5 class="modal-title fw-bold text-dark mb-0">Detalle de Venta #{{ venta?.id }}-{{ venta?.simbolo }}</h5>
+              <h5 class="modal-title fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                Detalle de Venta #{{ venta?.id }}
+                <img
+                  v-if="venta?.simbolo"
+                  :src="`/simbolos/${venta.simbolo}`"
+                  :alt="venta.simbolo"
+                  :title="venta.simbolo.replace('.png', '')"
+                  style="width:20px;height:20px;object-fit:contain;image-rendering:crisp-edges;"
+                />
+              </h5>
               <p class="text-muted small mb-0">{{ formatFecha(venta?.fecha) }}</p>
             </div>
             <button type="button" class="btn-close ms-auto" @click="close"></button>

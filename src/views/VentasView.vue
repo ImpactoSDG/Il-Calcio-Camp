@@ -71,7 +71,16 @@
             <div class="d-flex align-items-start gap-3 flex-grow-1 min-w-0">
               <div class="min-w-0 flex-grow-1">
                 <div class="d-flex justify-content-between align-items-center mb-1">
-                  <span class="venta-card__id text-uppercase text-dark">Venta Nro: {{ venta.id }}-{{ venta.simbolo }}</span>
+                  <span class="venta-card__id text-uppercase text-dark d-flex align-items-center gap-2">
+                    Venta Nro: {{ venta.id }}
+                    <img
+                      v-if="venta.simbolo"
+                      :src="simboloUrl(venta.simbolo)"
+                      :alt="venta.simbolo"
+                      :title="venta.simbolo"
+                      class="simbolo-badge"
+                    />
+                  </span>
                 </div>
                 <div class="fw-bold text-dark lh-sm text-truncate mb-1" style="font-size: 1.05rem;">
                   {{ venta.cliente_nombre || 'Consumidor Final' }}
@@ -193,7 +202,15 @@
               <tbody class="bg-white">
                 <template v-for="venta in ventasCerradas" :key="venta.id">
                   <tr :class="{ 'table-active': ventaExpandida === venta.id }" class="cursor-pointer" @click="abrirDetalleVenta(venta)">
-                    <td class="ps-4 text-muted fw-bold small py-1">{{ venta.id }}-{{ venta.simbolo }}</td>
+                    <td class="ps-4 text-muted fw-bold small py-1 d-flex align-items-center gap-2">
+                    {{ venta.id }}
+                    <img
+                      v-if="venta.simbolo"
+                      :src="simboloUrl(venta.simbolo)"
+                      :alt="venta.simbolo"
+                      class="simbolo-badge"
+                    />
+                  </td>
                     <td class="text-muted small py-1">{{ formatFecha(venta.fecha) }}</td>
                     <td class="fw-medium text-dark small py-1">{{ venta.cliente_nombre || '—' }}</td>
                     <td class="text-muted small py-1">
@@ -280,7 +297,11 @@
     <div v-if="ventaParaImprimir" class="ticket-impresion">
       <div class="ticket-header">
         <h2 class="ticket-title">IL CALCIO CAMP</h2>
-        <p>Ticket de Venta #{{ ventaParaImprimir.id }}-{{ ventaParaImprimir.simbolo }}</p>
+        <p>Ticket de Venta #{{ ventaParaImprimir.id }}</p>
+        <div v-if="ventaParaImprimir.simbolo" class="d-flex align-items-center justify-content-center gap-2 mb-1">
+          <img :src="simboloUrl(ventaParaImprimir.simbolo)" :alt="ventaParaImprimir.simbolo" style="width:24px;height:24px;" />
+          <small>{{ ventaParaImprimir.simbolo.replace('.png', '') }}</small>
+        </div>
         <p>Fecha: {{ formatFecha(ventaParaImprimir.fecha) }}</p>
       </div>
       
@@ -384,11 +405,14 @@ const loading         = ref(false);
 const searchQuery     = ref('');
 const mostrarCerradas = ref(true);
 
-const simbolosRotativos = ['$', '#', '&', '@', '€', '£', '¥', 'Δ', 'Ω', 'Σ'];
+const SIMBOLOS_ROTATIVOS = ['estrella', 'circulo', 'triangulo', 'diamante', 'cuadrado', 'cruz', 'corazon', 'luna', 'sol', 'flecha'];
 const simboloDia = computed(() => {
   const diaDelAnio = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
-  return simbolosRotativos[diaDelAnio % simbolosRotativos.length];
+  return SIMBOLOS_ROTATIVOS[diaDelAnio % SIMBOLOS_ROTATIVOS.length] + '.png';
 });
+
+/** Construye la URL pública de un símbolo dado su nombre de archivo (ej: "estrella.png") */
+const simboloUrl = (archivo) => `/simbolos/${archivo}`;
 
 // Filtros de fecha
 const getYesterday = () => {
@@ -922,6 +946,16 @@ onUnmounted(() => {
   color: #94a3b8;
   letter-spacing: 0.5px;
   font-weight: 700;
+}
+
+/* Imagen del símbolo anti-falsificación */
+.simbolo-badge {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  display: inline-block;
+  vertical-align: middle;
+  image-rendering: crisp-edges;
 }
 
 .badge-equipo {

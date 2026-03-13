@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/SimboloDiaController.php';
 
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -142,10 +143,35 @@ class TicketVentaController
     // Generación del HTML del ticket
     // ──────────────────────────────────────────────────────────────────────
 
+    /**
+     * Convierte la imagen PNG del símbolo a un data URI base64.
+     * DomPDF no necesita acceso HTTP al archivo; lo lee directamente del disco.
+     */
+    private function simboloDataUri(string $archivoSimbolo): string
+    {
+        $rutaBase    = realpath(__DIR__ . '/../../public/simbolos');
+        $nombreSafe  = basename($archivoSimbolo); // evitar path traversal
+        $rutaCompleta = $rutaBase . DIRECTORY_SEPARATOR . $nombreSafe;
+
+        if ($rutaBase && file_exists($rutaCompleta)) {
+            $datos = base64_encode(file_get_contents($rutaCompleta));
+            return 'data:image/png;base64,' . $datos;
+        }
+
+        // Fallback: cuadrado negro simple en base64 (1x1 px)
+        return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    }
+
     private function generarHtml(array $venta, array $articulos, string $medioCobro, array $config): string
     {
         $nombreEmpresa = $config['nombre_empresa'] ?? 'IL CALCIO CAMP';
-        $simbolo       = $venta['simbolo'] ?: ($config['simbolo_dia'] ?? '$');
+
+        // Determinar qué símbolo mostrar: el de la venta o el del día actual
+        $archivoSimbolo = !empty($venta['simbolo']) ? $venta['simbolo'] : SimboloDiaController::obtenerArchivoSimboloDia();
+        $nombreSimbolo  = pathinfo($archivoSimbolo, PATHINFO_FILENAME); // ej: "estrella"
+        $simboloDataUri = $this->simboloDataUri($archivoSimbolo);
+        // El signo $ se sigue usando como moneda en los precios
+        $moneda = '$';
 
         $dtz    = new DateTimeZone('America/Argentina/Buenos_Aires');
         $ahora  = (new DateTime('now', $dtz))->format('d/m/Y H:i');
@@ -172,8 +198,8 @@ class TicketVentaController
                 <td colspan='2' class='art-nombre'>{$nombre}</td>
             </tr>
             <tr>
-                <td class='art-detalle'>{$cantidad} x {$simbolo} {$precioU}</td>
-                <td class='art-sub'>{$simbolo} {$subtotalF}</td>
+                <td class='art-detalle'>{$cantidad} x {$moneda} {$precioU}</td>
+                <td class='art-sub'>{$moneda} {$subtotalF}</td>
             </tr>
             <tr><td colspan='2' class='separador-item'></td></tr>";
         }
@@ -278,6 +304,33 @@ class TicketVentaController
         border-top: 1px dashed #aaa;
         padding-top: 6px;
     }
+    .simbolo-bloque {
+        border: 2px solid #111;
+        border-radius: 4px;
+        padding: 4px 6px;
+        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        background: #f8f8f8;
+    }
+    .simbolo-img {
+        width: 28px;
+        height: 28px;
+        display: block;
+    }
+    .simbolo-label {
+        font-size: 8px;
+        text-transform: uppercase;
+        color: #444;
+        letter-spacing: 0.5px;
+    }
+    .simbolo-nombre {
+        font-weight: bold;
+        font-size: 10px;
+        text-transform: uppercase;
+    }
 </style>
 </head>
 <body>
@@ -309,9 +362,17 @@ class TicketVentaController
         <table class='total-row'>
             <tr>
                 <td class='total-label'>TOTAL</td>
-                <td class='total-monto'>{$simbolo} {$totalF}</td>
+                <td class='total-monto'>{$moneda} {$totalF}</td>
             </tr>
         </table>
+    </div>
+
+    <div class='simbolo-bloque'>
+        <img class='simbolo-img' src='{$simboloDataUri}' alt='{$nombreSimbolo}' />
+        <div>
+            <div class='simbolo-label'>Símbolo del día</div>
+            <div class='simbolo-nombre'>{$nombreSimbolo}</div>
+        </div>
     </div>
 
     <div class='footer'>
