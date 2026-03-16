@@ -25,6 +25,7 @@ import ArbitrosView from '@/views/ArbitrosView.vue'
 import EventosView from '@/views/EventosView.vue'
 import PlanTorneoView from '@/views/PlanTorneoView.vue'
 import GestionTorneosView from '@/views/GestionTorneosView.vue'
+import RtadoPartidoView from '@/views/RtadoPartidoView.vue'
 
 // --- Vistas de Clientes, Ventas y Cobros ---
 import ClientesView from '@/views/ClientesView.vue'
@@ -172,6 +173,12 @@ const router = createRouter({
       path: '/gestiontorneos',
       name: 'gestiontorneos',
       component: GestionTorneosView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/rtadopartido',
+      name: 'rtadopartido',
+      component: RtadoPartidoView,
       meta: { requiresAuth: true }
     },
 

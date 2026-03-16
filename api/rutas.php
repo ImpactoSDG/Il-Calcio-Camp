@@ -29,6 +29,8 @@ require_once __DIR__ . '/controllers/TorneoController.php';
 require_once __DIR__ . '/controllers/PlanTorneoController.php';
 require_once __DIR__ . '/controllers/ClienteEquipoController.php';
 require_once __DIR__ . '/controllers/ArticuloVentaIngresoArticuloController.php';
+require_once __DIR__ . '/controllers/TipoEventoPartidoController.php';
+require_once __DIR__ . '/controllers/EventoPartidoController.php';
 require_once __DIR__ . '/controllers/TicketVentaController.php';
 require_once __DIR__ . '/controllers/ImpresoraTiqueteraController.php';
 require_once __DIR__ . '/controllers/ProveedorController.php';
@@ -73,6 +75,8 @@ $torneoController = new TorneoController($db);
 $planTorneoController = new PlanTorneoController($db);
 $clienteEquipoController = new ClienteEquipoController($db);
 $articuloVentaIngresoArticuloController = new ArticuloVentaIngresoArticuloController($db);
+$tipoEventoPartidoController = new TipoEventoPartidoController($db);
+$eventoPartidoController = new EventoPartidoController($db);
 $ticketVentaController = new TicketVentaController($db);
 $impresoraTiqueteraController = new ImpresoraTiqueteraController($db);
 $proveedorController = new ProveedorController($db);
@@ -516,6 +520,41 @@ switch ($resource) {
                 break;
             case 'DELETE':
                 $eventoController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'tipos-evento-partido':
+        verifyAuth();
+        if ($method === 'GET') {
+            $tipoEventoPartidoController->getAll();
+        } else {
+            http_response_code(405);
+        }
+        break;
+
+    case 'eventos-partido':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $eventoPartidoController->getById();
+                } else {
+                    $eventoPartidoController->getAll();
+                }
+                break;
+            case 'POST':
+                $eventoPartidoController->store();
+                break;
+            case 'PUT':
+                $eventoPartidoController->update();
+                break;
+            case 'DELETE':
+                $eventoPartidoController->delete();
                 break;
             default:
                 http_response_code(405);

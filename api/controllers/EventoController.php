@@ -73,14 +73,163 @@ class EventoController extends BaseController
             }
 
             $payload = $this->validateAndNormalize($data, true);
-            if ($this->model->update((int)$id, $payload)) {
-                $this->respond(200, ['message' => 'Evento actualizado exitosamente.']);
+            $this->db->beginTransaction();
+
+            if (!$this->model->update((int)$id, $payload)) {
+                if ($this->db->inTransaction()) {
+                    $this->db->rollBack();
+                }
+                $this->respond(500, ['message' => 'Error al actualizar evento.']);
             }
 
-            $this->respond(500, ['message' => 'Error al actualizar evento.']);
+            $idGanador = $this->resolveWinnerTeamId($payload);
+            $asignacionesAplicadas = 0;
+            if ($idGanador !== null) {
+                $asignacionesAplicadas = $this->propagarGanadorCruce((int)$id, $idGanador);
+            }
+
+            $this->db->commit();
+
+            $this->respond(200, [
+                'message' => 'Evento actualizado exitosamente.',
+                'ganador_propagado' => $asignacionesAplicadas,
+            ]);
+
         } catch (Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
             $this->handleError($e, 'Error al actualizar evento');
         }
+    }
+
+    private function resolveWinnerTeamId(array $payload): ?int
+    {
+        $idLocal = $this->nullableInt($payload['id_equipo_local'] ?? null);
+        $idVisitante = $this->nullableInt($payload['id_equipo_visitante'] ?? null);
+        $golesLocal = $this->nullableInt($payload['resultado_local'] ?? null);
+        $golesVisitante = $this->nullableInt($payload['resultado_visitante'] ?? null);
+
+        if ($idLocal === null || $idVisitante === null || $golesLocal === null || $golesVisitante === null) {
+            return null;
+        }
+
+        if ($golesLocal > $golesVisitante) {
+            return $idLocal;
+        }
+        if ($golesVisitante > $golesLocal) {
+            return $idVisitante;
+        }
+
+        $penalesLocal = $this->nullableInt($payload['resultado_penales_local'] ?? null);
+        $penalesVisitante = $this->nullableInt($payload['resultado_penales_visitante'] ?? null);
+
+        if ($penalesLocal === null || $penalesVisitante === null) {
+            return null;
+        }
+        if ($penalesLocal > $penalesVisitante) {
+            return $idLocal;
+        }
+        if ($penalesVisitante > $penalesLocal) {
+            return $idVisitante;
+        }
+
+        return null;
+    }
+
+    private function propagarGanadorCruce(int $idEvento, int $idGanador): int
+    {
+        $sqlCruceActual = "SELECT c.id_fase_torneo, c.orden, ev.numero_fecha
+                           FROM cruce_torneo c
+                           INNER JOIN evento ev ON ev.id = c.id_evento
+                           WHERE c.id_evento = :id_evento
+                           LIMIT 1";
+        $stmtCruceActual = $this->db->prepare($sqlCruceActual);
+        $stmtCruceActual->bindValue(':id_evento', $idEvento, PDO::PARAM_INT);
+        $stmtCruceActual->execute();
+        $cruceActual = $stmtCruceActual->fetch(PDO::FETCH_ASSOC);
+
+        // Si el evento no pertenece a un cruce de eliminación, no hay propagación.
+        if (!$cruceActual) {
+            return 0;
+        }
+
+        $idFaseTorneo = (int)$cruceActual['id_fase_torneo'];
+        $ordenCruce = (int)$cruceActual['orden'];
+        $numeroFechaActual = isset($cruceActual['numero_fecha']) ? (int)$cruceActual['numero_fecha'] : 0;
+        if ($idFaseTorneo <= 0 || $ordenCruce <= 0 || $numeroFechaActual <= 0) {
+            return 0;
+        }
+
+        $sqlMinFecha = "SELECT MIN(ev.numero_fecha) AS min_fecha
+                        FROM cruce_torneo c
+                        INNER JOIN evento ev ON ev.id = c.id_evento
+                        WHERE c.id_fase_torneo = :id_fase_torneo";
+        $stmtMinFecha = $this->db->prepare($sqlMinFecha);
+        $stmtMinFecha->bindValue(':id_fase_torneo', $idFaseTorneo, PDO::PARAM_INT);
+        $stmtMinFecha->execute();
+        $minFecha = (int)($stmtMinFecha->fetchColumn() ?: 0);
+        if ($minFecha <= 0) {
+            return 0;
+        }
+
+        $ronda = ($numeroFechaActual - $minFecha) + 1;
+        if ($ronda <= 0) {
+            return 0;
+        }
+
+        $tokenGanador = 'R' . $ronda . '-P' . $ordenCruce;
+
+        $sqlCrucesDestino = "SELECT c.id_evento,
+                                    c.origen_local_tipo, c.origen_local_valor,
+                                    c.origen_visitante_tipo, c.origen_visitante_valor
+                             FROM cruce_torneo c
+                             WHERE c.id_fase_torneo = :id_fase_torneo
+                               AND (
+                                    (c.origen_local_tipo = 'GANADOR_CRUCE' AND c.origen_local_valor = :token)
+                                 OR (c.origen_visitante_tipo = 'GANADOR_CRUCE' AND c.origen_visitante_valor = :token)
+                               )";
+        $stmtCrucesDestino = $this->db->prepare($sqlCrucesDestino);
+        $stmtCrucesDestino->bindValue(':id_fase_torneo', $idFaseTorneo, PDO::PARAM_INT);
+        $stmtCrucesDestino->bindValue(':token', $tokenGanador);
+        $stmtCrucesDestino->execute();
+        $crucesDestino = $stmtCrucesDestino->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($crucesDestino)) {
+            return 0;
+        }
+
+        $asignaciones = 0;
+        foreach ($crucesDestino as $cruceDestino) {
+            $idEventoDestino = (int)($cruceDestino['id_evento'] ?? 0);
+            if ($idEventoDestino <= 0) {
+                continue;
+            }
+
+            if (
+                (string)($cruceDestino['origen_local_tipo'] ?? '') === 'GANADOR_CRUCE'
+                && (string)($cruceDestino['origen_local_valor'] ?? '') === $tokenGanador
+            ) {
+                $stmtUpdateLocal = $this->db->prepare('UPDATE evento SET id_equipo_local = :id_equipo WHERE id = :id_evento');
+                $stmtUpdateLocal->bindValue(':id_equipo', $idGanador, PDO::PARAM_INT);
+                $stmtUpdateLocal->bindValue(':id_evento', $idEventoDestino, PDO::PARAM_INT);
+                $stmtUpdateLocal->execute();
+                $asignaciones += $stmtUpdateLocal->rowCount();
+            }
+
+            if (
+                (string)($cruceDestino['origen_visitante_tipo'] ?? '') === 'GANADOR_CRUCE'
+                && (string)($cruceDestino['origen_visitante_valor'] ?? '') === $tokenGanador
+            ) {
+                $stmtUpdateVisitante = $this->db->prepare('UPDATE evento SET id_equipo_visitante = :id_equipo WHERE id = :id_evento');
+                $stmtUpdateVisitante->bindValue(':id_equipo', $idGanador, PDO::PARAM_INT);
+                $stmtUpdateVisitante->bindValue(':id_evento', $idEventoDestino, PDO::PARAM_INT);
+                $stmtUpdateVisitante->execute();
+                $asignaciones += $stmtUpdateVisitante->rowCount();
+            }
+        }
+
+        return $asignaciones;
     }
 
     public function delete(): void
