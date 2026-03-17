@@ -51,6 +51,365 @@ class Torneo
         return $result ?: null;
     }
 
+    public function getDashboardById(int $idTorneo): ?array
+    {
+        $torneo = $this->getById($idTorneo);
+        if (!$torneo) {
+            return null;
+        }
+
+        $stmtFases = $this->conn->prepare("SELECT id, nombre, tipo_fase, orden
+                                          FROM fase_torneo
+                                          WHERE id_torneo = :id_torneo
+                                          ORDER BY orden ASC, id ASC");
+        $stmtFases->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmtFases->execute();
+        $fases = $stmtFases->fetchAll(PDO::FETCH_ASSOC);
+
+        $stmtEstados = $this->conn->prepare("SELECT ev.id_estado_evento,
+                                                    ee.descripcion AS estado,
+                                                    COUNT(*) AS cantidad
+                                             FROM evento ev
+                                             LEFT JOIN estado_evento ee ON ee.id = ev.id_estado_evento
+                                             WHERE ev.id_torneo = :id_torneo
+                                               AND LOWER(ev.tipo_evento) = 'partido'
+                                             GROUP BY ev.id_estado_evento, ee.descripcion
+                                             ORDER BY ev.id_estado_evento ASC");
+        $stmtEstados->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmtEstados->execute();
+        $estadoPartidos = $stmtEstados->fetchAll(PDO::FETCH_ASSOC);
+
+        $stmtUltimos = $this->conn->prepare("SELECT ev.id, ev.titulo, ev.numero_fecha, ev.fecha_hora_inicio,
+                                                    ev.id_estado_evento, ee.descripcion AS estado,
+                                                    ev.id_equipo_local, el.nombre AS equipo_local_nombre, el.escudo AS equipo_local_escudo,
+                                                    ev.id_equipo_visitante, evt.nombre AS equipo_visitante_nombre, evt.escudo AS equipo_visitante_escudo,
+                                                    ev.resultado_local, ev.resultado_visitante,
+                                                    ev.resultado_penales_local, ev.resultado_penales_visitante
+                                             FROM evento ev
+                                             LEFT JOIN estado_evento ee ON ee.id = ev.id_estado_evento
+                                             LEFT JOIN equipo el ON el.id = ev.id_equipo_local
+                                             LEFT JOIN equipo evt ON evt.id = ev.id_equipo_visitante
+                                             WHERE ev.id_torneo = :id_torneo
+                                               AND LOWER(ev.tipo_evento) = 'partido'
+                                               AND ev.id_estado_evento IN (4, 7)
+                                             ORDER BY COALESCE(ev.fecha_hora_fin, ev.fecha_hora_inicio) DESC, ev.id DESC
+                                             LIMIT 8");
+        $stmtUltimos->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmtUltimos->execute();
+        $ultimosResultados = $stmtUltimos->fetchAll(PDO::FETCH_ASSOC);
+
+        $stmtEventosResumen = $this->conn->prepare("SELECT id, titulo, numero_fecha, id_estado_evento
+                                                    FROM evento
+                                                    WHERE id_torneo = :id_torneo
+                                                      AND LOWER(tipo_evento) = 'partido'
+                                                    ORDER BY numero_fecha ASC, id ASC");
+        $stmtEventosResumen->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmtEventosResumen->execute();
+        $eventosResumen = $stmtEventosResumen->fetchAll(PDO::FETCH_ASSOC);
+
+        $totZona = 0;
+        $pendZona = 0;
+        $totElim = 0;
+        $pendElim = 0;
+        foreach ($eventosResumen as $ev) {
+            $isZona = preg_match('/^Zona\s+/i', (string)($ev['titulo'] ?? '')) === 1;
+            $estado = (int)($ev['id_estado_evento'] ?? 0);
+            $isPendiente = !in_array($estado, [4, 7], true);
+
+            if ($isZona) {
+                $totZona++;
+                if ($isPendiente) {
+                    $pendZona++;
+                }
+            } else {
+                $totElim++;
+                if ($isPendiente) {
+                    $pendElim++;
+                }
+            }
+        }
+
+        $faseActual = null;
+        if ($pendZona > 0) {
+            $faseActual = 'Fase de grupos';
+        } elseif ($pendElim > 0) {
+            $faseActual = 'Eliminación directa';
+        } elseif ($totElim > 0) {
+            $faseActual = 'Eliminación directa';
+        } elseif ($totZona > 0) {
+            $faseActual = 'Fase de grupos';
+        } elseif (!empty($fases)) {
+            $faseActual = (string)($fases[0]['nombre'] ?? null);
+        }
+
+        $stmtZonasEquipos = $this->conn->prepare("SELECT g.id AS id_grupo_torneo, g.nombre AS grupo_nombre,
+                                                         et.id_equipo, e.nombre AS equipo_nombre, e.escudo
+                                                  FROM grupo_torneo g
+                                                  INNER JOIN fase_torneo f ON f.id = g.id_fase_torneo
+                                                  LEFT JOIN grupo_torneo_equipo gte ON gte.id_grupo_torneo = g.id
+                                                  LEFT JOIN equipo_torneo et ON et.id = gte.id_equipo_torneo
+                                                  LEFT JOIN equipo e ON e.id = et.id_equipo
+                                                  WHERE f.id_torneo = :id_torneo
+                                                    AND UPPER(f.tipo_fase) = 'FASE_DE_GRUPOS'
+                                                  ORDER BY g.orden ASC, g.id ASC, gte.posicion_inicial ASC");
+        $stmtZonasEquipos->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmtZonasEquipos->execute();
+        $rowsZonasEquipos = $stmtZonasEquipos->fetchAll(PDO::FETCH_ASSOC);
+
+        $zonas = [];
+        $zonaByKey = [];
+        foreach ($rowsZonasEquipos as $row) {
+            $idGrupo = (int)($row['id_grupo_torneo'] ?? 0);
+            if ($idGrupo <= 0) {
+                continue;
+            }
+            if (!isset($zonas[$idGrupo])) {
+                $nombreZona = (string)($row['grupo_nombre'] ?? ('Zona ' . $idGrupo));
+                $zonas[$idGrupo] = [
+                    'id_grupo_torneo' => $idGrupo,
+                    'nombre' => $nombreZona,
+                    'zona_key' => $this->extractZonaKey($nombreZona),
+                    'equipos' => [],
+                ];
+                $zonaByKey[$zonas[$idGrupo]['zona_key']] = $idGrupo;
+            }
+
+            $idEquipo = isset($row['id_equipo']) ? (int)$row['id_equipo'] : 0;
+            if ($idEquipo <= 0) {
+                continue;
+            }
+
+            $zonas[$idGrupo]['equipos'][$idEquipo] = [
+                'id' => $idEquipo,
+                'nombre' => (string)($row['equipo_nombre'] ?? ('Equipo ' . $idEquipo)),
+                'escudo' => $row['escudo'] ?? null,
+                'pj' => 0,
+                'pg' => 0,
+                'pe' => 0,
+                'pp' => 0,
+                'gf' => 0,
+                'gc' => 0,
+                'dif' => 0,
+                'pts' => 0,
+            ];
+        }
+
+        $stmtEventosZona = $this->conn->prepare("SELECT id, titulo, id_equipo_local, id_equipo_visitante,
+                                                        resultado_local, resultado_visitante, id_estado_evento
+                                                 FROM evento
+                                                 WHERE id_torneo = :id_torneo
+                                                   AND LOWER(tipo_evento) = 'partido'
+                                                   AND titulo LIKE 'Zona %'
+                                                   AND id_estado_evento IN (4, 7)
+                                                   AND resultado_local IS NOT NULL
+                                                   AND resultado_visitante IS NOT NULL");
+        $stmtEventosZona->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmtEventosZona->execute();
+        $eventosZona = $stmtEventosZona->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($eventosZona as $ev) {
+            $zonaKey = $this->extractZonaKey((string)($ev['titulo'] ?? ''));
+            if (!isset($zonaByKey[$zonaKey])) {
+                continue;
+            }
+
+            $idGrupo = $zonaByKey[$zonaKey];
+            $idLocal = isset($ev['id_equipo_local']) ? (int)$ev['id_equipo_local'] : 0;
+            $idVisitante = isset($ev['id_equipo_visitante']) ? (int)$ev['id_equipo_visitante'] : 0;
+            $golLocal = (int)($ev['resultado_local'] ?? 0);
+            $golVisitante = (int)($ev['resultado_visitante'] ?? 0);
+
+            if ($idLocal > 0 && isset($zonas[$idGrupo]['equipos'][$idLocal])) {
+                $zonas[$idGrupo]['equipos'][$idLocal]['pj']++;
+                $zonas[$idGrupo]['equipos'][$idLocal]['gf'] += $golLocal;
+                $zonas[$idGrupo]['equipos'][$idLocal]['gc'] += $golVisitante;
+            }
+            if ($idVisitante > 0 && isset($zonas[$idGrupo]['equipos'][$idVisitante])) {
+                $zonas[$idGrupo]['equipos'][$idVisitante]['pj']++;
+                $zonas[$idGrupo]['equipos'][$idVisitante]['gf'] += $golVisitante;
+                $zonas[$idGrupo]['equipos'][$idVisitante]['gc'] += $golLocal;
+            }
+
+            if ($golLocal > $golVisitante) {
+                if ($idLocal > 0 && isset($zonas[$idGrupo]['equipos'][$idLocal])) {
+                    $zonas[$idGrupo]['equipos'][$idLocal]['pg']++;
+                    $zonas[$idGrupo]['equipos'][$idLocal]['pts'] += 3;
+                }
+                if ($idVisitante > 0 && isset($zonas[$idGrupo]['equipos'][$idVisitante])) {
+                    $zonas[$idGrupo]['equipos'][$idVisitante]['pp']++;
+                }
+            } elseif ($golLocal < $golVisitante) {
+                if ($idVisitante > 0 && isset($zonas[$idGrupo]['equipos'][$idVisitante])) {
+                    $zonas[$idGrupo]['equipos'][$idVisitante]['pg']++;
+                    $zonas[$idGrupo]['equipos'][$idVisitante]['pts'] += 3;
+                }
+                if ($idLocal > 0 && isset($zonas[$idGrupo]['equipos'][$idLocal])) {
+                    $zonas[$idGrupo]['equipos'][$idLocal]['pp']++;
+                }
+            } else {
+                if ($idLocal > 0 && isset($zonas[$idGrupo]['equipos'][$idLocal])) {
+                    $zonas[$idGrupo]['equipos'][$idLocal]['pe']++;
+                    $zonas[$idGrupo]['equipos'][$idLocal]['pts'] += 1;
+                }
+                if ($idVisitante > 0 && isset($zonas[$idGrupo]['equipos'][$idVisitante])) {
+                    $zonas[$idGrupo]['equipos'][$idVisitante]['pe']++;
+                    $zonas[$idGrupo]['equipos'][$idVisitante]['pts'] += 1;
+                }
+            }
+        }
+
+        $zonasList = [];
+        foreach ($zonas as $zona) {
+            $equiposZona = array_values($zona['equipos']);
+            foreach ($equiposZona as &$eq) {
+                $eq['dif'] = $eq['gf'] - $eq['gc'];
+            }
+            unset($eq);
+
+            usort($equiposZona, static function (array $a, array $b): int {
+                if ((int)$b['pts'] !== (int)$a['pts']) {
+                    return (int)$b['pts'] <=> (int)$a['pts'];
+                }
+                if ((int)$b['dif'] !== (int)$a['dif']) {
+                    return (int)$b['dif'] <=> (int)$a['dif'];
+                }
+                if ((int)$b['gf'] !== (int)$a['gf']) {
+                    return (int)$b['gf'] <=> (int)$a['gf'];
+                }
+                return strcasecmp((string)$a['nombre'], (string)$b['nombre']);
+            });
+
+            $zonasList[] = [
+                'id_grupo_torneo' => $zona['id_grupo_torneo'],
+                'nombre' => $zona['nombre'],
+                'equipos' => $equiposZona,
+            ];
+        }
+
+        $stmtLlave = $this->conn->prepare("SELECT c.id, c.nombre, c.orden,
+                                                  c.origen_local_tipo, c.origen_local_valor,
+                                                  c.origen_visitante_tipo, c.origen_visitante_valor,
+                                                  ev.id AS id_evento, ev.titulo, ev.numero_fecha, ev.id_estado_evento,
+                                                  ee.descripcion AS estado,
+                                                  ev.id_equipo_local, el.nombre AS equipo_local_nombre, el.escudo AS equipo_local_escudo,
+                                                  ev.id_equipo_visitante, evt.nombre AS equipo_visitante_nombre, evt.escudo AS equipo_visitante_escudo,
+                                                  ev.resultado_local, ev.resultado_visitante,
+                                                  ev.resultado_penales_local, ev.resultado_penales_visitante
+                                           FROM cruce_torneo c
+                                           INNER JOIN fase_torneo f ON f.id = c.id_fase_torneo
+                                           INNER JOIN evento ev ON ev.id = c.id_evento
+                                           LEFT JOIN estado_evento ee ON ee.id = ev.id_estado_evento
+                                           LEFT JOIN equipo el ON el.id = ev.id_equipo_local
+                                           LEFT JOIN equipo evt ON evt.id = ev.id_equipo_visitante
+                                           WHERE f.id_torneo = :id_torneo
+                                           ORDER BY ev.numero_fecha ASC, c.orden ASC, c.id ASC");
+        $stmtLlave->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmtLlave->execute();
+        $cruces = $stmtLlave->fetchAll(PDO::FETCH_ASSOC);
+
+        $minFechaLlave = null;
+        foreach ($cruces as $c) {
+            $num = isset($c['numero_fecha']) ? (int)$c['numero_fecha'] : 0;
+            if ($num <= 0) {
+                continue;
+            }
+            if ($minFechaLlave === null || $num < $minFechaLlave) {
+                $minFechaLlave = $num;
+            }
+        }
+
+        $llaveByRound = [];
+        foreach ($cruces as $c) {
+            $numFecha = isset($c['numero_fecha']) ? (int)$c['numero_fecha'] : 0;
+            $round = 1;
+            if ($minFechaLlave !== null && $numFecha > 0) {
+                $round = ($numFecha - $minFechaLlave) + 1;
+            }
+            if (!isset($llaveByRound[$round])) {
+                $llaveByRound[$round] = [
+                    'round' => $round,
+                    'nombre' => 'Ronda ' . $round,
+                    'partidos' => [],
+                ];
+            }
+
+            $llaveByRound[$round]['partidos'][] = [
+                'id_cruce' => (int)$c['id'],
+                'nombre' => $c['nombre'],
+                'orden' => (int)($c['orden'] ?? 0),
+                'id_evento' => (int)$c['id_evento'],
+                'titulo' => $c['titulo'],
+                'estado' => $c['estado'],
+                'id_estado_evento' => (int)($c['id_estado_evento'] ?? 0),
+                'equipo_local' => [
+                    'id' => isset($c['id_equipo_local']) ? (int)$c['id_equipo_local'] : null,
+                    'nombre' => $c['equipo_local_nombre'] ?? null,
+                    'escudo' => $c['equipo_local_escudo'] ?? null,
+                    'resultado' => isset($c['resultado_local']) ? (int)$c['resultado_local'] : null,
+                    'penales' => isset($c['resultado_penales_local']) ? (int)$c['resultado_penales_local'] : null,
+                ],
+                'equipo_visitante' => [
+                    'id' => isset($c['id_equipo_visitante']) ? (int)$c['id_equipo_visitante'] : null,
+                    'nombre' => $c['equipo_visitante_nombre'] ?? null,
+                    'escudo' => $c['equipo_visitante_escudo'] ?? null,
+                    'resultado' => isset($c['resultado_visitante']) ? (int)$c['resultado_visitante'] : null,
+                    'penales' => isset($c['resultado_penales_visitante']) ? (int)$c['resultado_penales_visitante'] : null,
+                ],
+                'origen_local' => [
+                    'tipo' => $c['origen_local_tipo'],
+                    'valor' => $c['origen_local_valor'],
+                ],
+                'origen_visitante' => [
+                    'tipo' => $c['origen_visitante_tipo'],
+                    'valor' => $c['origen_visitante_valor'],
+                ],
+            ];
+        }
+
+        ksort($llaveByRound);
+        $llave = array_values($llaveByRound);
+
+        $totalPartidos = 0;
+        $totalFinalizados = 0;
+        foreach ($estadoPartidos as $row) {
+            $cant = (int)($row['cantidad'] ?? 0);
+            $totalPartidos += $cant;
+            if (in_array((int)($row['id_estado_evento'] ?? 0), [4, 7], true)) {
+                $totalFinalizados += $cant;
+            }
+        }
+
+        return [
+            'torneo' => $torneo,
+            'fases' => $fases,
+            'fase_actual' => $faseActual,
+            'resumen' => [
+                'total_partidos' => $totalPartidos,
+                'partidos_finalizados' => $totalFinalizados,
+                'partidos_pendientes' => max(0, $totalPartidos - $totalFinalizados),
+                'eventos_zona_total' => $totZona,
+                'eventos_eliminacion_total' => $totElim,
+            ],
+            'estado_partidos' => $estadoPartidos,
+            'ultimos_resultados' => $ultimosResultados,
+            'zonas' => $zonasList,
+            'llave' => $llave,
+        ];
+    }
+
+    private function extractZonaKey(string $texto): string
+    {
+        if (preg_match('/\bZona\s+([A-Z0-9]+)/i', $texto, $m)) {
+            return strtoupper((string)$m[1]);
+        }
+
+        if (preg_match('/([A-Z0-9])\s*$/i', trim($texto), $m)) {
+            return strtoupper((string)$m[1]);
+        }
+
+        return strtoupper(trim($texto));
+    }
+
     public function exists(int $id, bool $onlyActive = true): bool
     {
         $sql = "SELECT 1 FROM {$this->table} WHERE id = :id";

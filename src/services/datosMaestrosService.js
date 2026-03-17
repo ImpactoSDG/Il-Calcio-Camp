@@ -25,8 +25,11 @@ const datosMaestrosService = {
   // --- Estados de Evento (/estados-evento) --- solo lectura
   getEstadosEvento: () => api.get('/estados-evento').then(r => r.data),
 
-  // --- Canchas (/canchas) --- solo lectura
+  // --- Canchas (/canchas) ---
   getCanchas: () => api.get('/canchas').then(r => r.data),
+  crearCancha: (data) => api.post('/canchas', data).then(r => r.data),
+  actualizarCancha: (data) => api.put('/canchas', data).then(r => r.data),
+  eliminarCancha: (id) => api.delete('/canchas', { data: { id } }).then(r => r.data),
 
   // --- Torneos (/torneos) --- solo lectura
   getTorneos: () => api.get('/torneos').then(r => r.data),
@@ -39,12 +42,16 @@ const datosMaestrosService = {
 
   // --- Equipos (/equipos) ---
   getEquipos: () => api.get('/equipos').then(r => r.data),
+  subirEscudoEquipo: (formData) => api.post('/equipos/subir-escudo', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(r => r.data),
   crearEquipo: (data) => api.post('/equipos', data).then(r => r.data),
   actualizarEquipo: (data) => api.put('/equipos', data).then(r => r.data),
   eliminarEquipo: (id) => api.delete('/equipos', { data: { id } }).then(r => r.data),
 
   // --- Jugadores (/jugadores) ---
   getJugadores: () => api.get('/jugadores').then(r => r.data),
+  getJugadoresByEquipo: (idEquipo) => api.get(`/jugadores?equipo=${idEquipo}`).then(r => r.data),
   crearJugador: (data) => api.post('/jugadores', data).then(r => r.data),
   actualizarJugador: (data) => api.put('/jugadores', data).then(r => r.data),
   eliminarJugador: (id) => api.delete('/jugadores', { data: { id } }).then(r => r.data),

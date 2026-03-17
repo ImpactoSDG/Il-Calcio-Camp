@@ -6,6 +6,8 @@ class Jugador
 {
     private PDO $conn;
     public string $table = 'jugador';
+    private ?bool $hasCapitanColumnInRelacion = null;
+    private ?bool $hasCapitanColumnInHist = null;
 
     public function __construct(PDO $db)
     {
@@ -92,9 +94,42 @@ class Jugador
     }
 
     /**
+     * Obtiene jugadores activos de un equipo desde la relacion jugador_equipo
+     */
+    public function getByEquipo(int $idEquipo): array
+    {
+        $hasCapitan = $this->hasCapitanColumnInRelacion();
+        $capitanSelect = $hasCapitan
+            ? ', COALESCE(je.capitan, 0) AS capitan'
+            : ', 0 AS capitan';
+        $orderBy = $hasCapitan
+            ? 'ORDER BY COALESCE(je.capitan, 0) DESC, j.apellido ASC, j.nombre ASC, j.id ASC'
+            : 'ORDER BY j.apellido ASC, j.nombre ASC, j.id ASC';
+
+        $sql = "SELECT j.id, j.nombre, j.apellido, j.dni, j.fecha_nac, j.fecha_alta, j.activo,
+                       je.id AS id_jugador_equipo,
+                       je.id_equipo AS id_equipo_actual,
+                       e.nombre AS equipo_nombre,
+                       e.id_disciplina AS equipo_id_disciplina,
+                       je.fecha_desde,
+                       je.fecha_hasta
+                       {$capitanSelect}
+                FROM {$this->table} j
+                INNER JOIN jugador_equipo je ON je.id_jugador = j.id AND je.fecha_hasta IS NULL
+                INNER JOIN equipo e ON je.id_equipo = e.id
+                WHERE je.id_equipo = :id_equipo
+                {$orderBy}";
+
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':id_equipo', $idEquipo, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
      * Crea un nuevo jugador
      */
-    public function create(string $nombre, string $apellido, ?string $dni, ?string $fechaNac, ?string $fechaAlta, bool $activo = true, ?int $idEquipoActual = null): int|false
+    public function create(string $nombre, string $apellido, ?string $dni, ?string $fechaNac, ?string $fechaAlta, bool $activo = true, ?int $idEquipoActual = null, bool $capitan = false): int|false
     {
         try {
             $this->conn->beginTransaction();
@@ -117,7 +152,7 @@ class Jugador
             $idJugador = (int)$this->conn->lastInsertId();
 
             if ($idEquipoActual) {
-                $this->assignEquipo($idJugador, $idEquipoActual, $fechaAlta ?: date('Y-m-d'));
+                $this->assignEquipo($idJugador, $idEquipoActual, $fechaAlta ?: date('Y-m-d'), 'ALTA', $capitan);
             }
 
             $this->conn->commit();
@@ -133,7 +168,7 @@ class Jugador
     /**
      * Actualiza un jugador
      */
-    public function update(int $id, string $nombre, string $apellido, ?string $dni, ?string $fechaNac, ?string $fechaAlta, bool $activo, ?int $idEquipoActual = null): bool
+    public function update(int $id, string $nombre, string $apellido, ?string $dni, ?string $fechaNac, ?string $fechaAlta, bool $activo, ?int $idEquipoActual = null, bool $capitan = false): bool
     {
         try {
             $this->conn->beginTransaction();
@@ -160,7 +195,7 @@ class Jugador
                 return false;
             }
 
-            $this->syncActiveEquipo($id, $idEquipoActual, $fechaAlta ?: date('Y-m-d'));
+            $this->syncActiveEquipo($id, $idEquipoActual, $fechaAlta ?: date('Y-m-d'), $capitan);
 
             $this->conn->commit();
             return true;
@@ -212,11 +247,15 @@ class Jugador
 
     private function getActiveRelation(int $idJugador): ?array
     {
+        $hasCapitan = $this->hasCapitanColumnInRelacion();
+        $capitanSelect = $hasCapitan ? ', COALESCE(capitan, 0) AS capitan' : ', 0 AS capitan';
+
         $sql = "SELECT id, id_jugador, id_equipo, fecha_desde, fecha_hasta
-                FROM jugador_equipo
-                WHERE id_jugador = :id_jugador AND fecha_hasta IS NULL
-                ORDER BY id DESC
-                LIMIT 1";
+                   {$capitanSelect}
+            FROM jugador_equipo
+            WHERE id_jugador = :id_jugador AND fecha_hasta IS NULL
+            ORDER BY id DESC
+            LIMIT 1";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id_jugador', $idJugador, PDO::PARAM_INT);
         $stmt->execute();
@@ -224,7 +263,7 @@ class Jugador
         return $result ?: null;
     }
 
-    private function syncActiveEquipo(int $idJugador, ?int $idEquipoActual, string $fechaReferencia): void
+    private function syncActiveEquipo(int $idJugador, ?int $idEquipoActual, string $fechaReferencia, bool $capitan = false): void
     {
         $actual = $this->getActiveRelation($idJugador);
 
@@ -236,6 +275,7 @@ class Jugador
         }
 
         if ($actual && (int)$actual['id_equipo'] === $idEquipoActual) {
+            $this->syncCaptainOnActiveRelation($actual, $capitan);
             return;
         }
 
@@ -246,22 +286,31 @@ class Jugador
         $this->assignEquipo($idJugador, $idEquipoActual, $fechaReferencia, $actual ? 'ACTUALIZACION' : 'ALTA');
     }
 
-    private function assignEquipo(int $idJugador, int $idEquipo, string $fechaDesde, string $accion = 'ALTA'): void
+    private function assignEquipo(int $idJugador, int $idEquipo, string $fechaDesde, string $accion = 'ALTA', bool $capitan = false): void
     {
-        $sql = "INSERT INTO jugador_equipo (id_jugador, id_equipo, fecha_desde, fecha_hasta)
+        $hasCapitan = $this->hasCapitanColumnInRelacion();
+        $sql = $hasCapitan
+            ? "INSERT INTO jugador_equipo (id_jugador, id_equipo, fecha_desde, fecha_hasta, capitan)
+                VALUES (:id_jugador, :id_equipo, :fecha_desde, NULL, :capitan)"
+            : "INSERT INTO jugador_equipo (id_jugador, id_equipo, fecha_desde, fecha_hasta)
                 VALUES (:id_jugador, :id_equipo, :fecha_desde, NULL)";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id_jugador', $idJugador, PDO::PARAM_INT);
         $stmt->bindValue(':id_equipo', $idEquipo, PDO::PARAM_INT);
         $stmt->bindValue(':fecha_desde', $fechaDesde);
+        if ($hasCapitan) {
+            $stmt->bindValue(':capitan', $capitan ? 1 : 0, PDO::PARAM_INT);
+        }
         $stmt->execute();
 
         $idJugadorEquipo = (int)$this->conn->lastInsertId();
-        $this->insertRelationHistory($idJugadorEquipo, $idJugador, $idEquipo, $fechaDesde, null, $accion);
+        $this->insertRelationHistory($idJugadorEquipo, $idJugador, $idEquipo, $fechaDesde, null, $accion, $capitan);
     }
 
     private function closeActiveRelation(int $idJugadorEquipo, int $idJugador, int $idEquipo, string $fechaHasta): void
     {
+        $actual = $this->getRelationById($idJugadorEquipo);
+
         $sql = "UPDATE jugador_equipo
                 SET fecha_hasta = :fecha_hasta
                 WHERE id = :id";
@@ -270,18 +319,54 @@ class Jugador
         $stmt->bindValue(':id', $idJugadorEquipo, PDO::PARAM_INT);
         $stmt->execute();
 
-        $sqlFechaDesde = "SELECT fecha_desde FROM jugador_equipo WHERE id = :id LIMIT 1";
-        $stmtFechaDesde = $this->conn->prepare($sqlFechaDesde);
-        $stmtFechaDesde->bindValue(':id', $idJugadorEquipo, PDO::PARAM_INT);
-        $stmtFechaDesde->execute();
-        $fechaDesde = $stmtFechaDesde->fetchColumn() ?: null;
-
-        $this->insertRelationHistory($idJugadorEquipo, $idJugador, $idEquipo, $fechaDesde, $fechaHasta, 'BAJA');
+        $this->insertRelationHistory(
+            $idJugadorEquipo,
+            $idJugador,
+            $idEquipo,
+            $actual['fecha_desde'] ?? null,
+            $fechaHasta,
+            'BAJA',
+            isset($actual['capitan']) ? (bool)$actual['capitan'] : false
+        );
     }
 
-    private function insertRelationHistory(int $idJugadorEquipo, int $idJugador, int $idEquipo, ?string $fechaDesde, ?string $fechaHasta, string $accion): void
+    private function syncCaptainOnActiveRelation(array $actual, bool $capitan): void
     {
-        $sql = "INSERT INTO jugador_equipo_hist (id_jugador_equipo, id_jugador, id_equipo, fecha_desde, fecha_hasta, fecha_cambio, accion)
+        if (!$this->hasCapitanColumnInRelacion()) {
+            return;
+        }
+
+        $currentCaptain = isset($actual['capitan']) ? (bool)$actual['capitan'] : false;
+        if ($currentCaptain === $capitan) {
+            return;
+        }
+
+        $sql = "UPDATE jugador_equipo
+                SET capitan = :capitan
+                WHERE id = :id";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':capitan', $capitan ? 1 : 0, PDO::PARAM_INT);
+        $stmt->bindValue(':id', (int)$actual['id'], PDO::PARAM_INT);
+        $stmt->execute();
+
+        $this->insertRelationHistory(
+            (int)$actual['id'],
+            (int)$actual['id_jugador'],
+            (int)$actual['id_equipo'],
+            $actual['fecha_desde'] ?? null,
+            $actual['fecha_hasta'] ?? null,
+            'ACTUALIZACION_CAPITAN',
+            $capitan
+        );
+    }
+
+    private function insertRelationHistory(int $idJugadorEquipo, int $idJugador, int $idEquipo, ?string $fechaDesde, ?string $fechaHasta, string $accion, bool $capitan = false): void
+    {
+        $hasCapitan = $this->hasCapitanColumnInHist();
+        $sql = $hasCapitan
+            ? "INSERT INTO jugador_equipo_hist (id_jugador_equipo, id_jugador, id_equipo, fecha_desde, fecha_hasta, fecha_cambio, accion, capitan)
+                VALUES (:id_jugador_equipo, :id_jugador, :id_equipo, :fecha_desde, :fecha_hasta, NOW(), :accion, :capitan)"
+            : "INSERT INTO jugador_equipo_hist (id_jugador_equipo, id_jugador, id_equipo, fecha_desde, fecha_hasta, fecha_cambio, accion)
                 VALUES (:id_jugador_equipo, :id_jugador, :id_equipo, :fecha_desde, :fecha_hasta, NOW(), :accion)";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id_jugador_equipo', $idJugadorEquipo, PDO::PARAM_INT);
@@ -290,6 +375,58 @@ class Jugador
         $stmt->bindValue(':fecha_desde', $fechaDesde);
         $stmt->bindValue(':fecha_hasta', $fechaHasta);
         $stmt->bindValue(':accion', $accion);
+        if ($hasCapitan) {
+            $stmt->bindValue(':capitan', $capitan ? 1 : 0, PDO::PARAM_INT);
+        }
         $stmt->execute();
+    }
+
+    private function getRelationById(int $idJugadorEquipo): ?array
+    {
+        $hasCapitan = $this->hasCapitanColumnInRelacion();
+        $capitanSelect = $hasCapitan ? ', COALESCE(capitan, 0) AS capitan' : ', 0 AS capitan';
+
+        $sql = "SELECT id, id_jugador, id_equipo, fecha_desde, fecha_hasta
+                       {$capitanSelect}
+                FROM jugador_equipo
+                WHERE id = :id
+                LIMIT 1";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':id', $idJugadorEquipo, PDO::PARAM_INT);
+        $stmt->execute();
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result ?: null;
+    }
+
+    private function hasCapitanColumnInRelacion(): bool
+    {
+        if ($this->hasCapitanColumnInRelacion !== null) {
+            return $this->hasCapitanColumnInRelacion;
+        }
+
+        try {
+            $stmt = $this->conn->query("SHOW COLUMNS FROM jugador_equipo LIKE 'capitan'");
+            $this->hasCapitanColumnInRelacion = $stmt !== false && (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable) {
+            $this->hasCapitanColumnInRelacion = false;
+        }
+
+        return $this->hasCapitanColumnInRelacion;
+    }
+
+    private function hasCapitanColumnInHist(): bool
+    {
+        if ($this->hasCapitanColumnInHist !== null) {
+            return $this->hasCapitanColumnInHist;
+        }
+
+        try {
+            $stmt = $this->conn->query("SHOW COLUMNS FROM jugador_equipo_hist LIKE 'capitan'");
+            $this->hasCapitanColumnInHist = $stmt !== false && (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable) {
+            $this->hasCapitanColumnInHist = false;
+        }
+
+        return $this->hasCapitanColumnInHist;
     }
 }

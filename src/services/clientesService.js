@@ -11,6 +11,7 @@ const clientesService = {
 
   // --- Clientes-Equipos (/clientes-equipos) ---
   getClienteEquipos: () => api.get('/clientes-equipos').then(r => r.data),
+  getClienteEquiposByEquipo: (idEquipo) => api.get(`/clientes-equipos?equipo=${idEquipo}`).then(r => r.data),
   crearClienteEquipo: (data) => api.post('/clientes-equipos', data).then(r => r.data),
   eliminarClienteEquipo: (id) => api.delete('/clientes-equipos', { data: { id_cliente_equipo: id } }).then(r => r.data),
 };

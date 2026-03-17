@@ -38,6 +38,21 @@ class TorneoController extends BaseController
         }
     }
 
+    public function getDashboard(): void
+    {
+        try {
+            $idTorneo = isset($_GET['id_torneo']) ? (int)$_GET['id_torneo'] : 0;
+            if ($idTorneo <= 0) {
+                $this->respond(400, ['message' => 'id_torneo es obligatorio.']);
+            }
+
+            $result = $this->model->getDashboardById($idTorneo);
+            $result ? $this->respond(200, $result) : $this->respond(404, ['message' => 'Torneo no encontrado.']);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al obtener dashboard del torneo');
+        }
+    }
+
     public function delete(): void
     {
         try {

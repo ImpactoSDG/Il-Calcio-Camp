@@ -75,7 +75,8 @@ class ClienteEquipoController extends BaseController
             if ($this->model->create(
                 $id ? (int)$id : null,
                 (int)$data['id_cliente'],
-                (int)$data['id_equipo']
+                (int)$data['id_equipo'],
+                isset($data['capitan']) ? (bool)$data['capitan'] : false
             )) {
                 $this->respond(201, ['message' => 'Relación cliente-equipo creada exitosamente.']);
             } else {

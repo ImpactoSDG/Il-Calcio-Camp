@@ -103,6 +103,11 @@
               </span>
             </button>
           </li>
+          <li class="nav-item">
+            <button class="torneo-tab" :class="{ active: tabActiva === 'programacion' }" @click="tabActiva = 'programacion'">
+              <i class="bi bi-calendar3 me-1"></i>Programación
+            </button>
+          </li>
         </ul>
 
         <template v-if="tabActiva === 'resumen'">
@@ -118,6 +123,8 @@
             <div class="col-12 col-lg-6">
               <div class="resumen-box h-100">
                 <p class="mb-1 text-muted">Eventos: {{ detalle.eventos.total }} (zonas: {{ detalle.eventos.zona }}, eliminación: {{ detalle.eventos.eliminacion }})</p>
+                <p class="mb-1 text-muted">Partidos programados: {{ detalle.eventos.programados || 0 }} de {{ detalle.eventos.total || 0 }}</p>
+                <p class="mb-1 text-muted">Partidos finalizados: {{ detalle.eventos.finalizados || 0 }}</p>
                 <p class="mb-1 text-muted">Inscripciones: {{ detalle.inscripciones?.total || 0 }}</p>
                 <p class="mb-1 text-muted">Pagas: {{ detalle.inscripciones?.pagas || 0 }}</p>
                 <p class="mb-0 text-muted">Equipos asignados: {{ detalle.inscripciones?.asignadas || 0 }}</p>
@@ -137,7 +144,12 @@
                 </span>
               </div>
             </div>
-            <button class="btn btn-outline-primary" @click="abrirInscripcionesModal">Agregar nueva inscripción</button>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-success" @click="abrirBulkInscripcionModal">
+                <i class="bi bi-check2-all me-1"></i>Inscribir varios
+              </button>
+              <button class="btn btn-outline-primary" @click="abrirInscripcionesModal">Agregar nueva inscripción</button>
+            </div>
           </div>
 
           <div v-if="!detalle.inscriptos?.length" class="alert alert-info mb-0">
@@ -160,7 +172,7 @@
                 <tr v-for="item in detalle.inscriptos" :key="item.id">
                   <td>
                     <div class="d-flex align-items-center gap-2">
-                      <img v-if="item.escudo" :src="item.escudo" alt="escudo" class="escudo-thumb" />
+                      <img v-if="item.escudo" :src="resolveEscudoUrl(item.escudo)" alt="escudo" class="escudo-thumb" />
                       <span>{{ item.equipo_nombre }}</span>
                     </div>
                   </td>
@@ -191,6 +203,55 @@
           <div v-if="!detalle.grupos?.length" class="alert alert-warning mb-0">
             Este torneo no tiene grupos configurados (fase de zonas).
           </div>
+
+          <template v-else-if="asignacionesCompletas">
+            <!-- Vista de solo lectura: asignaciones ya confirmadas -->
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span class="badge bg-success-subtle text-success rounded-pill"><i class="bi bi-check-circle me-1"></i>Asignaciones completas</span>
+                  <span v-if="hayPartidosJugados" class="badge bg-danger-subtle text-danger rounded-pill">
+                    <i class="bi bi-lock me-1"></i>Hay partidos jugados
+                  </span>
+                </div>
+                <p class="small text-muted mb-0">Los equipos ya quedaron distribuidos en sus grupos.</p>
+              </div>
+              <button
+                class="btn btn-outline-danger btn-sm"
+                :disabled="hayPartidosJugados || savingEliminarAsignaciones"
+                :title="hayPartidosJugados ? 'No se puede eliminar: hay partidos finalizados' : 'Eliminar todas las asignaciones'"
+                @click="eliminarAsignaciones"
+              >
+                <span v-if="savingEliminarAsignaciones" class="spinner-border spinner-border-sm me-1"></span>
+                <i v-else class="bi bi-trash me-1"></i>
+                Eliminar asignaciones
+              </button>
+            </div>
+
+            <div class="row g-3">
+              <div v-for="grupo in asignacionesPorGrupo" :key="grupo.id" class="col-12 col-md-6">
+                <div class="group-card h-100">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h3 class="h6 mb-0">{{ grupo.nombre }}</h3>
+                    <small class="text-muted">{{ grupo.equipos.length }}/{{ grupo.cantidad_equipos_objetivo }}</small>
+                  </div>
+                  <div v-if="!grupo.equipos.length" class="text-muted small">Sin equipos asignados.</div>
+                  <ul v-else class="list-unstyled mb-0">
+                    <li
+                      v-for="asig in grupo.equipos"
+                      :key="asig.id_equipo"
+                      class="d-flex align-items-center gap-2 py-1 border-bottom"
+                    >
+                      <span class="text-muted small" style="width:1.4rem;text-align:right;">{{ asig.posicion_inicial }}.</span>
+                      <img v-if="asig.escudo" :src="resolveEscudoUrl(asig.escudo)" alt="escudo" class="escudo-thumb" />
+                      <span v-else class="escudo-thumb-placeholder"><i class="bi bi-shield"></i></span>
+                      <span class="fw-semibold">{{ asig.equipo_nombre }}</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </template>
 
           <template v-else>
             <div class="table-responsive mb-3">
@@ -227,7 +288,7 @@
                 <div v-for="equipo in poolTeams" :key="equipo.id" class="col-12 col-md-6">
                   <label class="pool-item">
                     <input type="checkbox" :value="Number(equipo.id)" v-model="selectedPool" />
-                    <img v-if="equipo.escudo" :src="equipo.escudo" alt="escudo" class="escudo-thumb" />
+                    <img v-if="equipo.escudo" :src="resolveEscudoUrl(equipo.escudo)" alt="escudo" class="escudo-thumb" />
                     <span class="me-auto">{{ equipo.nombre }}</span>
                     <span v-if="equipo.pagada" class="badge rounded-pill bg-success-subtle text-success">Paga</span>
                     <span v-else class="badge rounded-pill bg-warning-subtle text-warning">Pendiente</span>
@@ -254,7 +315,7 @@
                       </option>
                     </select>
                     <div v-if="getSelectedTeam(grupo.id, pos)?.escudo" class="mt-1 small text-muted d-flex align-items-center gap-2">
-                      <img :src="getSelectedTeam(grupo.id, pos).escudo" alt="escudo" class="escudo-thumb" />
+                      <img :src="resolveEscudoUrl(getSelectedTeam(grupo.id, pos).escudo)" alt="escudo" class="escudo-thumb" />
                       Escudo cargado
                     </div>
                   </div>
@@ -274,8 +335,308 @@
             </div>
           </template>
         </template>
+
+        <template v-if="tabActiva === 'programacion'">
+          <div v-if="loadingProgramacion" class="text-center py-4 text-muted">
+            <span class="spinner-border spinner-border-sm me-2"></span>
+            Cargando datos de programación...
+          </div>
+
+          <template v-else>
+            <div class="row g-3 mb-3">
+              <div class="col-12 col-md-4">
+                <div class="resumen-box h-100">
+                  <div class="small text-muted">Partidos totales</div>
+                  <div class="h5 mb-0">{{ programacionData?.resumen?.total_eventos || 0 }}</div>
+                </div>
+              </div>
+              <div class="col-12 col-md-4">
+                <div class="resumen-box h-100">
+                  <div class="small text-muted">Pendientes de programar</div>
+                  <div class="h5 mb-0 text-warning">{{ programacionData?.resumen?.pendientes_programar || 0 }}</div>
+                </div>
+              </div>
+              <div class="col-12 col-md-4">
+                <div class="resumen-box h-100">
+                  <div class="small text-muted">Ya programados</div>
+                  <div class="h5 mb-0 text-success">{{ programacionData?.resumen?.ya_programados || 0 }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="programacion-box mb-3">
+              <h3 class="h6 mb-3">Programación automática</h3>
+              <div class="row g-3">
+                <div class="col-12 col-md-4">
+                  <label class="form-label small mb-1">Fase a programar</label>
+                  <select class="form-select" v-model="programacionForm.fase_programar" @change="onFaseProgramarChange">
+                    <option value="todas">Todas</option>
+                    <option value="zonas">Solo fase de grupos</option>
+                    <option value="eliminacion">Solo eliminación</option>
+                    <option value="seleccionados">Partidos seleccionados</option>
+                  </select>
+                </div>
+                <div class="col-12 col-md-4">
+                  <label class="form-label small mb-1">Fecha inicio</label>
+                  <input type="date" class="form-control" v-model="programacionForm.fecha_inicio" />
+                </div>
+                <div class="col-12 col-md-4">
+                  <label class="form-label small mb-1">Duración por partido (min)</label>
+                  <input type="number" min="20" max="240" step="5" class="form-control" v-model.number="programacionForm.duracion_minutos" />
+                </div>
+
+              </div>
+
+              <div v-if="programacionForm.fase_programar === 'seleccionados'" class="mt-3">
+                <div class="small fw-semibold mb-2">Partidos pendientes a programar (seleccionables)</div>
+                <div class="selector-box">
+                  <label v-for="ev in eventosPendientesProgramacion" :key="ev.id" class="selector-item">
+                    <input type="checkbox" :value="Number(ev.id)" v-model="programacionForm.id_eventos" />
+                    <span class="me-auto">{{ ev.titulo }}</span>
+                    <span class="small text-muted">#{{ ev.id }}</span>
+                  </label>
+                  <div v-if="!eventosPendientesProgramacion.length" class="small text-muted px-1 py-2">
+                    No hay partidos pendientes para seleccionar.
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-3">
+                <div class="small fw-semibold mb-2">Franjas por día</div>
+                <div class="row g-2">
+                  <div v-for="franja in programacionForm.franjas" :key="franja.dia_semana" class="col-12 col-lg-6">
+                    <div class="franja-row">
+                      <div class="d-flex align-items-center gap-2">
+                        <input type="checkbox" v-model="franja.activa" />
+                        <span class="small fw-semibold">{{ franja.nombre }}</span>
+                      </div>
+                      <div class="d-flex align-items-center gap-2">
+                        <input type="time" class="form-control form-control-sm" style="max-width: 120px" v-model="franja.hora_inicio" :disabled="!franja.activa" />
+                        <span class="small text-muted">a</span>
+                        <input type="time" class="form-control form-control-sm" style="max-width: 120px" v-model="franja.hora_fin" :disabled="!franja.activa" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="row g-3 mt-1">
+                <div class="col-12 col-lg-6">
+                  <div class="small fw-semibold mb-2">Canchas</div>
+                  <div class="selector-box">
+                    <label v-for="c in (programacionData?.canchas || [])" :key="c.id" class="selector-item">
+                      <input type="checkbox" :value="Number(c.id)" v-model="programacionForm.id_canchas" />
+                      <span>{{ c.nombre }}</span>
+                    </label>
+                  </div>
+                </div>
+                <div class="col-12 col-lg-6">
+                  <div class="small fw-semibold mb-2">Árbitros</div>
+                  <div class="selector-box">
+                    <label v-for="a in (programacionData?.arbitros || [])" :key="a.id" class="selector-item">
+                      <input type="checkbox" :value="Number(a.id)" v-model="programacionForm.id_arbitros" />
+                      <span>{{ a.nombre_completo || `${a.apellido || ''} ${a.nombre || ''}`.trim() }}</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="d-flex justify-content-end mt-3">
+                <div class="d-flex gap-2">
+                  <button class="btn btn-outline-danger" @click="deshacerProgramacion" :disabled="savingProgramacion">
+                    <span v-if="savingProgramacion" class="spinner-border spinner-border-sm me-2"></span>
+                    Deshacer programación
+                  </button>
+                  <button class="btn btn-primary" @click="programarAutomatico" :disabled="savingProgramacion">
+                    <span v-if="savingProgramacion" class="spinner-border spinner-border-sm me-2"></span>
+                    Programar automáticamente
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Partido</th>
+                    <th>Equipo local</th>
+                    <th>Equipo visitante</th>
+                    <th>Estado</th>
+                    <th>Fecha/Hora</th>
+                    <th>Cancha</th>
+                    <th>Árbitro</th>
+                    <th class="text-end">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="ev in (programacionData?.eventos || [])" :key="ev.id">
+                    <td>{{ ev.titulo }}</td>
+                    <td>{{ ev.equipo_local_nombre || 'Por definir' }}</td>
+                    <td>{{ ev.equipo_visitante_nombre || 'Por definir' }}</td>
+                    <td>{{ ev.estado_evento_descripcion || '-' }}</td>
+                    <td>
+                      <template v-if="isEditingProgramacionEvento(ev.id)">
+                        <input type="datetime-local" class="form-control form-control-sm" v-model="editProgramacionForm.fecha_hora_inicio" />
+                      </template>
+                      <template v-else>
+                        {{ ev.fecha_hora_inicio || '-' }}
+                      </template>
+                    </td>
+                    <td>
+                      <template v-if="isEditingProgramacionEvento(ev.id)">
+                        <select class="form-select form-select-sm" v-model.number="editProgramacionForm.id_cancha">
+                          <option :value="null">Seleccionar cancha</option>
+                          <option v-for="c in (programacionData?.canchas || [])" :key="c.id" :value="Number(c.id)">
+                            {{ c.nombre }}
+                          </option>
+                        </select>
+                      </template>
+                      <template v-else>
+                        {{ ev.cancha_nombre || '-' }}
+                      </template>
+                    </td>
+                    <td>
+                      <template v-if="isEditingProgramacionEvento(ev.id)">
+                        <select class="form-select form-select-sm" v-model.number="editProgramacionForm.id_arbitro">
+                          <option :value="null">Seleccionar árbitro</option>
+                          <option v-for="a in (programacionData?.arbitros || [])" :key="a.id" :value="Number(a.id)">
+                            {{ a.nombre_completo || `${a.apellido || ''} ${a.nombre || ''}`.trim() }}
+                          </option>
+                        </select>
+                      </template>
+                      <template v-else>
+                        {{ ev.arbitro_nombre_completo || '-' }}
+                      </template>
+                    </td>
+                    <td class="text-end">
+                      <div class="d-inline-flex gap-2">
+                        <template v-if="isEditingProgramacionEvento(ev.id)">
+                          <button class="btn btn-sm btn-success" @click="guardarEdicionProgramacionEvento" :disabled="savingProgramacion">
+                            Guardar
+                          </button>
+                          <button class="btn btn-sm btn-outline-secondary" @click="cancelarEdicionProgramacionEvento" :disabled="savingProgramacion">
+                            Cancelar
+                          </button>
+                        </template>
+                        <template v-else>
+                          <button class="btn btn-sm btn-outline-secondary" @click="iniciarEdicionProgramacionEvento(ev)">
+                            Editar
+                          </button>
+                        </template>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr v-if="!(programacionData?.eventos || []).length">
+                    <td colspan="8" class="text-center text-muted py-3">No hay partidos para mostrar.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+        </template>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div v-if="showBulkInscripcionModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title"><i class="bi bi-people-fill me-2 text-success"></i>Inscribir varios equipos</h5>
+              <button type="button" class="btn-close" @click="showBulkInscripcionModal = false"></button>
+            </div>
+
+            <div class="modal-body">
+              <div v-if="!equiposSinInscribir.length" class="alert alert-info mb-0">
+                Todos los equipos disponibles ya están inscriptos en este torneo.
+              </div>
+
+              <template v-else>
+                <p class="small text-muted mb-3">Seleccioná los equipos a inscribir. Podés definir parámetros comunes para todos (opcionales).</p>
+
+                <!-- Parámetros comunes -->
+                <div class="row g-3 mb-4 p-3 rounded border bg-light">
+                  <div class="col-12">
+                    <span class="fw-semibold small text-secondary">Parámetros comunes para los seleccionados</span>
+                  </div>
+                  <div class="col-12 col-md-5">
+                    <label class="form-label small">Estado inscripción</label>
+                    <select class="form-select form-select-sm" v-model="bulkEstadoInscripcion">
+                      <option value="">Sin especificar</option>
+                      <option v-for="estado in estadosInscripcionOptions" :key="estado.id" :value="String(estado.id)">
+                        {{ estado.descripcion }}
+                      </option>
+                    </select>
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <label class="form-label small">Fecha pago</label>
+                    <input type="date" class="form-control form-control-sm" v-model="bulkFechaPago" />
+                  </div>
+                  <div class="col-12 col-md-3 d-flex align-items-end">
+                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" @click="bulkFechaPago = ''; bulkEstadoInscripcion = ''">
+                      Limpiar
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Seleccionar todos -->
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <label class="form-check-label small fw-semibold">
+                    <input
+                      type="checkbox"
+                      class="form-check-input me-2"
+                      :checked="bulkSeleccionados.length === equiposSinInscribir.length && equiposSinInscribir.length > 0"
+                      :indeterminate.prop="bulkSeleccionados.length > 0 && bulkSeleccionados.length < equiposSinInscribir.length"
+                      @change="toggleBulkTodos"
+                    />
+                    Seleccionar todos ({{ equiposSinInscribir.length }})
+                  </label>
+                  <span class="badge bg-primary-subtle text-primary rounded-pill">
+                    {{ bulkSeleccionados.length }} seleccionado(s)
+                  </span>
+                </div>
+
+                <!-- Lista de equipos -->
+                <div class="bulk-equipo-list">
+                  <label
+                    v-for="equipo in equiposSinInscribir"
+                    :key="equipo.id"
+                    class="bulk-equipo-row"
+                    :class="{ 'bulk-equipo-row--selected': bulkSeleccionados.includes(equipo.id) }"
+                  >
+                    <input
+                      type="checkbox"
+                      class="form-check-input flex-shrink-0"
+                      :value="equipo.id"
+                      v-model="bulkSeleccionados"
+                    />
+                    <img v-if="equipo.escudo" :src="resolveEscudoUrl(equipo.escudo)" alt="escudo" class="escudo-thumb" />
+                    <span v-else class="escudo-thumb-placeholder"><i class="bi bi-shield"></i></span>
+                    <span class="fw-semibold">{{ equipo.nombre }}</span>
+                  </label>
+                </div>
+              </template>
+            </div>
+
+            <div class="modal-footer d-flex justify-content-between align-items-center">
+              <small class="text-muted">Se inscribirán {{ bulkSeleccionados.length }} equipo(s) en un solo envío.</small>
+              <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary" @click="showBulkInscripcionModal = false">Cancelar</button>
+                <button
+                  class="btn btn-success"
+                  :disabled="savingBulkInscripciones || !bulkSeleccionados.length"
+                  @click="guardarBulkInscripciones"
+                >
+                  <span v-if="savingBulkInscripciones" class="spinner-border spinner-border-sm me-2"></span>
+                  Inscribir {{ bulkSeleccionados.length > 0 ? bulkSeleccionados.length : '' }} equipo(s)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <Teleport to="body">
       <div v-if="showEliminarTorneoModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
@@ -402,8 +763,11 @@ const equiposDisponibles = ref([])
 const loadingTorneos = ref(false)
 const loadingDetalle = ref(false)
 const savingAsignacion = ref(false)
+const savingEliminarAsignaciones = ref(false)
 const savingInscripciones = ref(false)
 const savingEliminarTorneo = ref(false)
+const savingProgramacion = ref(false)
+const loadingProgramacion = ref(false)
 const selected = ref({})
 const selectedPool = ref([])
 const showInscripcionModal = ref(false)
@@ -411,6 +775,32 @@ const showEliminarTorneoModal = ref(false)
 const showAccionesMenu = ref(false)
 const confirmNombreEliminar = ref('')
 const motivoBajaTorneo = ref('')
+const programacionData = ref(null)
+const editingProgramacionEventoId = ref(null)
+const editProgramacionForm = ref({
+  id_evento: null,
+  fecha_hora_inicio: '',
+  id_cancha: null,
+  id_arbitro: null,
+})
+const programacionForm = ref({
+  fase_programar: 'todas',
+  fecha_inicio: new Date().toISOString().slice(0, 10),
+  duracion_minutos: 70,
+  max_dias_busqueda: 365,
+  id_canchas: [],
+  id_arbitros: [],
+  id_eventos: [],
+  franjas: [
+    { dia_semana: 1, nombre: 'Lunes', activa: true, hora_inicio: '13:00', hora_fin: '18:00' },
+    { dia_semana: 2, nombre: 'Martes', activa: true, hora_inicio: '13:00', hora_fin: '18:00' },
+    { dia_semana: 3, nombre: 'Miércoles', activa: true, hora_inicio: '13:00', hora_fin: '18:00' },
+    { dia_semana: 4, nombre: 'Jueves', activa: true, hora_inicio: '13:00', hora_fin: '18:00' },
+    { dia_semana: 5, nombre: 'Viernes', activa: true, hora_inicio: '13:00', hora_fin: '18:00' },
+    { dia_semana: 6, nombre: 'Sábado', activa: true, hora_inicio: '13:00', hora_fin: '18:00' },
+    { dia_semana: 7, nombre: 'Domingo', activa: true, hora_inicio: '13:00', hora_fin: '18:00' },
+  ],
+})
 const inscripcionForm = ref({
   id_equipo: '',
   id_estado_inscripcion: '',
@@ -419,9 +809,58 @@ const inscripcionForm = ref({
   comprobante_file: null,
   observacion: '',
 })
+const showBulkInscripcionModal = ref(false)
+const savingBulkInscripciones = ref(false)
+const bulkSeleccionados = ref([])
+const bulkFechaPago = ref('')
+const bulkEstadoInscripcion = ref('')
 const tabActiva = ref('resumen')
 
 const getApiMessage = (error, fallback) => error?.response?.data?.message || fallback
+
+const toDateTimeLocal = (value) => {
+  if (!value) return ''
+  const txt = String(value).trim().replace(' ', 'T')
+  return txt.length >= 16 ? txt.slice(0, 16) : txt
+}
+
+const isEventoPendienteProgramacion = (ev) => {
+  const estado = Number(ev?.id_estado_evento || 0)
+  if (estado === 1) return true
+  return !ev?.fecha_hora_inicio || !ev?.id_cancha || !ev?.id_arbitro
+}
+
+const resolveEscudoUrl = (escudo) => {
+  if (!escudo) return ''
+
+  const value = String(escudo).trim()
+  if (value === '') return ''
+  if (/^https?:\/\//i.test(value) || value.startsWith('data:')) return value
+
+  const apiBase = import.meta.env.VITE_API_URL
+  if (!apiBase) return value
+
+  try {
+    const apiUrl = new URL(apiBase, window.location.origin)
+    const apiPath = String(apiUrl.pathname || '').replace(/\/+$/, '')
+    const projectBasePath = apiPath.endsWith('/api') ? apiPath.slice(0, -4) : ''
+
+    if (value.startsWith('/')) {
+      if (projectBasePath && !value.startsWith(projectBasePath + '/')) {
+        return `${apiUrl.origin}${projectBasePath}${value}`
+      }
+      return `${apiUrl.origin}${value}`
+    }
+
+    if (projectBasePath && value.startsWith('uploads/')) {
+      return `${apiUrl.origin}${projectBasePath}/${value}`
+    }
+
+    return new URL(value, apiUrl.href).toString()
+  } catch {
+    return value
+  }
+}
 
 const cargarTorneos = async () => {
   loadingTorneos.value = true
@@ -444,14 +883,17 @@ const cargarDetalle = async (idTorneo = null) => {
 
   if (!idTorneoSeleccionado.value) return
   loadingDetalle.value = true
+  loadingProgramacion.value = true
   try {
-    const [detalleData, disponibles] = await Promise.all([
+    const [detalleData, disponibles, dataProgramacion] = await Promise.all([
       planTorneoService.getDetalleGestion(idTorneoSeleccionado.value),
       planTorneoService.getEquiposDisponibles(idTorneoSeleccionado.value),
+      planTorneoService.getProgramacionData(idTorneoSeleccionado.value, programacionForm.value.fase_programar),
     ])
 
     detalle.value = detalleData
     equiposDisponibles.value = disponibles
+    programacionData.value = dataProgramacion
 
     const next = {}
     for (const item of (detalleData.asignaciones || [])) {
@@ -459,12 +901,46 @@ const cargarDetalle = async (idTorneo = null) => {
     }
     selected.value = next
     selectedPool.value = (detalleData.inscriptos || []).map(i => Number(i.id_equipo))
+
+    programacionForm.value.id_canchas = (dataProgramacion?.canchas || []).map(c => Number(c.id))
+    programacionForm.value.id_arbitros = (dataProgramacion?.arbitros || []).map(a => Number(a.id))
   } catch (error) {
     detalle.value = null
+    programacionData.value = null
     toast.showToast({ message: getApiMessage(error, 'No se pudo cargar el detalle del torneo.'), type: 'danger' })
   } finally {
     loadingDetalle.value = false
+    loadingProgramacion.value = false
   }
+}
+
+const cargarProgramacionData = async () => {
+  if (!idTorneoSeleccionado.value) return
+  loadingProgramacion.value = true
+  try {
+    const dataProgramacion = await planTorneoService.getProgramacionData(
+      idTorneoSeleccionado.value,
+      programacionForm.value.fase_programar,
+    )
+    programacionData.value = dataProgramacion
+    if (programacionForm.value.fase_programar === 'seleccionados') {
+      const permitidos = new Set(eventosPendientesProgramacion.value.map(ev => Number(ev.id)))
+      programacionForm.value.id_eventos = (programacionForm.value.id_eventos || [])
+        .map(Number)
+        .filter(id => permitidos.has(id))
+    }
+  } catch (error) {
+    toast.showToast({ message: getApiMessage(error, 'No se pudo cargar la programación.'), type: 'danger' })
+  } finally {
+    loadingProgramacion.value = false
+  }
+}
+
+const onFaseProgramarChange = async () => {
+  if (programacionForm.value.fase_programar !== 'seleccionados') {
+    programacionForm.value.id_eventos = []
+  }
+  await cargarProgramacionData()
 }
 
 const allTeamsMap = computed(() => {
@@ -516,6 +992,32 @@ const estadosInscripcionOptions = computed(() =>
   (detalle.value?.estados_inscripcion || []).map(e => ({ id: Number(e.id), descripcion: e.descripcion }))
 )
 
+const equiposSinInscribir = computed(() => {
+  const inscriptosIds = new Set((detalle.value?.inscriptos || []).map(i => Number(i.id_equipo)))
+  return equiposDisponiblesSorted.value.filter(e => !inscriptosIds.has(Number(e.id)))
+})
+
+const asignacionesCompletas = computed(() => {
+  const grupos = detalle.value?.grupos || []
+  if (!grupos.length) return false
+  return grupos.every(g => Number(g.asignados) >= Number(g.cantidad_equipos_objetivo))
+})
+
+const hayPartidosJugados = computed(() => {
+  return Number(detalle.value?.eventos?.finalizados || 0) > 0
+})
+
+const asignacionesPorGrupo = computed(() => {
+  const grupos = detalle.value?.grupos || []
+  const items = detalle.value?.asignaciones || []
+  return grupos.map(g => ({
+    ...g,
+    equipos: items
+      .filter(a => Number(a.id_grupo_torneo) === Number(g.id))
+      .sort((a, b) => Number(a.posicion_inicial) - Number(b.posicion_inicial)),
+  }))
+})
+
 const totalInscriptosObjetivo = computed(() => {
   const cupo = Number(detalle.value?.torneo?.cupo_equipos || 0)
   if (cupo > 0) return cupo
@@ -542,6 +1044,10 @@ const totalSlots = computed(() => {
   }
   return total
 })
+
+const eventosPendientesProgramacion = computed(() =>
+  (programacionData.value?.eventos || []).filter(isEventoPendienteProgramacion)
+)
 
 const selectedIds = computed(() => {
   const ids = []
@@ -660,6 +1166,75 @@ const abrirInscripcionesModal = () => {
   }
   resetInscripcionForm()
   showInscripcionModal.value = true
+}
+
+const eliminarAsignaciones = async () => {
+  if (!idTorneoSeleccionado.value) return
+  const ok = window.confirm(
+    '\u00bfEliminar todas las asignaciones de grupos de este torneo?\n\nEsta acci\u00f3n es reversible siempre que no haya partidos finalizados.',
+  )
+  if (!ok) return
+
+  savingEliminarAsignaciones.value = true
+  try {
+    await planTorneoService.eliminarAsignaciones({ id_torneo: idTorneoSeleccionado.value })
+    toast.showToast({ message: 'Asignaciones eliminadas. Podés volver a asignar.', type: 'success' })
+    await cargarDetalle()
+  } catch (error) {
+    toast.showToast({ message: getApiMessage(error, 'No se pudieron eliminar las asignaciones.'), type: 'danger' })
+  } finally {
+    savingEliminarAsignaciones.value = false
+  }
+}
+
+const abrirBulkInscripcionModal = () => {
+  if (!idTorneoSeleccionado.value) {
+    toast.showToast({ message: 'Selecciona un torneo antes de cargar inscripciones.', type: 'warning' })
+    return
+  }
+  bulkSeleccionados.value = []
+  bulkFechaPago.value = ''
+  bulkEstadoInscripcion.value = ''
+  showBulkInscripcionModal.value = true
+}
+
+const toggleBulkTodos = () => {
+  if (bulkSeleccionados.value.length === equiposSinInscribir.value.length) {
+    bulkSeleccionados.value = []
+  } else {
+    bulkSeleccionados.value = equiposSinInscribir.value.map(e => e.id)
+  }
+}
+
+const guardarBulkInscripciones = async () => {
+  if (!bulkSeleccionados.value.length) {
+    toast.showToast({ message: 'Seleccioná al menos un equipo.', type: 'warning' })
+    return
+  }
+
+  const inscripciones = bulkSeleccionados.value.map(idEquipo => ({
+    id_equipo: Number(idEquipo),
+    pagada: Boolean(bulkFechaPago.value),
+    fecha_pago: bulkFechaPago.value || null,
+    id_estado_inscripcion: bulkEstadoInscripcion.value ? Number(bulkEstadoInscripcion.value) : null,
+    comprobante_pago: null,
+    observacion: null,
+  }))
+
+  savingBulkInscripciones.value = true
+  try {
+    await planTorneoService.inscribirEquipos({
+      id_torneo: idTorneoSeleccionado.value,
+      inscripciones,
+    })
+    toast.showToast({ message: `${inscripciones.length} equipo(s) inscripto(s) correctamente.`, type: 'success' })
+    showBulkInscripcionModal.value = false
+    await cargarDetalle()
+  } catch (error) {
+    toast.showToast({ message: getApiMessage(error, 'No se pudieron guardar las inscripciones.'), type: 'danger' })
+  } finally {
+    savingBulkInscripciones.value = false
+  }
 }
 
 const abrirEliminarTorneoModal = () => {
@@ -808,6 +1383,147 @@ const guardarInscripciones = async () => {
   }
 }
 
+const programarAutomatico = async () => {
+  if (!idTorneoSeleccionado.value) return
+
+  const franjas = (programacionForm.value.franjas || [])
+    .filter(f => f.activa)
+    .map(f => ({ dia_semana: Number(f.dia_semana), hora_inicio: f.hora_inicio, hora_fin: f.hora_fin }))
+
+  if (!franjas.length) {
+    toast.showToast({ message: 'Activa al menos una franja horaria para programar.', type: 'warning' })
+    return
+  }
+  if (!(programacionForm.value.id_canchas || []).length) {
+    toast.showToast({ message: 'Selecciona al menos una cancha.', type: 'warning' })
+    return
+  }
+  if (!(programacionForm.value.id_arbitros || []).length) {
+    toast.showToast({ message: 'Selecciona al menos un árbitro.', type: 'warning' })
+    return
+  }
+  if (programacionForm.value.fase_programar === 'seleccionados' && !(programacionForm.value.id_eventos || []).length) {
+    toast.showToast({ message: 'Selecciona al menos un partido pendiente para programar.', type: 'warning' })
+    return
+  }
+
+  savingProgramacion.value = true
+  try {
+    const resp = await planTorneoService.autoProgramar({
+      id_torneo: idTorneoSeleccionado.value,
+      fase_programar: programacionForm.value.fase_programar,
+      fecha_inicio: programacionForm.value.fecha_inicio,
+      duracion_minutos: Number(programacionForm.value.duracion_minutos || 70),
+      max_dias_busqueda: Number(programacionForm.value.max_dias_busqueda || 365),
+      id_canchas: (programacionForm.value.id_canchas || []).map(Number),
+      id_arbitros: (programacionForm.value.id_arbitros || []).map(Number),
+      id_eventos: (programacionForm.value.id_eventos || []).map(Number),
+      franjas,
+      force_reprogramar: false,
+    })
+
+    toast.showToast({
+      message: `${resp?.programados || 0} partidos programados automáticamente.`,
+      type: 'success',
+    })
+
+    await cargarDetalle()
+  } catch (error) {
+    toast.showToast({ message: getApiMessage(error, 'No se pudo ejecutar la programación automática.'), type: 'danger' })
+  } finally {
+    savingProgramacion.value = false
+  }
+}
+
+const deshacerProgramacion = async () => {
+  if (!idTorneoSeleccionado.value) return
+
+  const etiquetaFase =
+    programacionForm.value.fase_programar === 'zonas'
+      ? 'fase de grupos'
+      : programacionForm.value.fase_programar === 'eliminacion'
+        ? 'fase eliminatoria'
+        : 'todas las fases'
+
+  const ok = window.confirm(
+    `Se deshará la programación de los partidos en estado Programado para ${etiquetaFase}.\n` +
+      'Esto limpiará fecha/hora, cancha y árbitro, y los devolverá a Programación pendiente.\n\n' +
+      '¿Deseas continuar?'
+  )
+  if (!ok) return
+
+  savingProgramacion.value = true
+  try {
+    const resp = await planTorneoService.deshacerProgramacion({
+      id_torneo: idTorneoSeleccionado.value,
+      fase_programar: programacionForm.value.fase_programar,
+      id_eventos: (programacionForm.value.id_eventos || []).map(Number),
+    })
+
+    toast.showToast({
+      message: `${resp?.revertidos || 0} partidos pasaron a Programación pendiente.`,
+      type: 'success',
+    })
+
+    await cargarDetalle()
+  } catch (error) {
+    toast.showToast({ message: getApiMessage(error, 'No se pudo deshacer la programación.'), type: 'danger' })
+  } finally {
+    savingProgramacion.value = false
+  }
+}
+
+const isEditingProgramacionEvento = (idEvento) => Number(editingProgramacionEventoId.value) === Number(idEvento)
+
+const iniciarEdicionProgramacionEvento = (ev) => {
+  editingProgramacionEventoId.value = Number(ev.id)
+  editProgramacionForm.value = {
+    id_evento: Number(ev.id),
+    fecha_hora_inicio: toDateTimeLocal(ev.fecha_hora_inicio),
+    id_cancha: ev.id_cancha ? Number(ev.id_cancha) : null,
+    id_arbitro: ev.id_arbitro ? Number(ev.id_arbitro) : null,
+  }
+}
+
+const cancelarEdicionProgramacionEvento = () => {
+  editingProgramacionEventoId.value = null
+  editProgramacionForm.value = {
+    id_evento: null,
+    fecha_hora_inicio: '',
+    id_cancha: null,
+    id_arbitro: null,
+  }
+}
+
+const guardarEdicionProgramacionEvento = async () => {
+  if (!idTorneoSeleccionado.value || !editProgramacionForm.value.id_evento) return
+
+  if (!editProgramacionForm.value.fecha_hora_inicio || !editProgramacionForm.value.id_cancha || !editProgramacionForm.value.id_arbitro) {
+    toast.showToast({ message: 'Debes completar fecha/hora, cancha y árbitro.', type: 'warning' })
+    return
+  }
+
+  savingProgramacion.value = true
+  try {
+    await planTorneoService.actualizarProgramacionEvento({
+      id_torneo: idTorneoSeleccionado.value,
+      id_evento: Number(editProgramacionForm.value.id_evento),
+      fecha_hora_inicio: editProgramacionForm.value.fecha_hora_inicio,
+      id_cancha: Number(editProgramacionForm.value.id_cancha),
+      id_arbitro: Number(editProgramacionForm.value.id_arbitro),
+      duracion_minutos: Number(programacionForm.value.duracion_minutos || 70),
+    })
+
+    toast.showToast({ message: 'Partido actualizado correctamente.', type: 'success' })
+    cancelarEdicionProgramacionEvento()
+    await cargarDetalle()
+  } catch (error) {
+    toast.showToast({ message: getApiMessage(error, 'No se pudo actualizar el partido.'), type: 'danger' })
+  } finally {
+    savingProgramacion.value = false
+  }
+}
+
 onMounted(cargarTorneos)
 </script>
 
@@ -836,6 +1552,41 @@ onMounted(cargarTorneos)
   border-radius: 12px;
   padding: 12px;
   background: #f8fafc;
+}
+
+.programacion-box {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.franja-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fff;
+}
+
+.selector-box {
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px;
+}
+
+.selector-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px;
+  font-size: 0.9rem;
 }
 
 .acciones-menu {
@@ -906,6 +1657,52 @@ onMounted(cargarTorneos)
   object-fit: cover;
   border-radius: 50%;
   border: 1px solid #cbd5e1;
+}
+
+.escudo-thumb-placeholder {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid #cbd5e1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  flex-shrink: 0;
+}
+
+.bulk-equipo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.bulk-equipo-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+  background: #fff;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.bulk-equipo-row:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.bulk-equipo-row--selected {
+  background: #eff6ff;
+  border-color: #3b82f6;
 }
 
 .torneo-grid {

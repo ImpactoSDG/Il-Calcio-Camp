@@ -41,6 +41,10 @@
                   {{ item.equipo_disciplina || '—' }}
                 </span>
               </td>
+              <td class="text-center">
+                <span v-if="item.capitan" class="badge bg-warning-subtle text-warning-emphasis rounded-pill px-3">Capitán</span>
+                <span v-else class="text-muted">—</span>
+              </td>
               <td class="pe-4 text-end">
                 <button @click="prepareDelete(item.id_cliente_equipo)" class="btn btn-link link-danger p-1" title="Eliminar relación">
                   <i class="bi bi-trash3 fs-4"></i>
@@ -48,7 +52,7 @@
               </td>
             </tr>
             <tr v-if="relacionesFiltradas.length === 0 && !loading">
-              <td colspan="5" class="text-center py-5 text-muted">No hay relaciones que coincidan con la búsqueda.</td>
+              <td colspan="6" class="text-center py-5 text-muted">No hay relaciones que coincidan con la búsqueda.</td>
             </tr>
           </tbody>
         </table>
@@ -82,6 +86,14 @@
                   <option :value="null" disabled>Seleccionar equipo...</option>
                   <option v-for="e in equipos" :key="e.id" :value="e.id">{{ e.nombre }} ({{ e.disciplina }})</option>
                 </select>
+              </div>
+              <div class="mt-3 mb-0">
+                <div class="form-check form-switch ps-4">
+                  <input v-model="form.capitan" class="form-check-input" type="checkbox" role="switch" id="chkCapitanRelacion" />
+                  <label class="form-check-label fw-semibold ms-2" for="chkCapitanRelacion">
+                    Marcar como capitán
+                  </label>
+                </div>
               </div>
             </div>
             <div class="modal-footer">
@@ -127,6 +139,7 @@ const columns = [
   { key: 'cliente_nombre',    label: 'Cliente',      sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary', icon: 'bi bi-person-fill me-1' },
   { key: 'equipo_nombre',     label: 'Equipo',       sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary', icon: 'bi bi-people-fill me-1' },
   { key: 'equipo_disciplina', label: 'Disciplina',   sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'capitan',           label: 'Capitán',      sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width: 140px' },
   { key: 'acciones',          label: 'Acciones',     sortable: false, thClass: 'pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary text-end' },
 ]
 
@@ -141,7 +154,7 @@ const isSaving = ref(false);
 const isDeleting = ref(false);
 const idToDelete = ref(null);
 
-const form = ref({ id_cliente: null, id_equipo: null });
+const form = ref({ id_cliente: null, id_equipo: null, capitan: false });
 
 const relacionesFiltradas = computed(() => {
   let items = relaciones.value;
@@ -159,11 +172,17 @@ const relacionesFiltradas = computed(() => {
 const fetchData = async () => {
   loading.value = true;
   try {
-    [relaciones.value, clientes.value, equipos.value] = await Promise.all([
+    const [relacionesData, clientesData, equiposData] = await Promise.all([
       clientesService.getClienteEquipos(),
       clientesService.getClientes(),
       datosMaestrosService.getEquipos(),
     ]);
+    relaciones.value = relacionesData.map(item => ({
+      ...item,
+      capitan: Boolean(Number(item.capitan)),
+    }));
+    clientes.value = clientesData;
+    equipos.value = equiposData;
   } catch {
     toast.showToast({ message: 'Error al cargar las relaciones.', type: 'danger' });
   } finally {
@@ -172,7 +191,7 @@ const fetchData = async () => {
 };
 
 const openModal = () => {
-  form.value = { id_cliente: null, id_equipo: null };
+  form.value = { id_cliente: null, id_equipo: null, capitan: false };
   showFormModal.value = true;
 };
 
@@ -188,6 +207,16 @@ const save = async () => {
   if (duplicado) {
     toast.showToast({ message: 'Esta relación ya existe.', type: 'danger' });
     return;
+  }
+
+  if (form.value.capitan) {
+    const yaTieneCapitan = relaciones.value.some(
+      r => Number(r.id_equipo) === Number(form.value.id_equipo) && Boolean(r.capitan)
+    );
+    if (yaTieneCapitan) {
+      toast.showToast({ message: 'El equipo ya tiene un capitán asignado.', type: 'warning' });
+      return;
+    }
   }
 
   isSaving.value = true;

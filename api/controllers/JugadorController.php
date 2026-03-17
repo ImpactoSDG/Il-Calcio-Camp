@@ -23,8 +23,11 @@ class JugadorController extends BaseController
         try {
             $activos = $_GET['activos'] ?? null;
             $dni = $_GET['dni'] ?? null;
+            $equipo = $_GET['equipo'] ?? null;
 
-            if ($dni) {
+            if ($equipo) {
+                $this->respond(200, $this->model->getByEquipo((int)$equipo));
+            } elseif ($dni) {
                 $result = $this->model->getByDni((string)$dni);
                 $this->respond(200, $result ? [$result] : []);
             } elseif ($activos === '1' || $activos === 'true') {
@@ -83,7 +86,8 @@ class JugadorController extends BaseController
                 isset($data['fecha_nac']) && $data['fecha_nac'] !== '' ? (string)$data['fecha_nac'] : null,
                 $fechaAlta,
                 isset($data['activo']) ? (bool)$data['activo'] : true,
-                !empty($data['id_equipo_actual']) ? (int)$data['id_equipo_actual'] : null
+                !empty($data['id_equipo_actual']) ? (int)$data['id_equipo_actual'] : null,
+                isset($data['capitan']) ? (bool)$data['capitan'] : false
             );
 
             if ($nuevoId !== false) {
@@ -121,7 +125,8 @@ class JugadorController extends BaseController
                 isset($data['fecha_nac']) && $data['fecha_nac'] !== '' ? (string)$data['fecha_nac'] : null,
                 isset($data['fecha_alta']) && $data['fecha_alta'] !== '' ? (string)$data['fecha_alta'] : null,
                 (bool)$data['activo'],
-                !empty($data['id_equipo_actual']) ? (int)$data['id_equipo_actual'] : null
+                !empty($data['id_equipo_actual']) ? (int)$data['id_equipo_actual'] : null,
+                isset($data['capitan']) ? (bool)$data['capitan'] : false
             )) {
                 $this->respond(200, ['message' => 'Jugador actualizado exitosamente.']);
             }

@@ -1,18 +1,21 @@
 <template>
-  <div class="search-container">
+  <div class="search-container" ref="containerRef">
     <input
       type="text"
       ref="searchInput"
       v-model="query"
       :placeholder="placeholder"
       @input="onSearch"
-      @click="onFocus"
       @focus="onFocus"
+      @click="onFocus"
       @keydown.enter.prevent="onEnter"
       class="form-control"
     />
 
-    <div v-if="results.length > 0" class="list-group position-absolute w-100 shadow-sm z-3">
+    <div 
+      v-if="results.length > 0 && (query !== '' || showAllOnFocus)" 
+      class="list-group position-absolute w-100 shadow-sm z-3"
+    >
       <button 
         v-for="(result, index) in results" 
         :key="index"
@@ -29,7 +32,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, nextTick } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 import Fuse from 'fuse.js';
 
 const props = defineProps({
@@ -37,14 +40,19 @@ const props = defineProps({
   data: { type: Array, default: () => [] },
   keys: { type: Array, default: () => [] },
   placeholder: { type: String, default: 'Buscar...' },
-  threshold: { type: Number, default: 0.3 }
+  threshold: { type: Number, default: 0.3 },
+  showAllOnFocus: { type: Boolean, default: false },
+  maxResults: { type: Number, default: 10 },
 });
 
 const emit = defineEmits(['update:modelValue', 'selected']);
 
 const searchInput = ref(null);
+const containerRef = ref(null);
 const query = ref(props.modelValue);
 const results = ref([]);
+
+let fuse = null;
 
 const focus = () => {
   if (searchInput.value) {
@@ -53,8 +61,6 @@ const focus = () => {
 };
 
 defineExpose({ focus });
-
-let fuse = null;
 
 // Sincronizar query interna con modelValue propeado
 watch(() => props.modelValue, (newVal) => {
@@ -74,21 +80,28 @@ const setupFuse = () => {
 
 const onSearch = () => {
   emit('update:modelValue', query.value);
-  if (!fuse) return;
   
   if (query.value.trim() === '') {
-    // Si está vacío, mostramos los primeros 10 elementos como sugerencia
-    results.value = props.data.slice(0, 10).map(item => ({ item, score: 0 }));
+    if (props.showAllOnFocus && props.data.length > 0) {
+      results.value = props.data.slice(0, props.maxResults).map(item => ({ item }));
+    } else {
+      results.value = [];
+    }
     return;
   }
 
-  // Solo buscar si hay datos y llaves para Fuse
+  if (!fuse) {
+    results.value = [];
+    return;
+  }
+
   if (props.data.length > 0 && props.keys.length > 0) {
-    results.value = fuse.search(query.value).slice(0, 10);
+    results.value = fuse.search(query.value).slice(0, props.maxResults);
   }
 };
 
 const onFocus = () => {
+  if (!props.showAllOnFocus && query.value.trim() === '') return;
   onSearch();
 };
 
@@ -99,7 +112,6 @@ const onEnter = () => {
 };
 
 const selectItem = (item) => {
-  // Intentamos obtener el valor de la propiedad que más se parezca a un nombre o código
   const keyToUse = props.keys.find(k => k === 'nombre') || props.keys[0];
   query.value = item[keyToUse] || ''; 
   results.value = [];
@@ -107,22 +119,24 @@ const selectItem = (item) => {
   emit('update:modelValue', query.value);
 };
 
-// Cerrar resultados si se hace click afuera
+const handleClickOutside = (e) => {
+  if (containerRef.value && !containerRef.value.contains(e.target)) {
+    results.value = [];
+  }
+};
+
 onMounted(() => {
   setupFuse();
-  document.addEventListener('click', (e) => {
-    if (searchInput.value && !searchInput.value.contains(e.target)) {
-      results.value = [];
-    }
-  });
+  document.addEventListener('click', handleClickOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
 });
 
 watch(() => props.data, () => {
   setupFuse();
-  // No llamar a onSearch preventivamente para no disparar emits innecesarios
 }, { deep: true });
-
-onMounted(() => setupFuse());
 </script>
 
 <style scoped>
