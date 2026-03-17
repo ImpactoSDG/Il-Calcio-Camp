@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../core/BaseController.php';
 require_once __DIR__ . '/../models/Venta.php';
+require_once __DIR__ . '/SimboloDiaController.php';
 
 class VentaController extends BaseController
 {
@@ -82,13 +83,16 @@ class VentaController extends BaseController
         try {
             $data = json_decode(file_get_contents("php://input"), true);
 
-            if (empty($data['fecha']) || empty($data['id_estado_venta']) || empty($data['simbolo'])) {
-                $this->respond(400, ['message' => 'Fecha, estado de venta y símbolo requeridos.']);
+            if (empty($data['fecha']) || empty($data['id_estado_venta'])) {
+                $this->respond(400, ['message' => 'Fecha y estado de venta requeridos.']);
             }
 
             if (empty($data['articulos']) || !is_array($data['articulos'])) {
                 $this->respond(400, ['message' => 'La venta debe contener artículos.']);
             }
+
+            // El backend siempre es la autoridad del símbolo del día
+            $data['simbolo'] = SimboloDiaController::obtenerArchivoSimboloDia();
 
             // Llamamos al nuevo método transaccional
             $result = $this->model->createWithDetails($data, $data['articulos']);
@@ -111,12 +115,18 @@ class VentaController extends BaseController
         try {
             $data = json_decode(file_get_contents("php://input"), true);
 
-            if (empty($data['id']) || empty($data['fecha']) || empty($data['id_estado_venta']) || empty($data['simbolo'])) {
-                $this->respond(400, ['message' => 'ID, fecha, estado de venta y símbolo requeridos.']);
+            if (empty($data['id']) || empty($data['fecha']) || empty($data['id_estado_venta'])) {
+                $this->respond(400, ['message' => 'ID, fecha y estado de venta requeridos.']);
             }
 
             if (empty($data['articulos']) || !is_array($data['articulos'])) {
                 $this->respond(400, ['message' => 'La venta debe contener artículos.']);
+            }
+
+            // Preservar el símbolo original de la venta (ya asignado al momento de crear)
+            // Solo actualizamos si la venta no tiene símbolo aún
+            if (empty($data['simbolo'])) {
+                $data['simbolo'] = SimboloDiaController::obtenerArchivoSimboloDia();
             }
 
             $result = $this->model->updateWithDetails($data, $data['articulos']);

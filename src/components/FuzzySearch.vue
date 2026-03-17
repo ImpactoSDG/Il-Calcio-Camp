@@ -6,11 +6,13 @@
       v-model="query"
       :placeholder="placeholder"
       @input="onSearch"
+      @click="onFocus"
+      @focus="onFocus"
       @keydown.enter.prevent="onEnter"
       class="form-control"
     />
 
-    <div v-if="results.length > 0 && query !== ''" class="list-group position-absolute w-100 shadow-sm z-3">
+    <div v-if="results.length > 0" class="list-group position-absolute w-100 shadow-sm z-3">
       <button 
         v-for="(result, index) in results" 
         :key="index"
@@ -72,14 +74,22 @@ const setupFuse = () => {
 
 const onSearch = () => {
   emit('update:modelValue', query.value);
-  if (query.value.trim() === '' || !fuse) {
-    results.value = [];
+  if (!fuse) return;
+  
+  if (query.value.trim() === '') {
+    // Si está vacío, mostramos los primeros 10 elementos como sugerencia
+    results.value = props.data.slice(0, 10).map(item => ({ item, score: 0 }));
     return;
   }
+
   // Solo buscar si hay datos y llaves para Fuse
   if (props.data.length > 0 && props.keys.length > 0) {
     results.value = fuse.search(query.value).slice(0, 10);
   }
+};
+
+const onFocus = () => {
+  onSearch();
 };
 
 const onEnter = () => {

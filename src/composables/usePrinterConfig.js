@@ -158,6 +158,9 @@ export async function imprimirTicketEscPos({ venta, articulos, nombreLocal = 'IL
 
   const SEP = '------------------------------------------------\x0A'; // 48 chars
 
+  // Símbolo del día (ya es un carácter como %, !, #, etc.)
+  const simbolo = venta.simbolo || '';
+
   const lineasArticulos = articulos.map(a => {
     const cant  = String(a.cantidad).padEnd(6, ' ');
     const desc  = String(a.articulo_nombre).substring(0, 26).padEnd(27, ' ');
@@ -171,7 +174,7 @@ export async function imprimirTicketEscPos({ venta, articulos, nombreLocal = 'IL
     '\x1B\x21\x30',      // Texto grande
     `${nombreLocal}\x0A`,
     '\x1B\x21\x00',      // Normal
-    `Venta #${venta.id}-${venta.simbolo}\x0A`,
+    `Venta N\xF8 ${venta.id} - ${simbolo}\x0A`,
     `Fecha: ${formatFechaLocal(venta.fecha)}\x0A`,
     SEP,
     '\x1B\x61\x00',      // Izquierda
@@ -186,6 +189,7 @@ export async function imprimirTicketEscPos({ venta, articulos, nombreLocal = 'IL
     `Pago: ${venta.medio_cobro_nombre || 'Efectivo'}\x0A\x0A`,
     '\x1B\x61\x01',      // Centrar
     '¡Gracias por su compra!\x0A',
+    SEP,
     feed,                // Avance configurable
     cut,                 // Corte configurable
   ];

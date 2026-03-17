@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/SimboloDiaController.php';
 
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -31,10 +32,10 @@ class TicketVentaController
             exit;
         }
 
-        $venta    = $this->obtenerVenta($idVenta);
-        $articulos = $this->obtenerArticulos($idVenta);
+        $venta      = $this->obtenerVenta($idVenta);
+        $articulos  = $this->obtenerArticulos($idVenta);
         $medioCobro = $this->obtenerMedioCobro($idVenta);
-        $config   = $this->obtenerConfiguracion();
+        $config     = $this->obtenerConfiguracion();
 
         if (!$venta) {
             http_response_code(404);
@@ -145,7 +146,11 @@ class TicketVentaController
     private function generarHtml(array $venta, array $articulos, string $medioCobro, array $config): string
     {
         $nombreEmpresa = $config['nombre_empresa'] ?? 'IL CALCIO CAMP';
-        $simbolo       = $venta['simbolo'] ?: ($config['simbolo_dia'] ?? '$');
+
+        // Determinar qué símbolo mostrar: el de la venta o el del día actual
+        $simbolo = !empty($venta['simbolo']) ? $venta['simbolo'] : SimboloDiaController::calcularSimboloDia();
+        // El signo $ se sigue usando como moneda en los precios
+        $moneda = '$';
 
         $dtz    = new DateTimeZone('America/Argentina/Buenos_Aires');
         $ahora  = (new DateTime('now', $dtz))->format('d/m/Y H:i');
@@ -172,8 +177,8 @@ class TicketVentaController
                 <td colspan='2' class='art-nombre'>{$nombre}</td>
             </tr>
             <tr>
-                <td class='art-detalle'>{$cantidad} x {$simbolo} {$precioU}</td>
-                <td class='art-sub'>{$simbolo} {$subtotalF}</td>
+                <td class='art-detalle'>{$cantidad} x {$moneda} {$precioU}</td>
+                <td class='art-sub'>{$moneda} {$subtotalF}</td>
             </tr>
             <tr><td colspan='2' class='separador-item'></td></tr>";
         }
@@ -278,6 +283,13 @@ class TicketVentaController
         border-top: 1px dashed #aaa;
         padding-top: 6px;
     }
+    .numero-venta {
+        text-align: center;
+        font-weight: bold;
+        font-size: 13px;
+        letter-spacing: 1px;
+        margin-bottom: 6px;
+    }
 </style>
 </head>
 <body>
@@ -287,7 +299,10 @@ class TicketVentaController
     </div>
 
     <div class='meta'>
-        Impreso: {$ahora} &nbsp;|&nbsp; Venta N° {$venta['id']}
+        Impreso: {$ahora}
+    </div>
+    <div class='numero-venta'>
+        Venta N° {$venta['id']} &ndash; {$simbolo}
     </div>
 
     <div class='seccion'>
@@ -309,7 +324,7 @@ class TicketVentaController
         <table class='total-row'>
             <tr>
                 <td class='total-label'>TOTAL</td>
-                <td class='total-monto'>{$simbolo} {$totalF}</td>
+                <td class='total-monto'>{$moneda} {$totalF}</td>
             </tr>
         </table>
     </div>

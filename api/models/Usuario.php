@@ -83,7 +83,8 @@ class Usuario
                     m.orden_visualizacion, 
                     m.categoria,
                     m.icon,
-                    m.bg
+                    m.bg,
+                    COALESCE(um.favorito, 0) as favorito
                 FROM usuario_modulo um
                 INNER JOIN modulo m ON m.id = um.id_modulo
                 WHERE um.id_usuario = :id
@@ -153,6 +154,20 @@ class Usuario
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':idu', $idUsuario, PDO::PARAM_INT);
         $stmt->bindValue(':idm', $idModulo, PDO::PARAM_INT);
+        return $stmt->execute();
+    }
+
+    public function toggleFavorito(int $idUsuario, int $idModulo, bool $estado): bool
+    {
+        $favorito = $estado ? 1 : 0;
+        $sql = "UPDATE usuario_modulo 
+                SET favorito = :favorito 
+                WHERE id_usuario = :idu AND id_modulo = :idm";
+        
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':idu', $idUsuario, PDO::PARAM_INT);
+        $stmt->bindValue(':idm', $idModulo, PDO::PARAM_INT);
+        $stmt->bindValue(':favorito', $favorito, PDO::PARAM_INT);
         return $stmt->execute();
     }
 

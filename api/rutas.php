@@ -34,6 +34,7 @@ require_once __DIR__ . '/controllers/ImpresoraTiqueteraController.php';
 require_once __DIR__ . '/controllers/ProveedorController.php';
 require_once __DIR__ . '/controllers/PedidoProveedorController.php';
 require_once __DIR__ . '/controllers/PagoProveedorController.php';
+require_once __DIR__ . '/controllers/SimboloDiaController.php';
 
 require_once __DIR__ . '/core/JwtHandler.php';
 require_once __DIR__ . '/core/BaseController.php';
@@ -78,6 +79,7 @@ $impresoraTiqueteraController = new ImpresoraTiqueteraController($db);
 $proveedorController = new ProveedorController($db);
 $pedidoProveedorController = new PedidoProveedorController($db);
 $pagoProveedorController = new PagoProveedorController($db);
+$simboloDiaController = new SimboloDiaController();
 
 function verifyAuth(): array {
     $headers = getallheaders();
@@ -212,6 +214,15 @@ switch ($resource) {
         } else {
             http_response_code(405);
         }
+        break;
+    case 'toggle-favorito':
+        verifyAuth();
+        if ($method === 'POST') {
+            $usuarioController->toggleFavorito();
+        } else {
+            http_response_code(405);
+        }
+        break;
         break;
     case 'configuraciones':
         verifyAuth();
@@ -772,6 +783,15 @@ switch ($resource) {
             default:
                 http_response_code(405);
                 break;
+        }
+        break;
+
+    case 'simbolo-dia':
+        verifyAuth();
+        if ($method === 'GET') {
+            $simboloDiaController->obtener();
+        } else {
+            http_response_code(405);
         }
         break;
 
