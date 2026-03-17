@@ -15,22 +15,41 @@
         <div class="row g-3 align-items-end">
           <div class="col-12 col-md-5">
             <label class="form-label">Torneo</label>
-            <select v-model.number="idTorneoSeleccionado" class="form-select" @change="onTorneoChange">
-              <option :value="null">Seleccionar torneo</option>
-              <option v-for="torneo in torneos" :key="torneo.id" :value="Number(torneo.id)">
-                {{ torneo.nombre }}
-              </option>
-            </select>
+            <FuzzySearch
+              v-model="busquedaTorneo"
+              :data="torneosFuse"
+              :keys="['label']"
+              :show-all-on-focus="true"
+              placeholder="Buscar torneo..."
+              @selected="setTorneoSeleccionado"
+            >
+              <template #default="{ item }">
+                {{ item.label }}
+              </template>
+            </FuzzySearch>
+            <div class="d-flex justify-content-between align-items-center mt-1">
+              <div class="form-text">{{ torneoSeleccionadoLabel || 'Sin torneo seleccionado' }}</div>
+              <button v-if="idTorneoSeleccionado" type="button" class="btn btn-sm btn-link p-0" @click="clearTorneoSeleccionado">Limpiar</button>
+            </div>
           </div>
           <div class="col-12 col-md-7">
             <label class="form-label">Partido (programado o finalizado)</label>
-            <select v-model.number="idPartidoSeleccionado" class="form-select" :disabled="!idTorneoSeleccionado" @change="onPartidoChange">
-              <option :value="null">Seleccionar partido</option>
-              <option v-for="partido in partidosFiltrados" :key="partido.id" :value="Number(partido.id)">
-                #{{ partido.id }} - {{ partido.equipo_local_nombre || 'Local' }} vs {{ partido.equipo_visitante_nombre || 'Visitante' }}
-                ({{ partido.estado_evento_descripcion || `Estado ${partido.id_estado_evento}` }})
-              </option>
-            </select>
+            <FuzzySearch
+              v-model="busquedaPartido"
+              :data="partidosFuse"
+              :keys="['label']"
+              :show-all-on-focus="true"
+              :placeholder="idTorneoSeleccionado ? 'Buscar partido...' : 'Primero selecciona torneo'"
+              @selected="setPartidoSeleccionado"
+            >
+              <template #default="{ item }">
+                {{ item.label }}
+              </template>
+            </FuzzySearch>
+            <div class="d-flex justify-content-between align-items-center mt-1">
+              <div class="form-text">{{ partidoSeleccionadoLabel || 'Sin partido seleccionado' }}</div>
+              <button v-if="idPartidoSeleccionado" type="button" class="btn btn-sm btn-link p-0" @click="clearPartidoSeleccionado">Limpiar</button>
+            </div>
           </div>
         </div>
 
@@ -40,10 +59,10 @@
       </div>
     </div>
 
-    <div v-if="partidoSeleccionado" class="row g-4">
-      <div class="col-12 col-lg-6">
-        <div class="card shadow-sm border-0 rounded-lg h-100">
-          <div class="card-body p-4">
+    <div v-if="partidoSeleccionado" class="card shadow-sm border-0 rounded-lg">
+      <div class="card-body p-4">
+        <div class="row g-4">
+          <div class="col-12 col-lg-6">
             <h2 class="h6 fw-bold text-secondary mb-3">Resultado del partido</h2>
 
             <div class="match-summary mb-3">
@@ -58,11 +77,33 @@
 
             <div class="row g-3">
                 <div class="col-6">
-                  <label class="form-label">Resultado local</label>
+                  <label class="form-label score-team-label">
+                    <img
+                      v-if="equipoLocalPartido.escudo"
+                      :src="resolveEscudoUrl(equipoLocalPartido.escudo)"
+                      alt="escudo equipo local"
+                      class="escudo-thumb"
+                    />
+                    <span v-else class="escudo-thumb escudo-placeholder" aria-hidden="true">
+                      <i class="bi bi-shield"></i>
+                    </span>
+                    <span class="text-truncate">{{ equipoLocalPartido.nombre }}</span>
+                  </label>
                   <input v-model.number="resultadoForm.resultado_local" type="number" min="0" class="form-control" />
                 </div>
                 <div class="col-6">
-                  <label class="form-label">Resultado visitante</label>
+                  <label class="form-label score-team-label">
+                    <img
+                      v-if="equipoVisitantePartido.escudo"
+                      :src="resolveEscudoUrl(equipoVisitantePartido.escudo)"
+                      alt="escudo equipo visitante"
+                      class="escudo-thumb"
+                    />
+                    <span v-else class="escudo-thumb escudo-placeholder" aria-hidden="true">
+                      <i class="bi bi-shield"></i>
+                    </span>
+                    <span class="text-truncate">{{ equipoVisitantePartido.nombre }}</span>
+                  </label>
                   <input v-model.number="resultadoForm.resultado_visitante" type="number" min="0" class="form-control" />
                 </div>
 
@@ -75,85 +116,47 @@
 
                 <template v-if="resultadoForm.hubo_penales">
                   <div class="col-6">
-                    <label class="form-label">Penales local</label>
+                    <label class="form-label score-team-label">
+                      <img
+                        v-if="equipoLocalPartido.escudo"
+                        :src="resolveEscudoUrl(equipoLocalPartido.escudo)"
+                        alt="escudo equipo local"
+                        class="escudo-thumb"
+                      />
+                      <span v-else class="escudo-thumb escudo-placeholder" aria-hidden="true">
+                        <i class="bi bi-shield"></i>
+                      </span>
+                      <span class="text-truncate">Penales {{ equipoLocalPartido.nombre }}</span>
+                    </label>
                     <input v-model.number="resultadoForm.resultado_penales_local" type="number" min="0" class="form-control" />
                   </div>
                   <div class="col-6">
-                    <label class="form-label">Penales visitante</label>
+                    <label class="form-label score-team-label">
+                      <img
+                        v-if="equipoVisitantePartido.escudo"
+                        :src="resolveEscudoUrl(equipoVisitantePartido.escudo)"
+                        alt="escudo equipo visitante"
+                        class="escudo-thumb"
+                      />
+                      <span v-else class="escudo-thumb escudo-placeholder" aria-hidden="true">
+                        <i class="bi bi-shield"></i>
+                      </span>
+                      <span class="text-truncate">Penales {{ equipoVisitantePartido.nombre }}</span>
+                    </label>
                     <input v-model.number="resultadoForm.resultado_penales_visitante" type="number" min="0" class="form-control" />
                   </div>
                 </template>
 
             </div>
           </div>
-        </div>
-      </div>
 
-      <div class="col-12 col-lg-6">
-        <div class="card shadow-sm border-0 rounded-lg h-100">
-          <div class="card-body p-4">
-            <h2 class="h6 fw-bold text-secondary mb-3">Incidencias del partido</h2>
-
-            <form @submit.prevent="agregarIncidenciaBorrador" class="row g-3 mb-4">
-              <div class="col-12">
-                <label class="form-label">Equipo</label>
-                <div class="equipo-options">
-                  <button
-                    v-for="equipo in equiposPartido"
-                    :key="equipo.id"
-                    type="button"
-                    class="equipo-option"
-                    :class="{ active: Number(incidenciaForm.id_equipo) === Number(equipo.id) }"
-                    @click="setEquipoIncidencia(Number(equipo.id))"
-                  >
-                    <img
-                      v-if="equipo.escudo"
-                      :src="resolveEscudoUrl(equipo.escudo)"
-                      alt="escudo"
-                      class="escudo-thumb"
-                    />
-                    <span class="fw-semibold">{{ equipo.nombre }}</span>
-                  </button>
-                </div>
-              </div>
-
-              <div class="col-12 col-md-6">
-                <label class="form-label">Jugador</label>
-                <select
-                  v-model.number="incidenciaForm.id_jugador"
-                  class="form-select"
-                  :disabled="!incidenciaForm.id_equipo"
-                >
-                  <option :value="null">Seleccionar jugador (opcional)</option>
-                  <option v-for="jugador in jugadoresFiltradosPorEquipo" :key="jugador.id" :value="Number(jugador.id)">
-                    {{ jugador.apellido }}, {{ jugador.nombre }}
-                  </option>
-                </select>
-              </div>
-
-              <div class="col-12 col-md-6">
-                <label class="form-label">Tipo de incidencia</label>
-                <select v-model.number="incidenciaForm.id_tipo_evento_partido" class="form-select" required>
-                  <option :value="null">Seleccionar tipo</option>
-                  <option v-for="tipo in tiposEventoPartidoActivos" :key="tipo.id" :value="Number(tipo.id)">
-                    {{ tipo.descripcion }}
-                  </option>
-                </select>
-              </div>
-              <div class="col-12 col-md-6">
-                <label class="form-label">Minuto</label>
-                <input v-model.number="incidenciaForm.minuto" type="number" min="0" max="200" class="form-control" placeholder="Opcional" />
-              </div>
-              <div class="col-12">
-                <label class="form-label">Observación</label>
-                <input v-model.trim="incidenciaForm.observacion" type="text" class="form-control" placeholder="Opcional" />
-              </div>
-              <div class="col-12">
-                <button class="btn btn-outline-primary" :disabled="!tiposEventoPartidoActivos.length">
-                  Agregar incidencia al borrador
-                </button>
-              </div>
-            </form>
+          <div class="col-12 col-lg-6">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h2 class="h6 fw-bold text-secondary mb-0">Incidencias del partido</h2>
+              <button class="btn btn-outline-primary btn-sm" :disabled="!tiposEventoPartidoActivos.length" @click="openIncidenciaModal">
+                <i class="bi bi-plus-circle me-1"></i> Agregar incidencia
+              </button>
+            </div>
 
             <div v-if="!tiposEventoPartidoActivos.length" class="alert alert-warning py-2">
               No hay tipos de incidencia activos en el catálogo.
@@ -185,7 +188,29 @@
                         ? `${incidencia.jugador_apellido || ''}${incidencia.jugador_apellido && incidencia.jugador_nombre ? ', ' : ''}${incidencia.jugador_nombre || ''}`
                         : '-' }}
                     </td>
-                    <td>{{ incidencia.tipo_evento_partido_descripcion }}</td>
+                    <td>
+                      <span class="incidencia-tipo-chip" :class="`incidencia-${getIncidenciaMeta(incidencia.tipo_evento_partido_descripcion).tone}`">
+                        <span
+                          v-if="getIncidenciaMeta(incidencia.tipo_evento_partido_descripcion).icon === 'ball'"
+                          class="incidencia-icon incidencia-ball"
+                          aria-hidden="true"
+                        >
+                          ⚽
+                        </span>
+                        <span
+                          v-else-if="getIncidenciaMeta(incidencia.tipo_evento_partido_descripcion).icon === 'yellow-card'"
+                          class="incidencia-icon incidencia-card incidencia-card-yellow"
+                          aria-hidden="true"
+                        ></span>
+                        <span
+                          v-else-if="getIncidenciaMeta(incidencia.tipo_evento_partido_descripcion).icon === 'red-card'"
+                          class="incidencia-icon incidencia-card incidencia-card-red"
+                          aria-hidden="true"
+                        ></span>
+                        <i v-else class="bi bi-record-circle incidencia-icon"></i>
+                        <span>{{ incidencia.tipo_evento_partido_descripcion }}</span>
+                      </span>
+                    </td>
                     <td>{{ incidencia.minuto ?? '-' }}</td>
                     <td>{{ incidencia.observacion || '-' }}</td>
                     <td class="text-end">
@@ -203,22 +228,19 @@
           </div>
         </div>
       </div>
-
-      <div class="col-12">
-        <div class="card shadow-sm border-0 rounded-lg">
-          <div class="card-body p-4 d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
-            <div>
-              <div class="fw-semibold">Guardar cambios del partido</div>
-              <div class="small text-muted">
-                Se guardará resultado y {{ incidenciasPendientes.length }} incidencia(s) nueva(s)
-                <span v-if="incidenciasEliminadasIds.length">, y se eliminarán {{ incidenciasEliminadasIds.length }} incidencia(s)</span>.
-              </div>
+      <div class="card-footer bg-white border-top-0 px-4 pb-4 pt-2">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+          <div>
+            <div class="fw-semibold">Guardar cambios del partido</div>
+            <div class="small text-muted">
+              Se guardará resultado y {{ incidenciasPendientes.length }} incidencia(s) nueva(s)
+              <span v-if="incidenciasEliminadasIds.length">, y se eliminarán {{ incidenciasEliminadasIds.length }} incidencia(s)</span>.
             </div>
-            <button class="btn btn-primary-modern" :disabled="savingTodo" @click="guardarTodo">
-              <span v-if="savingTodo" class="spinner-border spinner-border-sm me-2"></span>
-              Guardar todo
-            </button>
           </div>
+          <button class="btn btn-primary-modern" :disabled="savingTodo" @click="guardarTodo">
+            <span v-if="savingTodo" class="spinner-border spinner-border-sm me-2"></span>
+            Guardar todo
+          </button>
         </div>
       </div>
     </div>
@@ -228,6 +250,102 @@
         <span class="visually-hidden">Cargando...</span>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div v-if="showIncidenciaModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(3px);">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">
+                <i class="bi bi-plus-circle-fill text-primary me-2"></i>
+                Agregar incidencia al borrador
+              </h5>
+              <button type="button" class="btn-close" @click="showIncidenciaModal = false"></button>
+            </div>
+            <form @submit.prevent="agregarIncidenciaBorrador">
+              <div class="modal-body">
+                <div class="row g-3">
+                  <div class="col-12">
+                    <label class="form-label">Equipo</label>
+                    <div class="equipo-options">
+                      <button
+                        v-for="equipo in equiposPartido"
+                        :key="equipo.id"
+                        type="button"
+                        class="equipo-option"
+                        :class="{ active: Number(incidenciaForm.id_equipo) === Number(equipo.id) }"
+                        @click="setEquipoIncidencia(Number(equipo.id))"
+                      >
+                        <img
+                          v-if="equipo.escudo"
+                          :src="resolveEscudoUrl(equipo.escudo)"
+                          alt="escudo"
+                          class="escudo-thumb"
+                        />
+                        <span class="fw-semibold">{{ equipo.nombre }}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <label class="form-label">Jugador</label>
+                    <FuzzySearch
+                      v-model="busquedaJugador"
+                      :data="jugadoresFuse"
+                      :keys="['label']"
+                      :show-all-on-focus="true"
+                      :placeholder="incidenciaForm.id_equipo ? 'Buscar jugador (opcional)...' : 'Primero selecciona equipo'"
+                      @selected="setJugadorIncidencia"
+                    >
+                      <template #default="{ item }">
+                        {{ item.label }}
+                      </template>
+                    </FuzzySearch>
+                    <div class="d-flex justify-content-between align-items-center mt-1">
+                      <div class="form-text">{{ jugadorIncidenciaSeleccionadoLabel || 'Sin jugador seleccionado' }}</div>
+                      <button v-if="incidenciaForm.id_jugador" type="button" class="btn btn-sm btn-link p-0" @click="clearJugadorIncidencia">Limpiar</button>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <label class="form-label">Tipo de incidencia</label>
+                    <FuzzySearch
+                      v-model="busquedaTipoIncidencia"
+                      :data="tiposEventoPartidoActivosFuse"
+                      :keys="['label']"
+                      :show-all-on-focus="true"
+                      placeholder="Buscar tipo de incidencia..."
+                      @selected="setTipoIncidencia"
+                    >
+                      <template #default="{ item }">
+                        {{ item.label }}
+                      </template>
+                    </FuzzySearch>
+                    <div class="d-flex justify-content-between align-items-center mt-1">
+                      <div class="form-text">{{ tipoIncidenciaSeleccionadoLabel || 'Sin tipo seleccionado' }}</div>
+                      <button v-if="incidenciaForm.id_tipo_evento_partido" type="button" class="btn btn-sm btn-link p-0" @click="clearTipoIncidencia">Limpiar</button>
+                    </div>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <label class="form-label">Minuto</label>
+                    <input v-model.number="incidenciaForm.minuto" type="number" min="0" max="200" class="form-control" placeholder="Opcional" />
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">Observación</label>
+                    <input v-model.trim="incidenciaForm.observacion" type="text" class="form-control" placeholder="Opcional" />
+                  </div>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-light" @click="showIncidenciaModal = false">Cancelar</button>
+                <button class="btn btn-primary-modern" :disabled="!tiposEventoPartidoActivos.length">Agregar al borrador</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <Teleport to="body">
       <div v-if="showResumenModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(3px);">
@@ -255,9 +373,11 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import FuzzySearch from '@/components/FuzzySearch.vue'
 import datosMaestrosService from '@/services/datosMaestrosService'
 import eventosService from '@/services/eventosService'
 import { useToastStore } from '@/stores/toastStore'
+import { getIncidenciaVisualMeta } from '@/utils/incidencias'
 
 const toast = useToastStore()
 
@@ -276,11 +396,16 @@ const jugadores = ref([])
 
 const loading = ref(false)
 const savingTodo = ref(false)
+const showIncidenciaModal = ref(false)
 const showResumenModal = ref(false)
 const resumenGuardado = ref('')
 
 const idTorneoSeleccionado = ref(null)
 const idPartidoSeleccionado = ref(null)
+const busquedaTorneo = ref('')
+const busquedaPartido = ref('')
+const busquedaJugador = ref('')
+const busquedaTipoIncidencia = ref('')
 
 const emptyResultadoForm = () => ({
   resultado_local: null,
@@ -321,6 +446,48 @@ const tiposEventoPartidoActivos = computed(() => (
   tiposEventoPartido.value.filter(item => Number(item.activo ?? 1) === 1)
 ))
 
+const torneosFuse = computed(() => torneos.value.map(torneo => ({
+  ...torneo,
+  label: torneo.nombre,
+})))
+
+const partidosFuse = computed(() => partidosFiltrados.value.map(partido => ({
+  ...partido,
+  label: `#${partido.id} - ${partido.equipo_local_nombre || 'Local'} vs ${partido.equipo_visitante_nombre || 'Visitante'} (${partido.estado_evento_descripcion || `Estado ${partido.id_estado_evento}`})`,
+})))
+
+const jugadoresFuse = computed(() => jugadoresFiltradosPorEquipo.value.map(jugador => ({
+  ...jugador,
+  label: `${jugador.apellido || ''}${jugador.apellido && jugador.nombre ? ', ' : ''}${jugador.nombre || ''}`,
+})))
+
+const tiposEventoPartidoActivosFuse = computed(() => tiposEventoPartidoActivos.value.map(tipo => ({
+  ...tipo,
+  label: tipo.descripcion,
+})))
+
+const torneoSeleccionadoLabel = computed(() => {
+  const torneo = torneos.value.find(item => Number(item.id) === Number(idTorneoSeleccionado.value))
+  return torneo?.nombre || ''
+})
+
+const partidoSeleccionadoLabel = computed(() => {
+  const partido = partidosFiltrados.value.find(item => Number(item.id) === Number(idPartidoSeleccionado.value))
+  if (!partido) return ''
+  return `#${partido.id} - ${partido.equipo_local_nombre || 'Local'} vs ${partido.equipo_visitante_nombre || 'Visitante'}`
+})
+
+const jugadorIncidenciaSeleccionadoLabel = computed(() => {
+  const jugador = jugadores.value.find(item => Number(item.id) === Number(incidenciaForm.value.id_jugador))
+  if (!jugador) return ''
+  return `${jugador.apellido || ''}${jugador.apellido && jugador.nombre ? ', ' : ''}${jugador.nombre || ''}`
+})
+
+const tipoIncidenciaSeleccionadoLabel = computed(() => {
+  const tipo = tiposEventoPartidoActivos.value.find(item => Number(item.id) === Number(incidenciaForm.value.id_tipo_evento_partido))
+  return tipo?.descripcion || ''
+})
+
 const equiposPartido = computed(() => {
   const partido = partidoSeleccionado.value
   if (!partido) return []
@@ -345,6 +512,30 @@ const equiposPartido = computed(() => {
         escudo: null,
       }
     })
+})
+
+const equipoLocalPartido = computed(() => {
+  const partido = partidoSeleccionado.value
+  if (!partido) return { nombre: 'Local', escudo: null }
+
+  const idLocal = Number(partido.id_equipo_local)
+  const equipo = equipos.value.find(item => Number(item.id) === idLocal)
+  return {
+    nombre: equipo?.nombre || partido.equipo_local_nombre || 'Local',
+    escudo: equipo?.escudo || null,
+  }
+})
+
+const equipoVisitantePartido = computed(() => {
+  const partido = partidoSeleccionado.value
+  if (!partido) return { nombre: 'Visitante', escudo: null }
+
+  const idVisitante = Number(partido.id_equipo_visitante)
+  const equipo = equipos.value.find(item => Number(item.id) === idVisitante)
+  return {
+    nombre: equipo?.nombre || partido.equipo_visitante_nombre || 'Visitante',
+    escudo: equipo?.escudo || null,
+  }
 })
 
 const jugadoresFiltradosPorEquipo = computed(() => {
@@ -427,11 +618,66 @@ const cargarDatosIniciales = async () => {
 
 const onTorneoChange = () => {
   idPartidoSeleccionado.value = null
+  busquedaPartido.value = ''
   incidencias.value = []
   incidenciasPendientes.value = []
   incidenciasEliminadasIds.value = []
   resultadoForm.value = emptyResultadoForm()
   incidenciaForm.value = emptyIncidenciaForm()
+  busquedaJugador.value = ''
+  busquedaTipoIncidencia.value = ''
+}
+
+const setTorneoSeleccionado = (torneo) => {
+  const nuevoId = Number(torneo?.id || 0) || null
+  if (Number(idTorneoSeleccionado.value) === Number(nuevoId)) return
+  idTorneoSeleccionado.value = nuevoId
+  busquedaTorneo.value = torneo?.label || torneo?.nombre || ''
+  onTorneoChange()
+}
+
+const clearTorneoSeleccionado = () => {
+  idTorneoSeleccionado.value = null
+  busquedaTorneo.value = ''
+  onTorneoChange()
+}
+
+const setPartidoSeleccionado = async (partido) => {
+  idPartidoSeleccionado.value = Number(partido?.id || 0) || null
+  busquedaPartido.value = partido?.label || ''
+  await onPartidoChange()
+}
+
+const clearPartidoSeleccionado = () => {
+  idPartidoSeleccionado.value = null
+  busquedaPartido.value = ''
+  incidencias.value = []
+  incidenciasPendientes.value = []
+  incidenciasEliminadasIds.value = []
+  resultadoForm.value = emptyResultadoForm()
+  incidenciaForm.value = emptyIncidenciaForm()
+  busquedaJugador.value = ''
+  busquedaTipoIncidencia.value = ''
+}
+
+const setJugadorIncidencia = (jugador) => {
+  incidenciaForm.value.id_jugador = Number(jugador?.id || 0) || null
+  busquedaJugador.value = jugador?.label || ''
+}
+
+const clearJugadorIncidencia = () => {
+  incidenciaForm.value.id_jugador = null
+  busquedaJugador.value = ''
+}
+
+const setTipoIncidencia = (tipo) => {
+  incidenciaForm.value.id_tipo_evento_partido = Number(tipo?.id || 0) || null
+  busquedaTipoIncidencia.value = tipo?.label || tipo?.descripcion || ''
+}
+
+const clearTipoIncidencia = () => {
+  incidenciaForm.value.id_tipo_evento_partido = null
+  busquedaTipoIncidencia.value = ''
 }
 
 const onPartidoChange = async () => {
@@ -449,6 +695,8 @@ const onPartidoChange = async () => {
     resultado_penales_visitante: partido.resultado_penales_visitante ?? null,
   }
   incidenciaForm.value = emptyIncidenciaForm()
+  busquedaJugador.value = ''
+  busquedaTipoIncidencia.value = ''
   incidenciasPendientes.value = []
   incidenciasEliminadasIds.value = []
 
@@ -472,6 +720,7 @@ const normalizeText = (txt) => String(txt || '')
   .toUpperCase()
 
 const isTipoGol = (incidencia) => normalizeText(incidencia?.tipo_evento_partido_descripcion).includes('GOL')
+const getIncidenciaMeta = (descripcion) => getIncidenciaVisualMeta(descripcion)
 
 const validarGolesVsMarcador = () => {
   const partido = partidoSeleccionado.value
@@ -589,6 +838,20 @@ const agregarIncidenciaBorrador = () => {
   })
 
   incidenciaForm.value = emptyIncidenciaForm()
+  busquedaJugador.value = ''
+  busquedaTipoIncidencia.value = ''
+  showIncidenciaModal.value = false
+}
+
+const openIncidenciaModal = () => {
+  if (!partidoSeleccionado.value) {
+    toast.showToast({ message: 'Selecciona un partido para cargar incidencias.', type: 'warning' })
+    return
+  }
+  incidenciaForm.value = emptyIncidenciaForm()
+  busquedaJugador.value = ''
+  busquedaTipoIncidencia.value = ''
+  showIncidenciaModal.value = true
 }
 
 const guardarTodo = async () => {
@@ -678,6 +941,7 @@ const eliminarIncidencia = (incidencia) => {
 const setEquipoIncidencia = (idEquipo) => {
   incidenciaForm.value.id_equipo = Number(idEquipo)
   incidenciaForm.value.id_jugador = null
+  busquedaJugador.value = ''
 }
 
 onMounted(() => {
@@ -691,6 +955,12 @@ onMounted(() => {
   border: 1px solid #e2e8f0;
   border-radius: 0.75rem;
   padding: 0.85rem 1rem;
+}
+
+.score-team-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .loading-overlay-local {
@@ -734,9 +1004,79 @@ onMounted(() => {
   border: 1px solid #dbe5f0;
 }
 
+.escudo-placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef3f8;
+  color: #5f7285;
+  font-size: 0.8rem;
+}
+
 .resumen-pre {
   white-space: pre-wrap;
   font-family: inherit;
   margin: 0;
+}
+
+.incidencia-tipo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.incidencia-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.incidencia-ball {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.incidencia-card {
+  width: 0.62rem;
+  height: 0.82rem;
+  border-radius: 0.08rem;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08) inset;
+}
+
+.incidencia-card-yellow {
+  background: #ffc107;
+}
+
+.incidencia-card-red {
+  background: #dc3545;
+}
+
+.incidencia-success {
+  background: #ecfdf3;
+  color: #157347;
+  border-color: #b7ebcf;
+}
+
+.incidencia-warning {
+  background: #fff8db;
+  color: #946200;
+  border-color: #f6dd8d;
+}
+
+.incidencia-danger {
+  background: #feecef;
+  color: #b42335;
+  border-color: #f7b9c2;
+}
+
+.incidencia-muted {
+  background: #f1f3f5;
+  color: #495057;
+  border-color: #dee2e6;
 }
 </style>

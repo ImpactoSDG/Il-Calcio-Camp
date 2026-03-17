@@ -525,6 +525,36 @@ class PlanTorneoController extends BaseController
         }
     }
 
+    public function eliminarAsignaciones(): void
+    {
+        try {
+            $body = $this->getBody();
+            $idTorneo = $this->nullableInt($body['id_torneo'] ?? null);
+            if ($idTorneo === null) {
+                $this->respond(400, ['message' => 'id_torneo es obligatorio.']);
+            }
+
+            // Verificar que no haya partidos finalizados para el torneo.
+            $sqlCheck = "SELECT COUNT(*) AS finalizados
+                         FROM evento
+                         WHERE id_torneo = :id_torneo
+                           AND id_estado_evento IN (4, 7)";
+            $stmtCheck = $this->db->prepare($sqlCheck);
+            $stmtCheck->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmtCheck->execute();
+            $row = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+            if ((int)($row['finalizados'] ?? 0) > 0) {
+                $this->respond(422, ['message' => 'No se pueden eliminar las asignaciones porque ya hay partidos finalizados en este torneo.']);
+            }
+
+            $this->deleteAsignacionesActuales($idTorneo);
+
+            $this->respond(200, ['message' => 'Asignaciones eliminadas correctamente.']);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al eliminar asignaciones del torneo');
+        }
+    }
+
     public function subirComprobantePago(): void
     {
         try {
@@ -1044,10 +1074,18 @@ class PlanTorneoController extends BaseController
             }
             $stmtUpdate->execute();
 
+            $eventosCruceActualizados = 0;
+            if ($faseProgramar === 'eliminacion' || $faseProgramar === 'todas' || $faseProgramar === 'seleccionados') {
+                // Recalcula cruces para reflejar correctamente si ya hay clasificados.
+                // Si zonas no estan cerradas, los cruces por seed/posicion de grupo quedan en NULL.
+                $eventosCruceActualizados = $this->actualizarEventosCruceConAsignacion($idTorneo);
+            }
+
             $this->respond(200, [
                 'message' => 'Programación deshecha correctamente.',
                 'revertidos' => (int)$stmtUpdate->rowCount(),
                 'fase_programar' => $faseProgramar,
+                'eventos_cruce_actualizados' => $eventosCruceActualizados,
             ]);
         } catch (Throwable $e) {
             $this->handleError($e, 'Error al deshacer la programación de partidos');
@@ -1312,6 +1350,9 @@ class PlanTorneoController extends BaseController
         $sql = "SELECT ev.id, ev.titulo, ev.numero_fecha, ev.fecha_hora_inicio, ev.fecha_hora_fin,
                    ev.id_estado_evento,
                        ev.id_cancha, ev.id_arbitro,
+                       ev.id_equipo_local, ev.id_equipo_visitante,
+                       el.nombre AS equipo_local_nombre,
+                       evt.nombre AS equipo_visitante_nombre,
                    ee.descripcion AS estado_evento_descripcion,
                        c.nombre AS cancha_nombre,
                        CONCAT(COALESCE(a.apellido, ''), ' ', COALESCE(a.nombre, '')) AS arbitro_nombre_completo
@@ -1319,6 +1360,8 @@ class PlanTorneoController extends BaseController
             LEFT JOIN estado_evento ee ON ee.id = ev.id_estado_evento
                 LEFT JOIN cancha c ON c.id = ev.id_cancha
                 LEFT JOIN arbitro a ON a.id = ev.id_arbitro
+                LEFT JOIN equipo el ON el.id = ev.id_equipo_local
+                LEFT JOIN equipo evt ON evt.id = ev.id_equipo_visitante
                 WHERE ev.id_torneo = :id_torneo
                   AND LOWER(tipo_evento) = 'partido'";
 
@@ -1849,7 +1892,16 @@ class PlanTorneoController extends BaseController
 
     private function actualizarEventosCruceConAsignacion(int $idTorneo): int
     {
-        $map = $this->buildMapPosicionGrupoEquipo($idTorneo);
+        $zonasCerradas = $this->isFaseZonasCerrada($idTorneo);
+
+        // When all zona matches are finished, use real standings (pts > dif > gf > nombre).
+        // Otherwise fall back to the initial assignment order (preview / placeholder).
+        if ($zonasCerradas) {
+            $map = $this->buildStandingsMap($idTorneo);
+        } else {
+            $map = $this->buildMapPosicionGrupoEquipo($idTorneo);
+        }
+
         $seedList = $this->buildSeedList($map);
 
         $sql = "SELECT c.id, c.id_evento,
@@ -1867,8 +1919,8 @@ class PlanTorneoController extends BaseController
 
         $actualizados = 0;
         foreach ($cruces as $cruce) {
-            $local = $this->resolveOrigenEquipoId((string)$cruce['origen_local_tipo'], (string)$cruce['origen_local_valor'], $map, $seedList);
-            $visitante = $this->resolveOrigenEquipoId((string)$cruce['origen_visitante_tipo'], (string)$cruce['origen_visitante_valor'], $map, $seedList);
+            $local = $this->resolveOrigenEquipoId((string)$cruce['origen_local_tipo'], (string)$cruce['origen_local_valor'], $map, $seedList, $zonasCerradas);
+            $visitante = $this->resolveOrigenEquipoId((string)$cruce['origen_visitante_tipo'], (string)$cruce['origen_visitante_valor'], $map, $seedList, $zonasCerradas);
 
             $u = $this->db->prepare('UPDATE evento SET id_equipo_local = :local, id_equipo_visitante = :visitante WHERE id = :id');
             $u->bindValue(':local', $local, $local === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
@@ -1879,6 +1931,143 @@ class PlanTorneoController extends BaseController
         }
 
         return $actualizados;
+    }
+
+    /**
+     * Builds a standings map from actual match results for finished zona matches.
+     * Returns: map[$zonaLetra][$rank] = $id_equipo  (rank starts at 1)
+     * Sort order: pts DESC, dif DESC, gf DESC, nombre ASC.
+     * Same structure as buildMapPosicionGrupoEquipo so resolveOrigenEquipoId works unchanged.
+     */
+    private function buildStandingsMap(int $idTorneo): array
+    {
+        // 1. Load teams per group.
+        $sqlTeams = "SELECT g.id AS id_grupo, g.nombre AS grupo_nombre,
+                            et.id_equipo, e.nombre AS equipo_nombre
+                     FROM grupo_torneo g
+                     INNER JOIN fase_torneo f ON f.id = g.id_fase_torneo
+                     INNER JOIN grupo_torneo_equipo gte ON gte.id_grupo_torneo = g.id
+                     INNER JOIN equipo_torneo et ON et.id = gte.id_equipo_torneo
+                     INNER JOIN equipo e ON e.id = et.id_equipo
+                     WHERE f.id_torneo = :id_torneo
+                       AND UPPER(f.tipo_fase) = 'FASE_DE_GRUPOS'
+                     ORDER BY g.orden ASC, g.id ASC";
+        $stmtTeams = $this->db->prepare($sqlTeams);
+        $stmtTeams->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmtTeams->execute();
+
+        $grupos = [];
+        foreach ($stmtTeams->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $zonaLetra = $this->extractZonaFromGroupName((string)($row['grupo_nombre'] ?? ''));
+            if ($zonaLetra === null) continue;
+            $idEquipo = (int)$row['id_equipo'];
+            if (!isset($grupos[$zonaLetra])) $grupos[$zonaLetra] = [];
+            $grupos[$zonaLetra][$idEquipo] = [
+                'id'     => $idEquipo,
+                'nombre' => (string)($row['equipo_nombre'] ?? ''),
+                'pts'    => 0,
+                'gf'     => 0,
+                'gc'     => 0,
+            ];
+        }
+
+        // 2. Apply finished zona match results.
+        $sqlMatches = "SELECT id_equipo_local, id_equipo_visitante,
+                              resultado_local, resultado_visitante, titulo
+                       FROM evento
+                       WHERE id_torneo = :id_torneo
+                         AND LOWER(tipo_evento) = 'partido'
+                         AND titulo LIKE 'Zona %'
+                         AND id_estado_evento IN (4, 7)
+                         AND resultado_local IS NOT NULL
+                         AND resultado_visitante IS NOT NULL";
+        $stmtMatches = $this->db->prepare($sqlMatches);
+        $stmtMatches->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmtMatches->execute();
+
+        foreach ($stmtMatches->fetchAll(PDO::FETCH_ASSOC) as $ev) {
+            // Extract zone letter from title like "Zona A - Fecha 1 - Partido 1".
+            $titulo = strtoupper((string)($ev['titulo'] ?? ''));
+            if (!preg_match('/\bZONA\s+([A-Z])\b/', $titulo, $zm)) continue;
+            $zonaLetra = $zm[1];
+            if (!isset($grupos[$zonaLetra])) continue;
+
+            $idL = (int)$ev['id_equipo_local'];
+            $idV = (int)$ev['id_equipo_visitante'];
+            $gL  = (int)$ev['resultado_local'];
+            $gV  = (int)$ev['resultado_visitante'];
+
+            if (isset($grupos[$zonaLetra][$idL])) {
+                $grupos[$zonaLetra][$idL]['gf'] += $gL;
+                $grupos[$zonaLetra][$idL]['gc'] += $gV;
+            }
+            if (isset($grupos[$zonaLetra][$idV])) {
+                $grupos[$zonaLetra][$idV]['gf'] += $gV;
+                $grupos[$zonaLetra][$idV]['gc'] += $gL;
+            }
+
+            if ($gL > $gV) {
+                if (isset($grupos[$zonaLetra][$idL])) $grupos[$zonaLetra][$idL]['pts'] += 3;
+            } elseif ($gL < $gV) {
+                if (isset($grupos[$zonaLetra][$idV])) $grupos[$zonaLetra][$idV]['pts'] += 3;
+            } else {
+                if (isset($grupos[$zonaLetra][$idL])) $grupos[$zonaLetra][$idL]['pts'] += 1;
+                if (isset($grupos[$zonaLetra][$idV])) $grupos[$zonaLetra][$idV]['pts'] += 1;
+            }
+        }
+
+        // 3. Sort each zone and build positional map.
+        ksort($grupos);
+        $map = [];
+        foreach ($grupos as $zonaLetra => $equipos) {
+            $lista = array_values($equipos);
+            foreach ($lista as &$eq) {
+                $eq['dif'] = $eq['gf'] - $eq['gc'];
+            }
+            unset($eq);
+
+            usort($lista, static function (array $a, array $b): int {
+                if ($b['pts'] !== $a['pts']) return $b['pts'] <=> $a['pts'];
+                if ($b['dif'] !== $a['dif']) return $b['dif'] <=> $a['dif'];
+                if ($b['gf']  !== $a['gf'])  return $b['gf']  <=> $a['gf'];
+                return strcasecmp((string)$a['nombre'], (string)$b['nombre']);
+            });
+
+            $map[$zonaLetra] = [];
+            foreach ($lista as $rank => $eq) {
+                $map[$zonaLetra][$rank + 1] = (int)$eq['id'];
+            }
+        }
+
+        return $map;
+    }
+
+    private function isFaseZonasCerrada(int $idTorneo): bool
+    {
+        $stmtExisteFase = $this->db->prepare("SELECT 1
+                                              FROM fase_torneo
+                                              WHERE id_torneo = :id_torneo
+                                                AND UPPER(tipo_fase) = 'FASE_DE_GRUPOS'
+                                              LIMIT 1");
+        $stmtExisteFase->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmtExisteFase->execute();
+        $hayFaseGrupos = (bool)$stmtExisteFase->fetchColumn();
+
+        // Si no hay fase de grupos, no bloqueamos la asignacion por seed.
+        if (!$hayFaseGrupos) {
+            return true;
+        }
+
+        $stmtPendientes = $this->db->prepare("SELECT COUNT(*)
+                                              FROM evento
+                                              WHERE id_torneo = :id_torneo
+                                                AND LOWER(tipo_evento) = 'partido'
+                                                AND titulo LIKE 'Zona %'
+                                                AND id_estado_evento NOT IN (4, 7)");
+        $stmtPendientes->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmtPendientes->execute();
+
+        return ((int)$stmtPendientes->fetchColumn()) === 0;
     }
 
     private function buildMapPosicionGrupoEquipo(int $idTorneo): array
@@ -1921,8 +2110,12 @@ class PlanTorneoController extends BaseController
         return $seeds;
     }
 
-    private function resolveOrigenEquipoId(string $tipo, string $valor, array $map, array $seedList): ?int
+    private function resolveOrigenEquipoId(string $tipo, string $valor, array $map, array $seedList, bool $zonasCerradas): ?int
     {
+        if (!$zonasCerradas && ($tipo === 'POSICION_GRUPO' || $tipo === 'SEED_DIRECTO')) {
+            return null;
+        }
+
         if ($tipo === 'POSICION_GRUPO' && preg_match('/^(\d+)([A-Z])$/', $valor, $m)) {
             $pos = (int)$m[1];
             $zona = $m[2];

@@ -18,6 +18,7 @@ const planTorneoService = {
   actualizarProgramacionEvento: (data) => api.post('/planificacion-torneo/actualizar-programacion-evento', data).then(r => r.data),
   deshacerProgramacion: (data) => api.post('/planificacion-torneo/deshacer-programacion', data).then(r => r.data),
   asignarEquipos: (data) => api.post('/planificacion-torneo/asignar-equipos', data).then(r => r.data),
+  eliminarAsignaciones: (data) => api.post('/planificacion-torneo/eliminar-asignaciones', data).then(r => r.data),
 }
 
 export default planTorneoService

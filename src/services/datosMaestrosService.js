@@ -51,6 +51,7 @@ const datosMaestrosService = {
 
   // --- Jugadores (/jugadores) ---
   getJugadores: () => api.get('/jugadores').then(r => r.data),
+  getJugadoresByEquipo: (idEquipo) => api.get(`/jugadores?equipo=${idEquipo}`).then(r => r.data),
   crearJugador: (data) => api.post('/jugadores', data).then(r => r.data),
   actualizarJugador: (data) => api.put('/jugadores', data).then(r => r.data),
   eliminarJugador: (id) => api.delete('/jugadores', { data: { id } }).then(r => r.data),

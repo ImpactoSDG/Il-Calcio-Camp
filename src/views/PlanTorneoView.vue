@@ -262,7 +262,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import datosMaestrosService from '@/services/datosMaestrosService'
 import planTorneoService from '@/services/planTorneoService'
 import { useToastStore } from '@/stores/toastStore'
@@ -346,6 +346,23 @@ const buildPayload = () => ({
   clasificados_por_zona: form.value.usa_zonas ? form.value.clasificados_por_zona : 1,
   ida_vuelta_zonas: form.value.usa_zonas ? form.value.ida_vuelta_zonas : false,
 })
+
+watch(
+  () => [form.value.usa_zonas, form.value.cantidad_equipos, form.value.cantidad_zonas],
+  ([usaZonas, cantidadEquipos, cantidadZonas]) => {
+    if (!usaZonas) {
+      form.value.equipos_por_zona = null
+      return
+    }
+
+    if (!cantidadEquipos || !cantidadZonas || cantidadZonas < 1) {
+      return
+    }
+
+    form.value.equipos_por_zona = Math.max(2, Math.floor(cantidadEquipos / cantidadZonas))
+  },
+  { immediate: true }
+)
 
 const simular = async () => {
   loading.value = true

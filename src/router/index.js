@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+﻿import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 
 // --- Vistas Base ---
@@ -10,7 +10,7 @@ import GestionUsuariosView from '@/views/GestionUsuariosView.vue'
 import ConfiguracionesView from '@/views/ConfiguracionesView.vue'
 import SubmenuView from '@/views/SubmenuView.vue'
 
-// --- Vistas de Artículos y Stock ---
+// --- Vistas de ArtÃ­culos y Stock ---
 import CategoriasArticuloView from '@/views/CategoriasArticuloView.vue'
 import ArticulosView from '@/views/ArticulosView.vue'
 import IngresoArticuloView from '@/views/IngresoArticuloView.vue'
@@ -26,6 +26,8 @@ import EventosView from '@/views/EventosView.vue'
 import PlanTorneoView from '@/views/PlanTorneoView.vue'
 import GestionTorneosView from '@/views/GestionTorneosView.vue'
 import RtadoPartidoView from '@/views/RtadoPartidoView.vue'
+import RtadoTorneoView from '@/views/RtadoTorneoView.vue'
+import GrillaCanchasView from '@/views/GrillaCanchasView.vue'
 
 // --- Vistas de Clientes, Ventas y Cobros ---
 import ClientesView from '@/views/ClientesView.vue'
@@ -86,7 +88,7 @@ const router = createRouter({
       meta: { requiresAuth: true, useParamId: true }
     },
 
-    // --- Artículos & Stock ---
+    // --- ArtÃ­culos & Stock ---
     {
       path: '/categorias-articulo',
       name: 'categorias-articulo',
@@ -138,7 +140,7 @@ const router = createRouter({
       meta: { requiresAuth: true, idModulo: 10 }
     },
 
-    // --- Gestión Deportiva (Torneos, Jugadores, etc.) ---
+    // --- GestiÃ³n Deportiva (Torneos, Jugadores, etc.) ---
     {
       path: '/jugadores',
       name: 'jugadores',
@@ -179,6 +181,18 @@ const router = createRouter({
       path: '/rtadopartido',
       name: 'rtadopartido',
       component: RtadoPartidoView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/rtadotorneo',
+      name: 'rtadotorneo',
+      component: RtadoTorneoView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/grillacanchas',
+      name: 'grillacanchas',
+      component: GrillaCanchasView,
       meta: { requiresAuth: true }
     },
 
@@ -233,7 +247,7 @@ router.beforeEach((to, from, next) => {
     )
 
     if (!tienePermiso) {
-      alert('No tienes acceso a este módulo')
+      alert('No tienes acceso a este mÃ³dulo')
       return next('/menu')
     }
   }

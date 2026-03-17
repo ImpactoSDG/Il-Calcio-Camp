@@ -144,7 +144,12 @@
                 </span>
               </div>
             </div>
-            <button class="btn btn-outline-primary" @click="abrirInscripcionesModal">Agregar nueva inscripción</button>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-success" @click="abrirBulkInscripcionModal">
+                <i class="bi bi-check2-all me-1"></i>Inscribir varios
+              </button>
+              <button class="btn btn-outline-primary" @click="abrirInscripcionesModal">Agregar nueva inscripción</button>
+            </div>
           </div>
 
           <div v-if="!detalle.inscriptos?.length" class="alert alert-info mb-0">
@@ -198,6 +203,55 @@
           <div v-if="!detalle.grupos?.length" class="alert alert-warning mb-0">
             Este torneo no tiene grupos configurados (fase de zonas).
           </div>
+
+          <template v-else-if="asignacionesCompletas">
+            <!-- Vista de solo lectura: asignaciones ya confirmadas -->
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                  <span class="badge bg-success-subtle text-success rounded-pill"><i class="bi bi-check-circle me-1"></i>Asignaciones completas</span>
+                  <span v-if="hayPartidosJugados" class="badge bg-danger-subtle text-danger rounded-pill">
+                    <i class="bi bi-lock me-1"></i>Hay partidos jugados
+                  </span>
+                </div>
+                <p class="small text-muted mb-0">Los equipos ya quedaron distribuidos en sus grupos.</p>
+              </div>
+              <button
+                class="btn btn-outline-danger btn-sm"
+                :disabled="hayPartidosJugados || savingEliminarAsignaciones"
+                :title="hayPartidosJugados ? 'No se puede eliminar: hay partidos finalizados' : 'Eliminar todas las asignaciones'"
+                @click="eliminarAsignaciones"
+              >
+                <span v-if="savingEliminarAsignaciones" class="spinner-border spinner-border-sm me-1"></span>
+                <i v-else class="bi bi-trash me-1"></i>
+                Eliminar asignaciones
+              </button>
+            </div>
+
+            <div class="row g-3">
+              <div v-for="grupo in asignacionesPorGrupo" :key="grupo.id" class="col-12 col-md-6">
+                <div class="group-card h-100">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h3 class="h6 mb-0">{{ grupo.nombre }}</h3>
+                    <small class="text-muted">{{ grupo.equipos.length }}/{{ grupo.cantidad_equipos_objetivo }}</small>
+                  </div>
+                  <div v-if="!grupo.equipos.length" class="text-muted small">Sin equipos asignados.</div>
+                  <ul v-else class="list-unstyled mb-0">
+                    <li
+                      v-for="asig in grupo.equipos"
+                      :key="asig.id_equipo"
+                      class="d-flex align-items-center gap-2 py-1 border-bottom"
+                    >
+                      <span class="text-muted small" style="width:1.4rem;text-align:right;">{{ asig.posicion_inicial }}.</span>
+                      <img v-if="asig.escudo" :src="resolveEscudoUrl(asig.escudo)" alt="escudo" class="escudo-thumb" />
+                      <span v-else class="escudo-thumb-placeholder"><i class="bi bi-shield"></i></span>
+                      <span class="fw-semibold">{{ asig.equipo_nombre }}</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </template>
 
           <template v-else>
             <div class="table-responsive mb-3">
@@ -330,10 +384,7 @@
                   <label class="form-label small mb-1">Duración por partido (min)</label>
                   <input type="number" min="20" max="240" step="5" class="form-control" v-model.number="programacionForm.duracion_minutos" />
                 </div>
-                <div class="col-12 col-md-4">
-                  <label class="form-label small mb-1">Máx. días de búsqueda</label>
-                  <input type="number" min="7" max="365" step="1" class="form-control" v-model.number="programacionForm.max_dias_busqueda" />
-                </div>
+
               </div>
 
               <div v-if="programacionForm.fase_programar === 'seleccionados'" class="mt-3">
@@ -409,6 +460,8 @@
                 <thead>
                   <tr>
                     <th>Partido</th>
+                    <th>Equipo local</th>
+                    <th>Equipo visitante</th>
                     <th>Estado</th>
                     <th>Fecha/Hora</th>
                     <th>Cancha</th>
@@ -419,6 +472,8 @@
                 <tbody>
                   <tr v-for="ev in (programacionData?.eventos || [])" :key="ev.id">
                     <td>{{ ev.titulo }}</td>
+                    <td>{{ ev.equipo_local_nombre || 'Por definir' }}</td>
+                    <td>{{ ev.equipo_visitante_nombre || 'Por definir' }}</td>
                     <td>{{ ev.estado_evento_descripcion || '-' }}</td>
                     <td>
                       <template v-if="isEditingProgramacionEvento(ev.id)">
@@ -473,7 +528,7 @@
                     </td>
                   </tr>
                   <tr v-if="!(programacionData?.eventos || []).length">
-                    <td colspan="6" class="text-center text-muted py-3">No hay partidos para mostrar.</td>
+                    <td colspan="8" class="text-center text-muted py-3">No hay partidos para mostrar.</td>
                   </tr>
                 </tbody>
               </table>
@@ -482,6 +537,106 @@
         </template>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div v-if="showBulkInscripcionModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title"><i class="bi bi-people-fill me-2 text-success"></i>Inscribir varios equipos</h5>
+              <button type="button" class="btn-close" @click="showBulkInscripcionModal = false"></button>
+            </div>
+
+            <div class="modal-body">
+              <div v-if="!equiposSinInscribir.length" class="alert alert-info mb-0">
+                Todos los equipos disponibles ya están inscriptos en este torneo.
+              </div>
+
+              <template v-else>
+                <p class="small text-muted mb-3">Seleccioná los equipos a inscribir. Podés definir parámetros comunes para todos (opcionales).</p>
+
+                <!-- Parámetros comunes -->
+                <div class="row g-3 mb-4 p-3 rounded border bg-light">
+                  <div class="col-12">
+                    <span class="fw-semibold small text-secondary">Parámetros comunes para los seleccionados</span>
+                  </div>
+                  <div class="col-12 col-md-5">
+                    <label class="form-label small">Estado inscripción</label>
+                    <select class="form-select form-select-sm" v-model="bulkEstadoInscripcion">
+                      <option value="">Sin especificar</option>
+                      <option v-for="estado in estadosInscripcionOptions" :key="estado.id" :value="String(estado.id)">
+                        {{ estado.descripcion }}
+                      </option>
+                    </select>
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <label class="form-label small">Fecha pago</label>
+                    <input type="date" class="form-control form-control-sm" v-model="bulkFechaPago" />
+                  </div>
+                  <div class="col-12 col-md-3 d-flex align-items-end">
+                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" @click="bulkFechaPago = ''; bulkEstadoInscripcion = ''">
+                      Limpiar
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Seleccionar todos -->
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <label class="form-check-label small fw-semibold">
+                    <input
+                      type="checkbox"
+                      class="form-check-input me-2"
+                      :checked="bulkSeleccionados.length === equiposSinInscribir.length && equiposSinInscribir.length > 0"
+                      :indeterminate.prop="bulkSeleccionados.length > 0 && bulkSeleccionados.length < equiposSinInscribir.length"
+                      @change="toggleBulkTodos"
+                    />
+                    Seleccionar todos ({{ equiposSinInscribir.length }})
+                  </label>
+                  <span class="badge bg-primary-subtle text-primary rounded-pill">
+                    {{ bulkSeleccionados.length }} seleccionado(s)
+                  </span>
+                </div>
+
+                <!-- Lista de equipos -->
+                <div class="bulk-equipo-list">
+                  <label
+                    v-for="equipo in equiposSinInscribir"
+                    :key="equipo.id"
+                    class="bulk-equipo-row"
+                    :class="{ 'bulk-equipo-row--selected': bulkSeleccionados.includes(equipo.id) }"
+                  >
+                    <input
+                      type="checkbox"
+                      class="form-check-input flex-shrink-0"
+                      :value="equipo.id"
+                      v-model="bulkSeleccionados"
+                    />
+                    <img v-if="equipo.escudo" :src="resolveEscudoUrl(equipo.escudo)" alt="escudo" class="escudo-thumb" />
+                    <span v-else class="escudo-thumb-placeholder"><i class="bi bi-shield"></i></span>
+                    <span class="fw-semibold">{{ equipo.nombre }}</span>
+                  </label>
+                </div>
+              </template>
+            </div>
+
+            <div class="modal-footer d-flex justify-content-between align-items-center">
+              <small class="text-muted">Se inscribirán {{ bulkSeleccionados.length }} equipo(s) en un solo envío.</small>
+              <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary" @click="showBulkInscripcionModal = false">Cancelar</button>
+                <button
+                  class="btn btn-success"
+                  :disabled="savingBulkInscripciones || !bulkSeleccionados.length"
+                  @click="guardarBulkInscripciones"
+                >
+                  <span v-if="savingBulkInscripciones" class="spinner-border spinner-border-sm me-2"></span>
+                  Inscribir {{ bulkSeleccionados.length > 0 ? bulkSeleccionados.length : '' }} equipo(s)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <Teleport to="body">
       <div v-if="showEliminarTorneoModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
@@ -608,6 +763,7 @@ const equiposDisponibles = ref([])
 const loadingTorneos = ref(false)
 const loadingDetalle = ref(false)
 const savingAsignacion = ref(false)
+const savingEliminarAsignaciones = ref(false)
 const savingInscripciones = ref(false)
 const savingEliminarTorneo = ref(false)
 const savingProgramacion = ref(false)
@@ -631,7 +787,7 @@ const programacionForm = ref({
   fase_programar: 'todas',
   fecha_inicio: new Date().toISOString().slice(0, 10),
   duracion_minutos: 70,
-  max_dias_busqueda: 120,
+  max_dias_busqueda: 365,
   id_canchas: [],
   id_arbitros: [],
   id_eventos: [],
@@ -653,6 +809,11 @@ const inscripcionForm = ref({
   comprobante_file: null,
   observacion: '',
 })
+const showBulkInscripcionModal = ref(false)
+const savingBulkInscripciones = ref(false)
+const bulkSeleccionados = ref([])
+const bulkFechaPago = ref('')
+const bulkEstadoInscripcion = ref('')
 const tabActiva = ref('resumen')
 
 const getApiMessage = (error, fallback) => error?.response?.data?.message || fallback
@@ -831,6 +992,32 @@ const estadosInscripcionOptions = computed(() =>
   (detalle.value?.estados_inscripcion || []).map(e => ({ id: Number(e.id), descripcion: e.descripcion }))
 )
 
+const equiposSinInscribir = computed(() => {
+  const inscriptosIds = new Set((detalle.value?.inscriptos || []).map(i => Number(i.id_equipo)))
+  return equiposDisponiblesSorted.value.filter(e => !inscriptosIds.has(Number(e.id)))
+})
+
+const asignacionesCompletas = computed(() => {
+  const grupos = detalle.value?.grupos || []
+  if (!grupos.length) return false
+  return grupos.every(g => Number(g.asignados) >= Number(g.cantidad_equipos_objetivo))
+})
+
+const hayPartidosJugados = computed(() => {
+  return Number(detalle.value?.eventos?.finalizados || 0) > 0
+})
+
+const asignacionesPorGrupo = computed(() => {
+  const grupos = detalle.value?.grupos || []
+  const items = detalle.value?.asignaciones || []
+  return grupos.map(g => ({
+    ...g,
+    equipos: items
+      .filter(a => Number(a.id_grupo_torneo) === Number(g.id))
+      .sort((a, b) => Number(a.posicion_inicial) - Number(b.posicion_inicial)),
+  }))
+})
+
 const totalInscriptosObjetivo = computed(() => {
   const cupo = Number(detalle.value?.torneo?.cupo_equipos || 0)
   if (cupo > 0) return cupo
@@ -979,6 +1166,75 @@ const abrirInscripcionesModal = () => {
   }
   resetInscripcionForm()
   showInscripcionModal.value = true
+}
+
+const eliminarAsignaciones = async () => {
+  if (!idTorneoSeleccionado.value) return
+  const ok = window.confirm(
+    '\u00bfEliminar todas las asignaciones de grupos de este torneo?\n\nEsta acci\u00f3n es reversible siempre que no haya partidos finalizados.',
+  )
+  if (!ok) return
+
+  savingEliminarAsignaciones.value = true
+  try {
+    await planTorneoService.eliminarAsignaciones({ id_torneo: idTorneoSeleccionado.value })
+    toast.showToast({ message: 'Asignaciones eliminadas. Podés volver a asignar.', type: 'success' })
+    await cargarDetalle()
+  } catch (error) {
+    toast.showToast({ message: getApiMessage(error, 'No se pudieron eliminar las asignaciones.'), type: 'danger' })
+  } finally {
+    savingEliminarAsignaciones.value = false
+  }
+}
+
+const abrirBulkInscripcionModal = () => {
+  if (!idTorneoSeleccionado.value) {
+    toast.showToast({ message: 'Selecciona un torneo antes de cargar inscripciones.', type: 'warning' })
+    return
+  }
+  bulkSeleccionados.value = []
+  bulkFechaPago.value = ''
+  bulkEstadoInscripcion.value = ''
+  showBulkInscripcionModal.value = true
+}
+
+const toggleBulkTodos = () => {
+  if (bulkSeleccionados.value.length === equiposSinInscribir.value.length) {
+    bulkSeleccionados.value = []
+  } else {
+    bulkSeleccionados.value = equiposSinInscribir.value.map(e => e.id)
+  }
+}
+
+const guardarBulkInscripciones = async () => {
+  if (!bulkSeleccionados.value.length) {
+    toast.showToast({ message: 'Seleccioná al menos un equipo.', type: 'warning' })
+    return
+  }
+
+  const inscripciones = bulkSeleccionados.value.map(idEquipo => ({
+    id_equipo: Number(idEquipo),
+    pagada: Boolean(bulkFechaPago.value),
+    fecha_pago: bulkFechaPago.value || null,
+    id_estado_inscripcion: bulkEstadoInscripcion.value ? Number(bulkEstadoInscripcion.value) : null,
+    comprobante_pago: null,
+    observacion: null,
+  }))
+
+  savingBulkInscripciones.value = true
+  try {
+    await planTorneoService.inscribirEquipos({
+      id_torneo: idTorneoSeleccionado.value,
+      inscripciones,
+    })
+    toast.showToast({ message: `${inscripciones.length} equipo(s) inscripto(s) correctamente.`, type: 'success' })
+    showBulkInscripcionModal.value = false
+    await cargarDetalle()
+  } catch (error) {
+    toast.showToast({ message: getApiMessage(error, 'No se pudieron guardar las inscripciones.'), type: 'danger' })
+  } finally {
+    savingBulkInscripciones.value = false
+  }
 }
 
 const abrirEliminarTorneoModal = () => {
@@ -1158,7 +1414,7 @@ const programarAutomatico = async () => {
       fase_programar: programacionForm.value.fase_programar,
       fecha_inicio: programacionForm.value.fecha_inicio,
       duracion_minutos: Number(programacionForm.value.duracion_minutos || 70),
-      max_dias_busqueda: Number(programacionForm.value.max_dias_busqueda || 120),
+      max_dias_busqueda: Number(programacionForm.value.max_dias_busqueda || 365),
       id_canchas: (programacionForm.value.id_canchas || []).map(Number),
       id_arbitros: (programacionForm.value.id_arbitros || []).map(Number),
       id_eventos: (programacionForm.value.id_eventos || []).map(Number),
@@ -1401,6 +1657,52 @@ onMounted(cargarTorneos)
   object-fit: cover;
   border-radius: 50%;
   border: 1px solid #cbd5e1;
+}
+
+.escudo-thumb-placeholder {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid #cbd5e1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  flex-shrink: 0;
+}
+
+.bulk-equipo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.bulk-equipo-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+  background: #fff;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.bulk-equipo-row:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.bulk-equipo-row--selected {
+  background: #eff6ff;
+  border-color: #3b82f6;
 }
 
 .torneo-grid {

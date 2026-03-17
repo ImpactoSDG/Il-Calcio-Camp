@@ -468,6 +468,15 @@ switch ($resource) {
         }
         break;
 
+    case 'dashboard-torneo':
+        verifyAuth();
+        if ($method === 'GET') {
+            $torneoController->getDashboard();
+        } else {
+            http_response_code(405);
+        }
+        break;
+
     case 'planificacion-torneo':
         verifyAuth();
         if ($method === 'POST' && $id === 'confirmar') {
@@ -494,6 +503,8 @@ switch ($resource) {
             $planTorneoController->deshacerProgramacionEventos();
         } elseif ($method === 'POST' && $id === 'asignar-equipos') {
             $planTorneoController->asignarEquipos();
+        } elseif ($method === 'POST' && $id === 'eliminar-asignaciones') {
+            $planTorneoController->eliminarAsignaciones();
         } elseif ($method === 'POST') {
             $planTorneoController->simular();
         } else {

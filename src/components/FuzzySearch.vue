@@ -1,16 +1,17 @@
 <template>
-  <div class="search-container">
+  <div class="search-container" ref="containerRef">
     <input
       type="text"
       ref="searchInput"
       v-model="query"
       :placeholder="placeholder"
       @input="onSearch"
+      @focus="onFocus"
       @keydown.enter.prevent="onEnter"
       class="form-control"
     />
 
-    <div v-if="results.length > 0 && query !== ''" class="list-group position-absolute w-100 shadow-sm z-3">
+    <div v-if="results.length > 0 && (query !== '' || showAllOnFocus)" class="list-group position-absolute w-100 shadow-sm z-3">
       <button 
         v-for="(result, index) in results" 
         :key="index"
@@ -35,12 +36,15 @@ const props = defineProps({
   data: { type: Array, default: () => [] },
   keys: { type: Array, default: () => [] },
   placeholder: { type: String, default: 'Buscar...' },
-  threshold: { type: Number, default: 0.3 }
+  threshold: { type: Number, default: 0.3 },
+  showAllOnFocus: { type: Boolean, default: false },
+  maxResults: { type: Number, default: 10 },
 });
 
 const emit = defineEmits(['update:modelValue', 'selected']);
 
 const searchInput = ref(null);
+const containerRef = ref(null);
 const query = ref(props.modelValue);
 const results = ref([]);
 
@@ -72,14 +76,32 @@ const setupFuse = () => {
 
 const onSearch = () => {
   emit('update:modelValue', query.value);
-  if (query.value.trim() === '' || !fuse) {
+  if (query.value.trim() === '') {
+    if (props.showAllOnFocus && props.data.length > 0) {
+      results.value = props.data.slice(0, props.maxResults).map(item => ({ item }));
+    } else {
+      results.value = [];
+    }
+    return;
+  }
+
+  if (!fuse) {
     results.value = [];
     return;
   }
   // Solo buscar si hay datos y llaves para Fuse
   if (props.data.length > 0 && props.keys.length > 0) {
-    results.value = fuse.search(query.value).slice(0, 10);
+    results.value = fuse.search(query.value).slice(0, props.maxResults);
   }
+};
+
+const onFocus = () => {
+  if (!props.showAllOnFocus) return;
+  if (query.value.trim() !== '') {
+    onSearch();
+    return;
+  }
+  results.value = props.data.slice(0, props.maxResults).map(item => ({ item }));
 };
 
 const onEnter = () => {
@@ -101,7 +123,7 @@ const selectItem = (item) => {
 onMounted(() => {
   setupFuse();
   document.addEventListener('click', (e) => {
-    if (searchInput.value && !searchInput.value.contains(e.target)) {
+    if (containerRef.value && !containerRef.value.contains(e.target)) {
       results.value = [];
     }
   });
