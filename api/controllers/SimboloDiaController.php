@@ -6,31 +6,17 @@ declare(strict_types=1);
  * SimboloDiaController
  *
  * Devuelve el símbolo anti-falsificación correspondiente al día actual.
- * El símbolo rota automáticamente en base a los archivos PNG presentes
- * en /public/simbolos/, sin necesidad de configuración adicional.
+ * El símbolo rota diariamente de forma determinista usando el día del año.
  *
  * GET /simbolo-dia
- * Respuesta: { "simbolo": "estrella.png", "nombre": "estrella" }
+ * Respuesta: { "simbolo": "%" }
  */
 class SimboloDiaController
 {
     /**
-     * Lista canónica y ordenada de símbolos disponibles.
-     * Al agregar una nueva imagen a /public/simbolos/, basta con añadir
-     * su nombre (sin extensión) aquí para incorporarla a la rotación.
+     * Caracteres especiales disponibles como símbolos del día.
      */
-    public const SIMBOLOS = [
-        'estrella',
-        'circulo',
-        'triangulo',
-        'diamante',
-        'cuadrado',
-        'cruz',
-        'corazon',
-        'luna',
-        'sol',
-        'flecha',
-    ];
+    public const SIMBOLOS = ['!', '#', '$', '%', '&', '/'];
 
     /**
      * Calcula y devuelve el símbolo del día en formato JSON.
@@ -39,32 +25,28 @@ class SimboloDiaController
     {
         $simbolo = self::calcularSimboloDia();
         header('Content-Type: application/json; charset=UTF-8');
-        echo json_encode([
-            'simbolo' => $simbolo . '.png',
-            'nombre'  => $simbolo,
-        ]);
+        echo json_encode(['simbolo' => $simbolo]);
         exit;
     }
 
     /**
-     * Calcula el nombre (sin extensión) del símbolo correspondiente a hoy.
+     * Calcula el símbolo correspondiente a hoy.
      * Usa el día del año (0-364) módulo la cantidad de símbolos disponibles.
-     * La zona horaria es la misma que se usa en el resto del sistema.
      */
     public static function calcularSimboloDia(): string
     {
         $tz         = new DateTimeZone('America/Argentina/Buenos_Aires');
         $ahora      = new DateTime('now', $tz);
-        $diaDelAnio = (int) $ahora->format('z'); // 0 = 1 ene, 364 = 31 dic
+        $diaDelAnio = (int) $ahora->format('z');
         return self::SIMBOLOS[$diaDelAnio % count(self::SIMBOLOS)];
     }
 
     /**
-     * Devuelve el nombre del archivo PNG del símbolo del día (con extensión).
-     * Útil para ser llamado desde otros controladores (ej.: VentaController).
+     * Devuelve el carácter símbolo del día.
+     * Mantiene el nombre por compatibilidad con VentaController.
      */
     public static function obtenerArchivoSimboloDia(): string
     {
-        return self::calcularSimboloDia() . '.png';
+        return self::calcularSimboloDia();
     }
 }

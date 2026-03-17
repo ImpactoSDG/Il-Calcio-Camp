@@ -32,10 +32,10 @@ class TicketVentaController
             exit;
         }
 
-        $venta    = $this->obtenerVenta($idVenta);
-        $articulos = $this->obtenerArticulos($idVenta);
+        $venta      = $this->obtenerVenta($idVenta);
+        $articulos  = $this->obtenerArticulos($idVenta);
         $medioCobro = $this->obtenerMedioCobro($idVenta);
-        $config   = $this->obtenerConfiguracion();
+        $config     = $this->obtenerConfiguracion();
 
         if (!$venta) {
             http_response_code(404);
@@ -143,33 +143,12 @@ class TicketVentaController
     // Generación del HTML del ticket
     // ──────────────────────────────────────────────────────────────────────
 
-    /**
-     * Convierte la imagen PNG del símbolo a un data URI base64.
-     * DomPDF no necesita acceso HTTP al archivo; lo lee directamente del disco.
-     */
-    private function simboloDataUri(string $archivoSimbolo): string
-    {
-        $rutaBase    = realpath(__DIR__ . '/../../public/simbolos');
-        $nombreSafe  = basename($archivoSimbolo); // evitar path traversal
-        $rutaCompleta = $rutaBase . DIRECTORY_SEPARATOR . $nombreSafe;
-
-        if ($rutaBase && file_exists($rutaCompleta)) {
-            $datos = base64_encode(file_get_contents($rutaCompleta));
-            return 'data:image/png;base64,' . $datos;
-        }
-
-        // Fallback: cuadrado negro simple en base64 (1x1 px)
-        return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-    }
-
     private function generarHtml(array $venta, array $articulos, string $medioCobro, array $config): string
     {
         $nombreEmpresa = $config['nombre_empresa'] ?? 'IL CALCIO CAMP';
 
         // Determinar qué símbolo mostrar: el de la venta o el del día actual
-        $archivoSimbolo = !empty($venta['simbolo']) ? $venta['simbolo'] : SimboloDiaController::obtenerArchivoSimboloDia();
-        $nombreSimbolo  = pathinfo($archivoSimbolo, PATHINFO_FILENAME); // ej: "estrella"
-        $simboloDataUri = $this->simboloDataUri($archivoSimbolo);
+        $simbolo = !empty($venta['simbolo']) ? $venta['simbolo'] : SimboloDiaController::calcularSimboloDia();
         // El signo $ se sigue usando como moneda en los precios
         $moneda = '$';
 
@@ -304,32 +283,12 @@ class TicketVentaController
         border-top: 1px dashed #aaa;
         padding-top: 6px;
     }
-    .simbolo-bloque {
-        border: 2px solid #111;
-        border-radius: 4px;
-        padding: 4px 6px;
-        margin-top: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        background: #f8f8f8;
-    }
-    .simbolo-img {
-        width: 28px;
-        height: 28px;
-        display: block;
-    }
-    .simbolo-label {
-        font-size: 8px;
-        text-transform: uppercase;
-        color: #444;
-        letter-spacing: 0.5px;
-    }
-    .simbolo-nombre {
+    .numero-venta {
+        text-align: center;
         font-weight: bold;
-        font-size: 10px;
-        text-transform: uppercase;
+        font-size: 13px;
+        letter-spacing: 1px;
+        margin-bottom: 6px;
     }
 </style>
 </head>
@@ -340,7 +299,10 @@ class TicketVentaController
     </div>
 
     <div class='meta'>
-        Impreso: {$ahora} &nbsp;|&nbsp; Venta N° {$venta['id']}
+        Impreso: {$ahora}
+    </div>
+    <div class='numero-venta'>
+        Venta N° {$venta['id']} &ndash; {$simbolo}
     </div>
 
     <div class='seccion'>
@@ -365,14 +327,6 @@ class TicketVentaController
                 <td class='total-monto'>{$moneda} {$totalF}</td>
             </tr>
         </table>
-    </div>
-
-    <div class='simbolo-bloque'>
-        <img class='simbolo-img' src='{$simboloDataUri}' alt='{$nombreSimbolo}' />
-        <div>
-            <div class='simbolo-label'>Símbolo del día</div>
-            <div class='simbolo-nombre'>{$nombreSimbolo}</div>
-        </div>
     </div>
 
     <div class='footer'>

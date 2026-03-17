@@ -199,6 +199,15 @@ switch ($resource) {
             http_response_code(405);
         }
         break;
+    case 'toggle-favorito':
+        verifyAuth();
+        if ($method === 'POST') {
+            $usuarioController->toggleFavorito();
+        } else {
+            http_response_code(405);
+        }
+        break;
+        break;
     case 'configuraciones':
         verifyAuth();
         switch ($method) {

@@ -41,6 +41,10 @@ const usuariosService = {
   refreshModulos: async (userId) => {
     const response = await api.get(`/refresh-modulos?id=${userId}`);
     return response.data;
+  },
+  toggleFavorito: async (id_usuario, id_modulo, estado) => {
+    const response = await api.post('/toggle-favorito', { id_usuario, id_modulo, estado });
+    return response.data;
   }
 };
 

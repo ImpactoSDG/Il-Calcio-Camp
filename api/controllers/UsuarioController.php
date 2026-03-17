@@ -137,6 +137,21 @@ class UsuarioController extends BaseController
         }
     }
 
+    public function toggleFavorito(): void
+    {
+        $data = json_decode(file_get_contents("php://input"), true);
+
+        if (!isset($data['id_usuario'], $data['id_modulo'], $data['estado'])) {
+            $this->respond(400, ['message' => 'Datos incompletos para actualizar favorito.']);
+        }
+
+        if ($this->usuarioModel->toggleFavorito((int)$data['id_usuario'], (int)$data['id_modulo'], (bool)$data['estado'])) {
+            $this->respond(200, ['message' => 'Favorito actualizado.']);
+        } else {
+            $this->respond(500, ['message' => 'Error al actualizar favorito.']);
+        }
+    }
+
     public function refreshModulos(): void
     {
         $id = $_GET['id'] ?? null;

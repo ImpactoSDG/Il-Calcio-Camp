@@ -3,7 +3,6 @@
   <div
     v-if="modelValue"
     class="modal-fullscreen-container animate-fade-in"
-    @click.self="closeModal"
   >
     <div class="modal-fullscreen-content shadow-2xl overflow-hidden d-flex flex-column">
       <!-- Header Minimalista -->
@@ -73,15 +72,22 @@
                               + Nuevo
                             </button>
                           </div>
-                          <select 
-                            v-model.number="form.id_cliente" 
-                            class="form-select border-2 shadow-sm py-1 px-2 rounded-3 small" 
-                            :class="{ 'border-primary': !!form.id_cliente }"
-                            :required="esAbierto"
+                          <FuzzySearch
+                            v-model="queryCliente"
+                            :data="clientes"
+                            :keys="['nombre_cliente', 'dni_cliente']"
+                            placeholder="Buscar cliente..."
+                            @selected="onClienteSelected"
+                            class="fuzzy-search-sm"
                           >
-                            <option :value="null">-- Sin cliente --</option>
-                            <option v-for="c in clientes" :key="c.id" :value="c.id">{{ c.nombre_cliente }}</option>
-                          </select>
+                            <template #default="{ item }">
+                              <div class="d-flex flex-column py-1">
+                                <span class="fw-bold small">{{ item.nombre_cliente }}</span>
+                                <span v-if="item.dni_cliente" class="text-muted" style="font-size: 0.7rem;">DNI: {{ item.dni_cliente }}</span>
+                              </div>
+                            </template>
+                          </FuzzySearch>
+                          <input type="hidden" v-model="form.id_cliente" :required="esAbierto">
                         </div>
                         
                         <div class="col-12">
@@ -359,6 +365,7 @@ import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
 import { useToastStore } from '@/stores/toastStore';
 import QuickClientModal from '@/components/venta/QuickClientModal.vue';
 import QuickAssignTeamModal from '@/components/venta/QuickAssignTeamModal.vue';
+import FuzzySearch from '@/components/FuzzySearch.vue';
 
 const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost/Il-Calcio-Camp/api';
 
@@ -384,6 +391,12 @@ const toastStore = useToastStore();
 const form = ref({});
 const montoEntregadoRef = ref(null);
 const articulosCarrito = ref([]);
+const queryCliente = ref('');
+
+const onClienteSelected = (cliente) => {
+  form.value.id_cliente = cliente?.id || null;
+  queryCliente.value = cliente?.nombre_cliente || '';
+};
 
 const showQuickClientModal = ref(false);
 const showQuickTeamModal = ref(false);
@@ -449,6 +462,14 @@ watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
     form.value = { ...props.initialForm };
     articulosCarrito.value = props.initialForm?.articulos ? [...props.initialForm.articulos] : [];
+    
+    // Sincronizar nombre del cliente para el buscador difuso
+    if (form.value.id_cliente) {
+      const cliente = props.clientes.find(c => c.id === form.value.id_cliente);
+      queryCliente.value = cliente?.nombre_cliente || '';
+    } else {
+      queryCliente.value = '';
+    }
     
     if (!props.isEditing) {
       form.value.id_estado_venta = props.idEstadoCerrada;
@@ -519,6 +540,7 @@ watch(() => props.initialForm, (newVal) => {
 watch(() => props.modelValue, (isOpen) => {
   document.body.style.overflow = isOpen ? 'hidden' : '';
   if (isOpen) {
+    document.addEventListener('keydown', handleKeydownGlobal);
     nextTick(() => {
       if (form.value.forceCierre) {
         montoEntregadoRef.value?.focus();
@@ -528,11 +550,14 @@ watch(() => props.modelValue, (isOpen) => {
         buscadorArticuloRef.value?.focus();
       }
     });
+  } else {
+    document.removeEventListener('keydown', handleKeydownGlobal);
   }
 });
 
 onUnmounted(() => {
   document.body.style.overflow = '';
+  document.removeEventListener('keydown', handleKeydownGlobal);
 });
 
 const esCerrada = computed(() => form.value.id_estado_venta === props.idEstadoCerrada);
@@ -776,6 +801,16 @@ const validarStockMasivo = () => {
   return true;
 };
 
+const handleKeydownGlobal = (e) => {
+  if (e.key !== 'Enter') return;
+  const tag = document.activeElement?.tagName?.toLowerCase();
+  const isInputFocused = ['input', 'textarea', 'select', 'button'].includes(tag);
+  if (!isInputFocused && puedeGuardar.value && !props.isLoading) {
+    e.preventDefault();
+    handleSave();
+  }
+};
+
 const handleSave = () => emit('save', { venta: form.value, articulos: articulosCarrito.value });
 const closeModal = () => emit('update:modelValue', false);
 </script>
@@ -880,7 +915,25 @@ const closeModal = () => emit('update:modelValue', false);
 }
 
 .active-scale:active { transform: scale(0.98); }
-.transition-transform { transition: transform 0.1s; }
+.transition-transform { 
+  transition: transform 0.1s; 
+}
+
+.fuzzy-search-sm {
+  width: 100%;
+}
+
+.fuzzy-search-sm :deep(.form-control) {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  border-width: 2px;
+  border-radius: 0.5rem;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.fuzzy-search-sm :deep(.list-group) {
+  font-size: 0.875rem;
+}
 
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;

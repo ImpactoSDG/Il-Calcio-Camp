@@ -166,7 +166,7 @@
                           <span class="fw-bold text-dark">{{ form.items.length }}</span>
                         </div>
                         <div class="d-flex justify-content-between align-items-center border-top border-2 pt-2 mt-2">
-                          <span class="text-primary fw-black fs-5">TOTAL:</span>
+                          <span class="text-primary fw-black fs-5">TOTAL ESTIMADO:</span>
                           <span class="text-primary fw-black fs-5">{{ formatMonto(totalEstimado) }}</span>
                         </div>
                       </div>
@@ -351,7 +351,7 @@
     <ConfirmModal
       v-model="showRecibirModal"
       title="Confirmar recepción de pedido"
-      :message="`¿Confirmas que recibiste el pedido #${pedidoAccion?.id_pedido_proveedor}?\n\nEsta acción registrará ${pedidoAccion?.total_items} ingreso(s) de artículos al stock y no se puede deshacer.`"
+      :message="`¿Confirmas que recibiste el pedido?\n\nEsta acción registrará ${pedidoAccion?.total_items} ingreso(s) de artículos al stock`"
       confirm-button-text="Sí, marcar como recibido"
       variant="success"
       :is-loading="isChangingState"
@@ -361,7 +361,7 @@
     <ConfirmModal
       v-model="showCancelarModal"
       title="Cancelar pedido"
-      :message="`¿Estás seguro de cancelar el pedido #${pedidoAccion?.id_pedido_proveedor}? Esta acción no se puede deshacer.`"
+      :message="`¿Estás seguro de cancelar el pedido #${pedidoAccion?.id_pedido_proveedor}?`"
       confirm-button-text="Sí, cancelar pedido"
       variant="warning"
       :is-loading="isChangingState"

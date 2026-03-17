@@ -73,24 +73,20 @@
                 <div class="d-flex justify-content-between align-items-center mb-1">
                   <span class="venta-card__id text-uppercase text-dark d-flex align-items-center gap-2">
                     Venta Nro: {{ venta.id }}
-                    <img
-                      v-if="venta.simbolo"
-                      :src="simboloUrl(venta.simbolo)"
-                      :alt="venta.simbolo"
-                      :title="venta.simbolo"
-                      class="simbolo-badge"
-                    />
+                    <span v-if="venta.simbolo" class="simbolo-badge-text">
+                      - {{ (venta.simbolo || '').replace('.png', '') }}
+                    </span>
                   </span>
                 </div>
                 <div class="fw-bold text-dark lh-sm text-truncate mb-1" style="font-size: 1.05rem;">
                   {{ venta.cliente_nombre || 'Consumidor Final' }}
                 </div>
                 <div class="d-flex flex-wrap gap-2 align-items-center mt-1">
+                  <span v-if="venta.total_venta" class="fw-bold text-success me-2">
+                    ${{ Number(venta.total_venta).toFixed(2) }}
+                  </span>
                   <span v-if="venta.equipo_nombre" class="badge-equipo">
                     <i class="bi bi-person-workspace me-1"></i>{{ venta.equipo_nombre }}
-                  </span>
-                  <span class="text-muted" style="font-size:0.8rem">
-                    <i class="bi bi-calendar3 me-1"></i>{{ formatFecha(venta.fecha) }}
                   </span>
                 </div>
               </div>
@@ -202,15 +198,12 @@
               <tbody class="bg-white">
                 <template v-for="venta in ventasCerradas" :key="venta.id">
                   <tr :class="{ 'table-active': ventaExpandida === venta.id }" class="cursor-pointer" @click="abrirDetalleVenta(venta)">
-                    <td class="ps-4 text-muted fw-bold small py-1 d-flex align-items-center gap-2">
-                    {{ venta.id }}
-                    <img
-                      v-if="venta.simbolo"
-                      :src="simboloUrl(venta.simbolo)"
-                      :alt="venta.simbolo"
-                      class="simbolo-badge"
-                    />
-                  </td>
+                    <td class="ps-4 text-muted fw-bold small py-1 d-flex align-items-center gap-1">
+                      {{ venta.id }}
+                      <span v-if="venta.simbolo" class="text-secondary opacity-50">
+                        - {{ (venta.simbolo || '').replace('.png', '') }}
+                      </span>
+                    </td>
                     <td class="text-muted small py-1">{{ formatFecha(venta.fecha) }}</td>
                     <td class="fw-medium text-dark small py-1">{{ venta.cliente_nombre || '—' }}</td>
                     <td class="text-muted small py-1">
@@ -299,8 +292,7 @@
         <h2 class="ticket-title">IL CALCIO CAMP</h2>
         <p>Ticket de Venta #{{ ventaParaImprimir.id }}</p>
         <div v-if="ventaParaImprimir.simbolo" class="d-flex align-items-center justify-content-center gap-2 mb-1">
-          <img :src="simboloUrl(ventaParaImprimir.simbolo)" :alt="ventaParaImprimir.simbolo" style="width:24px;height:24px;" />
-          <small>{{ ventaParaImprimir.simbolo.replace('.png', '') }}</small>
+          <small>Símbolo: {{ (ventaParaImprimir.simbolo || '').replace('.png', '') }}</small>
         </div>
         <p>Fecha: {{ formatFecha(ventaParaImprimir.fecha) }}</p>
       </div>

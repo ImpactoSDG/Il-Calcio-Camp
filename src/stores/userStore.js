@@ -33,6 +33,19 @@ export const useUserStore = defineStore('user', {
       } catch (e) {
         console.error("Error refreshing modules", e);
       }
+    },
+    async toggleFavorito(moduloId, isFavorite) {
+      if (!this.user?.id) return;
+      try {
+        await usuariosService.toggleFavorito(this.user.id, moduloId, isFavorite);
+        // Actualizar localmente el estado de favorito
+        const modulo = this.user.modulos.find(m => m.id == moduloId);
+        if (modulo) {
+          modulo.favorito = isFavorite ? 1 : 0;
+        }
+      } catch (e) {
+        console.error("Error toggling favorite", e);
+      }
     }
   },
 
