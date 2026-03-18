@@ -121,6 +121,17 @@ export function saveFeedLines(lines) {
   localStorage.setItem(LS_FEED_LINES, String(lines));
 }
 
+// ── Sincronizar objeto impresora con localStorage ─────────────
+export function syncLocalStorage(imp) {
+  if (!imp) return;
+  // Sincronizamos si es la default o si forzamos la sincronización
+  if (imp.es_default == 1 || imp.es_default === true) {
+    savePrinterName(imp.nombre || '');
+    saveCutCmd(imp.comando_corte || '\x1D\x56\x00');
+    saveFeedLines(imp.lineas_avance || 5);
+  }
+}
+
 // ── Conexión QZ ──────────────────────────────────────────────
 export async function ensureQzConnected() {
   if (!qz.websocket.isActive()) {

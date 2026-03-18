@@ -299,7 +299,7 @@ import ToastNotification from '@/components/ToastNotification.vue';
 import { useToastStore } from '@/stores/toastStore';
 import {
   setupQzSecurity, listarImpresoras,
-  savePrinterName, saveCutCmd, saveFeedLines,
+  savePrinterName, saveCutCmd, saveFeedLines, syncLocalStorage,
   CUT_VARIANTS,
   QZ_CERT, QZ_PK,
 } from '@/composables/usePrinterConfig';
@@ -457,6 +457,10 @@ const fetchImpresoras = async () => {
   loadingImpresoras.value = true;
   try {
     impresoras.value = await impresoraTiqueteraService.getAll();
+    const def = impresoras.value.find(i => i.es_default == 1 || i.es_default === true);
+    if (def) {
+      syncLocalStorage(def);
+    }
   } catch {
     toast.showToast({ message: 'Error al cargar las impresoras', type: 'danger' });
   } finally {
@@ -488,14 +492,6 @@ const detectarImpresorasEnModal = async () => {
     toast.showToast({ message: 'No se pudo conectar a QZ Tray.', type: 'danger' });
   } finally {
     detectando.value = false;
-  }
-};
-
-const syncLocalStorage = (imp) => {
-  if (imp.es_default || imp.es_default == 1) {
-    savePrinterName(imp.nombre);
-    saveCutCmd(imp.comando_corte);
-    saveFeedLines(imp.lineas_avance);
   }
 };
 

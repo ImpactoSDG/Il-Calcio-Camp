@@ -339,7 +339,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
-import { setupQzSecurity, ensureQzConnected, imprimirTicketEscPos, QZ_CERT, QZ_PK } from '@/composables/usePrinterConfig';
+import { setupQzSecurity, ensureQzConnected, imprimirTicketEscPos, QZ_CERT, QZ_PK, syncLocalStorage } from '@/composables/usePrinterConfig';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import FuzzySearch from '@/components/FuzzySearch.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
@@ -350,6 +350,7 @@ import clientesService from '@/services/clientesService';
 import articulosService from '@/services/articulosService';
 import datosMaestrosService from '@/services/datosMaestrosService';
 import configuracionService from '@/services/configuracionService';
+import impresoraTiqueteraService from '@/services/impresoraTiqueteraService';
 import { useToastStore } from '@/stores/toastStore';
 
 const toast = useToastStore();
@@ -870,6 +871,14 @@ onMounted(async () => {
   window.addEventListener('keydown', onKeydown);
   // Pre-conectar a QZ Tray en segundo plano (silencioso)
   ensureQzConnected().catch(() => console.warn('QZ Tray no disponible al inicio.'));
+  
+  // Asegurar que la impresora default esté sincronizada en localStorage
+  try {
+    const defaultPrinter = await impresoraTiqueteraService.getDefault();
+    if (defaultPrinter) syncLocalStorage(defaultPrinter);
+  } catch (e) {
+    console.warn('No se pudo cargar la impresora predeterminada:', e);
+  }
 });
 
 onUnmounted(() => {
