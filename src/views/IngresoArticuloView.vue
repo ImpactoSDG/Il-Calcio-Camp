@@ -87,22 +87,22 @@
               </td>
             
               <td class="text-end text-muted small text-nowrap">
-                ${{ Number(item.precio_unitario) % 1 === 0 ? Number(item.precio_unitario).toFixed(0) : Number(item.precio_unitario).toFixed(2) }}
+                ${{ formatMoney(item.precio_unitario) }}
               </td>
             
               <td class="text-end fw-bold text-dark text-nowrap">
-                ${{ Number(item.total) % 1 === 0 ? Number(item.total).toFixed(0) : Number(item.total).toFixed(2) }}
+                ${{ formatMoney(item.total) }}
               </td>
             
               <td class="text-center">
-                <span :class="item.es_perecedero ? 'status-pill status-pill--danger' : 'status-pill status-pill--inactive'">
-                  {{ item.es_perecedero ? 'Pered.' : 'No' }}
+                <span :class="Number(item.es_perecedero) ? 'status-pill status-pill--danger' : 'status-pill status-pill--inactive'">
+                  {{ Number(item.es_perecedero) ? 'Pered.' : 'No' }}
                 </span>
               </td>
             
               <td class="text-center">
-                <span :class="item.es_ajuste ? 'status-pill status-pill--info' : 'status-pill status-pill--inactive'">
-                  {{ item.es_ajuste ? 'Ajuste' : 'No' }}
+                <span :class="Number(item.es_ajuste) ? 'status-pill status-pill--info' : 'status-pill status-pill--inactive'">
+                  {{ Number(item.es_ajuste) ? 'Ajuste' : 'No' }}
                 </span>
               </td>
             
@@ -233,6 +233,7 @@ import CustomNumberInput from '@/components/CustomNumberInput.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
 import articulosService from '@/services/articulosService';
 import { useToastStore } from '@/stores/toastStore';
+import { formatMoney } from '@/utils/formatters';
 import Fuse from 'fuse.js';
 
 const toast = useToastStore();

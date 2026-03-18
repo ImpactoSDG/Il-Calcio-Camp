@@ -157,7 +157,7 @@
                   <div class="bg-white border-2 rounded-4 p-3 border shadow-sm">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                       <span class="text-secondary fw-medium">{{ isAjuste ? 'Items a ajustar' : 'Subtotal' }}</span>
-                      <span class="text-dark fw-bold">{{ isAjuste ? articulosCarrito.length : ('$' + Number(totalCarrito).toLocaleString(undefined, { minimumFractionDigits: 2 })) }}</span>
+                      <span class="text-dark fw-bold">{{ isAjuste ? articulosCarrito.length : ('$' + formatMoney(totalCarrito)) }}</span>
                     </div>
                     <div v-if="!isAjuste" class="d-flex justify-content-between align-items-center mb-2">
                       <span class="text-secondary fw-medium">IVA (Total)</span>
@@ -165,7 +165,7 @@
                     </div>
                     <div :class="{ 'border-top border-2 pt-2 mt-2': true, 'd-flex justify-content-between align-items-center': true, 'opacity-50': isAjuste }">
                       <span class="text-dark fw-black fs-5">{{ isAjuste ? 'AJUSTE' : 'TOTAL' }}</span>   
-                      <span class="text-primary fw-black fs-4">{{ isAjuste ? 'STOCK' : ('$' + Number(totalCarrito).toLocaleString(undefined, { minimumFractionDigits: 2 })) }}</span>  
+                      <span class="text-primary fw-black fs-4">{{ isAjuste ? 'STOCK' : ('$' + formatMoney(totalCarrito)) }}</span>  
                     </div>
                   </div>
                 </div>
@@ -240,7 +240,7 @@
                           @click.stop
                         />
                         <div v-if="!isAjuste" class="text-end ms-2">
-                          <div class="fw-black text-primary fs-5">${{ Number(res.precio_actual || 0).toLocaleString() }}</div>
+                          <div class="fw-black text-primary fs-5">${{ formatMoney(res.precio_actual || 0) }}</div>
                         </div>
                       </div>
                     </button>
@@ -261,7 +261,7 @@
                             </div>
                             <div class="lh-sm min-w-0 flex-grow-1 py-1">
                               <div class="fw-bold text-dark small" style="word-break: break-word; line-height: 1.2;">{{ item.nombre }}</div>
-                              <div v-if="!isAjuste" class="text-muted" style="font-size: 0.7rem;">${{ Number(item.precio_unitario).toLocaleString() }} / un.</div>
+                              <div v-if="!isAjuste" class="text-muted" style="font-size: 0.7rem;">${{ formatMoney(item.precio_unitario) }} / un.</div>
                             </div>
                           </div>
                         </td>
@@ -284,7 +284,7 @@
                         </td>
                       
                         <td v-if="!isAjuste" class="text-end py-2 fw-black text-dark px-1" style="width: 18%; font-size: 0.8rem;">
-                          ${{ Number(item.total).toLocaleString(undefined, { minimumFractionDigits: 2 }) }}
+                          ${{ formatMoney(item.total) }}
                         </td>
                       
                         <td class="pe-3 text-end" style="width: 5%;">      
@@ -363,6 +363,7 @@
 <script setup>
 import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
 import { useToastStore } from '@/stores/toastStore';
+import { formatMoney } from '@/utils/formatters';
 import QuickClientModal from '@/components/venta/QuickClientModal.vue';
 import QuickAssignTeamModal from '@/components/venta/QuickAssignTeamModal.vue';
 import FuzzySearch from '@/components/FuzzySearch.vue';
@@ -409,6 +410,7 @@ const handleQuickClientConfirm = (cliente) => {
   
   // Asignar a la venta inmediatamente
   form.value.id_cliente = cliente.id;
+  queryCliente.value = cliente.nombre_cliente; // Sincronizar el buscador con el nombre
   
   toastStore.showToast({
     message: `Cliente ${cliente.nombre_cliente} asignado.`,

@@ -33,8 +33,7 @@
           />
           <tbody class="bg-white">
             <tr v-for="item in clientesFiltrados" :key="item.id">
-              <td class="ps-4 text-muted fw-bold">{{ item.id }}</td>
-              <td class="fw-medium text-dark">{{ item.nombre_cliente }}</td>
+              <td class="ps-4 fw-medium text-dark">{{ item.nombre_cliente }}</td>
               <td class="text-muted">
                 <span v-if="item.condicion_iva_descripcion" class="badge bg-primary-subtle text-primary-custom rounded-pill px-3">
                   {{ item.condicion_iva_descripcion }}
@@ -44,7 +43,7 @@
               <td class="text-muted">{{ item.provincia_nombre || '—' }}</td>
               <td class="text-muted">{{ item.direccion || '—' }}</td>
               <td class="text-end fw-bold" :class="Number(item.saldo_pendiente) > 0 ? 'text-danger' : 'text-success'">
-                ${{ Number(item.saldo_pendiente).toLocaleString('es-AR', { minimumFractionDigits: 2 }) }}
+                ${{ formatMoney(item.saldo_pendiente) }}
               </td>
               <td class="pe-4 text-end">
                 <button @click="verSaldo(item)" class="btn btn-link link-primary p-1 me-2" title="Ver Saldo">
@@ -81,42 +80,17 @@
           <form @submit.prevent="save">
             <div class="modal-body">
               <div class="row g-3">
-                <div class="col-md-4">
-                  <label class="form-label">ID <span class="text-danger">*</span></label>
-                  <input
-                    v-model.number="form.id"
-                    type="number"
-                    class="form-control"
-                    :readonly="isEditing"
-                    :class="{ 'bg-light text-muted': isEditing }"
-                    required
-                  />
-                </div>
-                <div class="col-md-8">
+                <div class="col-md-12">
                   <label class="form-label">Nombre del Cliente <span class="text-danger">*</span></label>
                   <input v-model.trim="form.nombre_cliente" type="text" class="form-control" placeholder="Ej: Juan Pérez" required />
                 </div>
-                <div class="col-md-6">
-                  <label class="form-label">Condición IVA (texto)</label>
-                  <input v-model.trim="form.condicion_iva" type="text" class="form-control" placeholder="Ej: Responsable Inscripto" />
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Condición IVA (catálogo)</label>
-                  <select v-model.number="form.id_condicion_iva_receptor" class="form-select">
-                    <option :value="null">Sin seleccionar</option>
-                    <option v-for="cond in condicionesIva" :key="cond.id" :value="cond.id">{{ cond.descripcion_condicion }}</option>
-                  </select>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Provincia</label>
-                  <select v-model.number="form.id_provinica" class="form-select">
-                    <option :value="null">Sin seleccionar</option>
-                    <option v-for="prov in provincias" :key="prov.id" :value="prov.id">{{ prov.provincia }}</option>
-                  </select>
-                </div>
-                <div class="col-md-6">
+                <div class="col-md-12">
                   <label class="form-label">Dirección</label>
                   <input v-model.trim="form.direccion" type="text" class="form-control" placeholder="Ej: Av. Principal 123" />
+                </div>
+                <div class="col-md-12">
+                  <label class="form-label">Teléfono</label>
+                  <input v-model.trim="form.telefono" type="text" class="form-control" placeholder="Ej: 351-1234567" />
                 </div>
               </div>
             </div>
@@ -170,7 +144,7 @@
                       </td>
                       <td class="text-muted small">{{ mov.descripcion || '—' }}</td>
                       <td class="text-end pe-4 fw-bold" :class="mov.tipo === 'VENTA' ? 'text-danger' : 'text-success'">
-                        {{ mov.tipo === 'VENTA' ? '+' : '-' }} ${{ Number(mov.monto).toLocaleString('es-AR', { minimumFractionDigits: 2 }) }}
+                        {{ mov.tipo === 'VENTA' ? '+' : '-' }} ${{ formatMoney(mov.monto) }}
                       </td>
                     </tr>
                     <tr v-if="movimientos.length === 0">
@@ -181,7 +155,7 @@
                     <tr>
                       <td colspan="3" class="ps-4 text-end">Saldo Final:</td>
                       <td class="text-end pe-4" :class="Number(clienteSeleccionado?.saldo_pendiente) > 0 ? 'text-danger' : 'text-success'">
-                        ${{ Number(clienteSeleccionado?.saldo_pendiente).toLocaleString('es-AR', { minimumFractionDigits: 2 }) }}
+                        ${{ formatMoney(clienteSeleccionado?.saldo_pendiente) }}
                       </td>
                     </tr>
                   </tfoot>
@@ -216,14 +190,14 @@ import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vu
 import clientesService from '@/services/clientesService';
 import datosMaestrosService from '@/services/datosMaestrosService';
 import { useToastStore } from '@/stores/toastStore';
+import { formatMoney } from '@/utils/formatters';
 
 const toast = useToastStore();
 
 const { sortKey, sortDir, handleSort, sortItems } = useSorting()
 
 const columns = [
-  { key: 'id',                        label: 'ID',            sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 80px' },
-  { key: 'nombre_cliente',            label: 'Nombre',        sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'nombre_cliente',            label: 'Nombre',        sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'condicion_iva_descripcion', label: 'Condición IVA', sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'provincia_nombre',          label: 'Provincia',     sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'direccion',                 label: 'Dirección',     sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
@@ -247,7 +221,15 @@ const isSaving = ref(false);
 const isDeleting = ref(false);
 const idToDelete = ref(null);
 
-const emptyForm = () => ({ id: null, nombre_cliente: '', condicion_iva: '', id_condicion_iva_receptor: null, direccion: '', id_provinica: null });
+const emptyForm = () => ({ 
+  id: null, 
+  nombre_cliente: '', 
+  condicion_iva: 'Consumidor final', 
+  id_condicion_iva_receptor: 1, 
+  direccion: '', 
+  id_provinica: 1,
+  telefono: ''
+});
 const form = ref(emptyForm());
 const originalForm = ref({});
 
@@ -311,8 +293,8 @@ const openModal = (item = null) => {
 };
 
 const save = async () => {
-  if (!form.value.id || !form.value.nombre_cliente) {
-    toast.showToast({ message: 'ID y nombre del cliente son obligatorios.', type: 'warning' });
+  if (!form.value.nombre_cliente) {
+    toast.showToast({ message: 'El nombre del cliente es obligatorio.', type: 'warning' });
     return;
   }
   if (isEditing.value && JSON.stringify(form.value) === JSON.stringify(originalForm.value)) {

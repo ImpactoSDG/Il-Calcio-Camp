@@ -201,7 +201,7 @@
 
               <!-- Precio -->
               <td class="text-end fw-semibold text-dark">
-                {{ item.precio_actual != null ? `$${Number(item.precio_actual).toFixed(2)}` : '—' }}
+                {{ item.precio_actual != null ? `$${formatMoney(item.precio_actual)}` : '—' }}
               </td>
 
               <!-- Acciones -->
@@ -273,7 +273,7 @@
                 <div class="detalle-metric-card">
                   <div class="detalle-metric-card__label">Precio venta</div>
                   <div class="detalle-metric-card__value" style="font-size:1.25rem">
-                    {{ detalleItem.precio_actual != null ? `$${Number(detalleItem.precio_actual).toFixed(2)}` : '—' }}
+                    {{ detalleItem.precio_actual != null ? `$${formatMoney(detalleItem.precio_actual)}` : '—' }}
                   </div>
                 </div>
               </div>
@@ -281,7 +281,7 @@
                 <div class="detalle-metric-card">
                   <div class="detalle-metric-card__label">Costo</div>
                   <div class="detalle-metric-card__value" style="font-size:1.25rem">
-                    {{ detalleItem.costo_actual != null ? `$${Number(detalleItem.costo_actual).toFixed(2)}` : '—' }}
+                    {{ detalleItem.costo_actual != null ? `$${formatMoney(detalleItem.costo_actual)}` : '—' }}
                   </div>
                 </div>
               </div>
@@ -387,6 +387,7 @@ import FuzzySearch from '@/components/FuzzySearch.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
 import articulosService from '@/services/articulosService';
 import { useToastStore } from '@/stores/toastStore';
+import { formatMoney } from '@/utils/formatters';
 
 const toast = useToastStore();
 const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost/Il-Calcio-Camp/api';

@@ -401,6 +401,7 @@ import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vu
 import proveedoresService from '@/services/proveedoresService';
 import articulosService from '@/services/articulosService';
 import { useToastStore } from '@/stores/toastStore';
+import { formatMoney } from '@/utils/formatters';
 
 const toast = useToastStore();
 const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost/Il-Calcio-Camp/api';
@@ -498,7 +499,7 @@ const formatDate = (val) => {
 
 const formatMonto = (val) => {
   const n = parseFloat(val);
-  return isNaN(n) ? '$0,00' : n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
+  return isNaN(n) ? '$0' : '$' + formatMoney(n);
 };
 
 const estadoSelectClass = (estado) => ({

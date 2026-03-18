@@ -88,8 +88,8 @@
                     </td>
                     <td class="py-2 border-0 fw-medium small">{{ item.articulo_nombre }}</td>
                     <td class="py-2 border-0 text-end small">{{ item.cantidad }}</td>
-                    <td class="py-2 border-0 text-end small text-muted">${{ Number(item.precio_unitario).toFixed(2) }}</td>
-                    <td class="pe-3 py-2 border-0 text-end small fw-bold text-dark">${{ Number(item.total).toFixed(2) }}</td>
+                    <td class="py-2 border-0 text-end small text-muted">${{ formatMoney(item.precio_unitario) }}</td>
+                    <td class="pe-3 py-2 border-0 text-end small fw-bold text-dark">${{ formatMoney(item.total) }}</td>
                   </tr>
                   <tr v-if="articulos.length === 0">
                     <td colspan="5" class="text-center text-muted py-4 small">Esta venta no tiene artículos registrados.</td>
@@ -126,6 +126,7 @@
 
 <script setup>
 import { computed, ref } from 'vue';
+import { formatMoney } from '@/utils/formatters';
 
 const props = defineProps({
   modelValue: Boolean,
@@ -150,7 +151,7 @@ const formatFecha = (fecha) => {
 };
 
 const totalVenta = computed(() => {
-  return props.articulos.reduce((acc, av) => acc + Number(av.total || 0), 0).toFixed(2);
+  return formatMoney(props.articulos.reduce((acc, av) => acc + Number(av.total || 0), 0));
 });
 
 const imprimirTicket = async () => {

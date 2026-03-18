@@ -30,8 +30,7 @@
           />
           <tbody class="bg-white">
             <tr v-for="item in sortedProveedores" :key="item.id_proveedor">
-              <td class="ps-4 text-muted fw-bold">{{ item.id_proveedor }}</td>
-              <td class="fw-medium text-dark">{{ item.nombre }} {{ item.apellido }}</td>
+              <td class="ps-4 fw-medium text-dark">{{ item.nombre }} {{ item.apellido }}</td>
               <td class="text-muted">{{ item.nombre_fantasia || '—' }}</td>
               <td class="text-muted">{{ item.telefono || '—' }}</td>
               <td class="text-muted">{{ item.direccion || '—' }}</td>
@@ -138,8 +137,7 @@ const toast = useToastStore();
 const { sortKey, sortDir, handleSort, sortItems } = useSorting();
 
 const columns = [
-  { key: 'id_proveedor',    label: 'ID',             sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 70px' },
-  { key: 'nombre',          label: 'Nombre',          sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'nombre',          label: 'Nombre',          sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'nombre_fantasia', label: 'Nombre Fantasía', sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'telefono',        label: 'Teléfono',        sortable: false, thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'direccion',       label: 'Dirección',       sortable: false, thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },

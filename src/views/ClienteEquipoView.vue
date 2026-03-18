@@ -33,8 +33,7 @@
           />
           <tbody class="bg-white">
             <tr v-for="item in relacionesFiltradas" :key="item.id_cliente_equipo">
-              <td class="ps-4 text-muted fw-bold">{{ item.id_cliente_equipo }}</td>
-              <td class="fw-medium text-dark">{{ item.cliente_nombre }}</td>
+              <td class="ps-4 fw-medium text-dark">{{ item.cliente_nombre }}</td>
               <td class="fw-medium text-dark">{{ item.equipo_nombre }}</td>
               <td class="text-muted">
                 <span class="badge bg-primary-subtle text-primary-custom rounded-pill px-3">
@@ -135,8 +134,7 @@ const toast = useToastStore();
 const { sortKey, sortDir, handleSort, sortItems } = useSorting()
 
 const columns = [
-  { key: 'id_cliente_equipo', label: 'ID',          sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 80px' },
-  { key: 'cliente_nombre',    label: 'Cliente',      sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary', icon: 'bi bi-person-fill me-1' },
+  { key: 'cliente_nombre',    label: 'Cliente',      sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', icon: 'bi bi-person-fill me-1' },
   { key: 'equipo_nombre',     label: 'Equipo',       sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary', icon: 'bi bi-people-fill me-1' },
   { key: 'equipo_disciplina', label: 'Disciplina',   sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'capitan',           label: 'Capitán',      sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width: 140px' },

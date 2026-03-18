@@ -83,7 +83,7 @@
                 </div>
                 <div class="d-flex flex-wrap gap-2 align-items-center mt-1">
                   <span v-if="venta.total_venta" class="fw-bold text-success me-2">
-                    ${{ Number(venta.total_venta).toFixed(2) }}
+                    ${{ formatMoney(venta.total_venta) }}
                   </span>
                   <span v-if="venta.equipo_nombre" class="badge-equipo">
                     <i class="bi bi-person-workspace me-1"></i>{{ venta.equipo_nombre }}
@@ -138,8 +138,8 @@
                   </td>
                   <td class="fw-medium small">{{ av.articulo_nombre }}</td>
                   <td class="text-end small">{{ av.cantidad }}</td>
-                  <td class="text-end small text-muted">${{ Number(av.precio_unitario).toFixed(2) }}</td>
-                  <td class="text-end small fw-semibold">${{ Number(av.total).toFixed(2) }}</td>
+                  <td class="text-end small text-muted">${{ formatMoney(av.precio_unitario) }}</td>
+                  <td class="text-end small fw-semibold">${{ formatMoney(av.total) }}</td>
                   <td class="text-end">
                     <button @click="prepareDeleteArticuloVenta(av.id_articulo_venta)" class="btn btn-link link-danger p-0">
                       <i class="bi bi-x-circle"></i>
@@ -216,7 +216,7 @@
                       <span v-else class="text-muted">—</span>
                     </td>
                     <td class="text-end fw-bold text-dark small py-1">
-                      ${{ venta.total_venta }}
+                      ${{ formatMoney(venta.total_venta) }}
                     </td>
                     <td class="pe-4 text-end py-1">
                       <button @click.stop="abrirDetalleVenta(venta)" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 px-2 py-1" title="Ver detalle">
@@ -314,7 +314,7 @@
           <tr v-for="item in articulosDeVentaParaImprimir" :key="item.id_articulo_venta">
             <td>{{ item.cantidad }}</td>
             <td>{{ item.articulo_nombre }}</td>
-            <td class="text-end">${{ Number(item.total).toFixed(2) }}</td>
+            <td class="text-end">${{ formatMoney(item.total) }}</td>
           </tr>
         </tbody>
       </table>
@@ -352,6 +352,7 @@ import datosMaestrosService from '@/services/datosMaestrosService';
 import configuracionService from '@/services/configuracionService';
 import impresoraTiqueteraService from '@/services/impresoraTiqueteraService';
 import { useToastStore } from '@/stores/toastStore';
+import { formatMoney } from '@/utils/formatters';
 
 const toast = useToastStore();
 const { sortKey, sortDir, handleSort, sortItems } = useSorting('id', 'desc');
@@ -365,7 +366,7 @@ setupQzSecurity(QZ_CERT, QZ_PK);
 const ventaParaImprimir = ref(null);
 const articulosDeVentaParaImprimir = ref([]);
 const totalVentaParaImprimir = computed(() =>
-  articulosDeVentaParaImprimir.value.reduce((acc, av) => acc + Number(av.total || 0), 0).toFixed(2)
+  formatMoney(articulosDeVentaParaImprimir.value.reduce((acc, av) => acc + Number(av.total || 0), 0))
 );
 
 const ID_ESTADO_ABIERTA = computed(() =>
@@ -456,6 +457,8 @@ const handleQuickClientCreated = (cliente) => {
   tempQuickClient.value = cliente;
   // Agregarlo a la lista local para que aparezca en el select del modal
   clientes.value.push(cliente);
+  // Sincronizar el formulario del modal con el nuevo cliente
+  ventaForm.value.id_cliente = cliente.id;
 };
 
 const handleQuickTeamAssign = async ({ id_cliente, id_equipo }) => {
@@ -504,7 +507,7 @@ const isDeletingAv         = ref(false);
 const idAvToDelete         = ref(null);
 
 const totalDetalleVenta = computed(() =>
-  articulosDeVenta.value.reduce((acc, av) => acc + Number(av.total || 0), 0).toFixed(2)
+  formatMoney(articulosDeVenta.value.reduce((acc, av) => acc + Number(av.total || 0), 0))
 );
 
 const ventasFiltradas = computed(() => {
@@ -683,11 +686,11 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito }) => {
         const respNuevo = await clientesService.crearCliente({
           nombre_cliente: tempQuickClient.value.nombre_cliente,
           id_condicion_iva_receptor: 1, // Consumidor Final por defecto
-          id_provinica: null,
+          id_provinica: 1,
           condicion_iva: 'Consumidor Final',
           direccion: '',
           localidad: '',
-          telefono: '',
+          telefono: tempQuickClient.value.telefono || '',
           email: ''
         });
         
