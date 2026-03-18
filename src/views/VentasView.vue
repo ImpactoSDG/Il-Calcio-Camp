@@ -339,7 +339,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
-import { setupQzSecurity, ensureQzConnected, imprimirTicketEscPos, QZ_CERT, QZ_PK, syncLocalStorage } from '@/composables/usePrinterConfig';
+import { setupQzSecurity, ensureQzConnected, imprimirTicketEscPos, getMachineId, syncLocalStorage } from '@/composables/usePrinterConfig';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import FuzzySearch from '@/components/FuzzySearch.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
@@ -351,6 +351,7 @@ import articulosService from '@/services/articulosService';
 import datosMaestrosService from '@/services/datosMaestrosService';
 import configuracionService from '@/services/configuracionService';
 import impresoraTiqueteraService from '@/services/impresoraTiqueteraService';
+import qzCertificadoService from '@/services/qzCertificadoService';
 import { useToastStore } from '@/stores/toastStore';
 import { formatMoney } from '@/utils/formatters';
 
@@ -359,8 +360,16 @@ const { sortKey, sortDir, handleSort, sortItems } = useSorting('id', 'desc');
 
 const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost/Il-Calcio-Camp/api';
 
-// Inicializar seguridad de QZ Tray (una única vez para toda la app)
-setupQzSecurity(QZ_CERT, QZ_PK);
+// Inicializar seguridad de QZ Tray con los certificados de esta máquina
+const initQzSecurity = async () => {
+  try {
+    const machineId = getMachineId();
+    const certData  = await qzCertificadoService.getContent(machineId);
+    setupQzSecurity(certData.cert, certData.pk);
+  } catch {
+    console.warn('QZ Tray: no se encontraron certificados para esta máquina. Configurarlos en Ajustes.');
+  }
+};
 
 // Estados para impresión (solo para ticket HTML visible en pantalla, si aplica)
 const ventaParaImprimir = ref(null);
@@ -872,7 +881,8 @@ const onKeydown = (e) => {
 onMounted(async () => {
   fetchData();
   window.addEventListener('keydown', onKeydown);
-  // Pre-conectar a QZ Tray en segundo plano (silencioso)
+  // Cargar certificados QZ Tray para esta máquina y luego pre-conectar
+  await initQzSecurity();
   ensureQzConnected().catch(() => console.warn('QZ Tray no disponible al inicio.'));
   
   // Asegurar que la impresora default esté sincronizada en localStorage

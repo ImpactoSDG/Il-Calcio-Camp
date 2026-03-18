@@ -33,6 +33,7 @@ require_once __DIR__ . '/controllers/TipoEventoPartidoController.php';
 require_once __DIR__ . '/controllers/EventoPartidoController.php';
 require_once __DIR__ . '/controllers/TicketVentaController.php';
 require_once __DIR__ . '/controllers/ImpresoraTiqueteraController.php';
+require_once __DIR__ . '/controllers/QzCertificadoController.php';
 require_once __DIR__ . '/controllers/ProveedorController.php';
 require_once __DIR__ . '/controllers/PedidoProveedorController.php';
 require_once __DIR__ . '/controllers/PagoProveedorController.php';
@@ -79,8 +80,9 @@ $articuloVentaIngresoArticuloController = new ArticuloVentaIngresoArticuloContro
 $tipoEventoPartidoController = new TipoEventoPartidoController($db);
 $eventoPartidoController = new EventoPartidoController($db);
 $ticketVentaController = new TicketVentaController($db);
-$impresoraTiqueteraController = new ImpresoraTiqueteraController($db);
-$proveedorController = new ProveedorController($db);
+$impresoraTiqueteraController  = new ImpresoraTiqueteraController($db);
+$qzCertificadoController       = new QzCertificadoController($db);
+$proveedorController           = new ProveedorController($db);
 $pedidoProveedorController = new PedidoProveedorController($db);
 $pagoProveedorController = new PagoProveedorController($db);
 $simboloDiaController = new SimboloDiaController();
@@ -879,6 +881,24 @@ switch ($resource) {
             $ticketVentaController->generar();
         } else {
             http_response_code(405);
+        }
+        break;
+
+    case 'qz-certificados':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                $qzCertificadoController->get();
+                break;
+            case 'POST':
+                $qzCertificadoController->upload();
+                break;
+            case 'DELETE':
+                $qzCertificadoController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
         }
         break;
 
