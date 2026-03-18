@@ -344,6 +344,10 @@ switch ($resource) {
             $equipoController->subirEscudo();
             break;
         }
+        if ($method === 'POST' && $id === 'baja-logica') {
+            $equipoController->bajaLogica();
+            break;
+        }
         switch ($method) {
             case 'GET':
                 if ($id) {

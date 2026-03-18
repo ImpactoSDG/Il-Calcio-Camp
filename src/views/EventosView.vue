@@ -8,6 +8,12 @@
         <h1 class="h5 fw-bold mb-0 text-secondary">EVENTOS</h1>
       </div>
       <div class="d-flex gap-2">
+        <router-link
+          :to="{ name: 'grillacanchas' }"
+          class="btn btn-outline-secondary d-flex align-items-center"
+        >
+          <i class="bi bi-grid-3x3-gap me-2"></i> Grilla F11
+        </router-link>
         <button @click="openModal()" class="btn-primary-modern d-flex align-items-center">
           <i class="bi bi-plus-circle-fill fs-6 me-2"></i> Nuevo
         </button>

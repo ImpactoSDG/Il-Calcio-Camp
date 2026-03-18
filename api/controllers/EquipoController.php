@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../core/BaseController.php';
 require_once __DIR__ . '/../models/Equipo.php';
+require_once __DIR__ . '/../models/Jugador.php';
 
 class EquipoController extends BaseController
 {
@@ -13,6 +14,95 @@ class EquipoController extends BaseController
     {
         parent::__construct($db);
         $this->model = new Equipo($this->db);
+    }
+
+    /**
+     * Da de baja un equipo y desasigna jugadores activos
+     */
+    public function bajaLogica(): void
+    {
+        try {
+            $data = json_decode(file_get_contents("php://input"), true);
+            $id = $data['id'] ?? null;
+
+            if (!$id) {
+                $this->respond(400, ['message' => 'ID requerido.']);
+            }
+
+            $equipo = $this->model->getById((int)$id);
+            if (!$equipo) {
+                $this->respond(404, ['message' => 'Equipo no encontrado.']);
+            }
+
+            $stmt = $this->db->prepare(
+                "SELECT t.id, t.nombre, et.descripcion
+                 FROM equipo_torneo etq
+                 INNER JOIN torneo t ON t.id = etq.id_torneo
+                 LEFT JOIN estado_torneo et ON et.id = t.id_estado_torneo
+                 WHERE etq.id_equipo = :id_equipo
+                   AND (t.id_estado_torneo IS NULL OR et.activo = 1)
+                 LIMIT 1"
+            );
+            $stmt->bindValue(':id_equipo', (int)$id, PDO::PARAM_INT);
+            $stmt->execute();
+            $torneoActivo = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($torneoActivo) {
+                $nombreTorneo = trim((string)($torneoActivo['nombre'] ?? ''));
+                $estadoTorneo = trim((string)($torneoActivo['descripcion'] ?? ''));
+                $detalle = $nombreTorneo !== ''
+                    ? " (" . $nombreTorneo . (
+                        $estadoTorneo !== '' ? " - " . $estadoTorneo : ""
+                    ) . ")"
+                    : '';
+                $this->respond(409, [
+                    'message' => 'No se puede dar de baja: el equipo está inscripto en un torneo activo' . $detalle . '.',
+                ]);
+            }
+
+            $escudo = isset($equipo['escudo']) && trim((string)$equipo['escudo']) !== ''
+                ? $equipo['escudo']
+                : null;
+
+            $actualizado = $this->model->update(
+                (int)$equipo['id'],
+                $equipo['nombre'],
+                $equipo['disciplina'],
+                false,
+                $escudo
+            );
+
+            if (!$actualizado) {
+                $this->respond(500, ['message' => 'No se pudo dar de baja el equipo.']);
+            }
+
+            $jugadorModel = new Jugador($this->db);
+            $jugadores = $jugadorModel->getByEquipo((int)$id);
+            $desasignados = 0;
+
+            foreach ($jugadores as $jugador) {
+                $ok = $jugadorModel->update(
+                    (int)$jugador['id'],
+                    $jugador['nombre'] ?? '',
+                    $jugador['apellido'] ?? '',
+                    $jugador['dni'] ?? null,
+                    $jugador['fecha_nac'] ?? null,
+                    $jugador['fecha_alta'] ?? null,
+                    $jugador['activo'] !== null ? (bool)(int)$jugador['activo'] : true,
+                    null,
+                    false
+                );
+                if ($ok) {
+                    $desasignados++;
+                }
+            }
+
+            $this->respond(200, [
+                'message' => 'Equipo dado de baja y jugadores desasignados.',
+                'jugadores_desasignados' => $desasignados,
+            ]);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al dar de baja el equipo');
+        }
     }
 
     /**

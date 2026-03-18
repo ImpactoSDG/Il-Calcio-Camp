@@ -48,6 +48,7 @@ const datosMaestrosService = {
   crearEquipo: (data) => api.post('/equipos', data).then(r => r.data),
   actualizarEquipo: (data) => api.put('/equipos', data).then(r => r.data),
   eliminarEquipo: (id) => api.delete('/equipos', { data: { id } }).then(r => r.data),
+  bajaLogicaEquipo: (id) => api.post('/equipos/baja-logica', { id }).then(r => r.data),
 
   // --- Jugadores (/jugadores) ---
   getJugadores: () => api.get('/jugadores').then(r => r.data),

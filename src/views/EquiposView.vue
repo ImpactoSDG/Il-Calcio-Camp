@@ -57,7 +57,7 @@
                 </button>
               </td>
             </tr>
-            <tr v-if="equipos.length === 0 && !loading">
+            <tr v-if="sortedEquipos.length === 0 && !loading">
               <td colspan="5" class="text-center py-5 text-muted">
                 No hay equipos registrados.
               </td>
@@ -336,7 +336,7 @@
     <ConfirmModal
       v-model="showDeleteModal"
       title="Eliminar Equipo"
-      message="¿Estás seguro de eliminar este equipo? Puede afectar a clientes y ventas asociadas."
+      message="Esta acción dará de baja el equipo y dejará a sus jugadores sin equipo asignado."
       confirm-button-text="Eliminar"
       variant="danger"
       :is-loading="isDeleting"
@@ -366,7 +366,8 @@ const columns = [
 
 const equipos = ref([]);
 
-const sortedEquipos = computed(() => sortItems(equipos.value))
+const equiposActivos = computed(() => equipos.value.filter(item => Number(item.activo) !== 0))
+const sortedEquipos = computed(() => sortItems(equiposActivos.value))
 const loading = ref(false);
 const showFormModal = ref(false);
 const showDeleteModal = ref(false);
@@ -804,12 +805,18 @@ const prepareDelete = (id) => {
 const confirmDelete = async () => {
   isDeleting.value = true;
   try {
-    await datosMaestrosService.eliminarEquipo(idToDelete.value);
-    toast.showToast({ message: 'Equipo eliminado correctamente.', type: 'success' });
+    const idEquipo = idToDelete.value;
+    const response = await datosMaestrosService.bajaLogicaEquipo(idEquipo);
+    const cantidad = Number(response?.jugadores_desasignados || 0);
+    const mensaje = cantidad > 0
+      ? `Equipo dado de baja. ${cantidad} jugador(es) quedaron sin equipo asignado.`
+      : 'Equipo dado de baja. No había jugadores activos asignados.';
+    toast.showToast({ message: mensaje, type: 'success' });
     showDeleteModal.value = false;
     fetchData();
-  } catch {
-    toast.showToast({ message: 'Error al eliminar el equipo.', type: 'danger' });
+  } catch (err) {
+    const msg = err?.response?.data?.message || 'No se pudo dar de baja el equipo. Intentá nuevamente.';
+    toast.showToast({ message: msg, type: 'danger' });
   } finally {
     isDeleting.value = false;
   }

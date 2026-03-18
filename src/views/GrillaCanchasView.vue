@@ -16,10 +16,65 @@
       <button class="date-arrow" @click="prevDay" title="Día anterior">
         <i class="bi bi-chevron-left"></i>
       </button>
-      <div class="date-center">
-        <div class="date-dayname">{{ dayName }}</div>
-        <div class="date-label">{{ dateLabel }}</div>
+
+      <div class="date-center-wrap" ref="calendarAnchor">
+        <div class="date-center">
+          <div class="date-dayname">{{ dayName }}</div>
+          <div class="date-label">{{ dateLabel }}</div>
+        </div>
+        <button
+          class="date-calendar-btn"
+          type="button"
+          title="Seleccionar fecha"
+          :aria-expanded="calendarOpen ? 'true' : 'false'"
+          @click="toggleCalendar"
+        >
+          <i class="bi bi-calendar3"></i>
+        </button>
+
+        <div v-if="calendarOpen" class="calendar-popover" @click.stop>
+          <div class="calendar-header">
+            <button class="cal-nav" type="button" @click="prevMonth" title="Mes anterior">
+              <i class="bi bi-chevron-left"></i>
+            </button>
+            <div class="cal-title">{{ calendarMonthLabel }}</div>
+            <button class="cal-nav" type="button" @click="nextMonth" title="Mes siguiente">
+              <i class="bi bi-chevron-right"></i>
+            </button>
+          </div>
+          <div class="calendar-weekdays">
+            <span v-for="label in WEEKDAY_LABELS" :key="label">{{ label }}</span>
+          </div>
+          <div class="calendar-grid">
+            <button
+              v-for="day in calendarDays"
+              :key="day.iso + (day.inMonth ? '-m' : '-o')"
+              class="calendar-day"
+              type="button"
+              :class="{
+                'is-other': !day.inMonth,
+                'is-today': day.isToday,
+                'is-selected': day.isSelected,
+              }"
+              @click="selectCalendarDay(day)"
+            >
+              <span class="calendar-day-num">{{ day.day }}</span>
+              <span
+                v-if="day.eventCount"
+                class="calendar-event-dot"
+                :class="{ 'has-count': day.eventCount > 1 }"
+                :title="`${day.eventCount} eventos`"
+              >
+                <span v-if="day.eventCount > 1" class="calendar-event-count">{{ day.eventCount }}</span>
+              </span>
+            </button>
+          </div>
+          <div class="calendar-footer">
+            <button class="cal-today-btn" type="button" @click="goToday">Hoy</button>
+          </div>
+        </div>
       </div>
+
       <button class="date-arrow" @click="nextDay" title="Día siguiente">
         <i class="bi bi-chevron-right"></i>
       </button>
@@ -27,15 +82,18 @@
 
     <!-- ── Horarios bar ────────────────────────────────────── -->
     <div class="horarios-bar">
-      <button
-        v-for="h in HORARIOS"
-        :key="h"
-        class="horario-chip"
-        :class="{ active: horarioSel === h }"
-        @click="horarioSel = h"
-      >
-        {{ h }}
-      </button>
+      <template v-if="horariosDisponibles.length">
+        <button
+          v-for="h in horariosDisponibles"
+          :key="h"
+          class="horario-chip"
+          :class="{ active: horarioSel === h }"
+          @click="horarioSel = h"
+        >
+          {{ h }}
+        </button>
+      </template>
+      <div v-else class="horarios-empty">No hay eventos en la fecha seleccionada.</div>
     </div>
 
     <!-- ── Loading ────────────────────────────────────────── -->
@@ -208,13 +266,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import eventosService from '@/services/eventosService'
 import datosMaestrosService from '@/services/datosMaestrosService'
 import { getIncidenciaVisualMeta } from '@/utils/incidencias'
 
 // ── Constants ──────────────────────────────────────────────
-const HORARIOS = ['13:00', '14:10', '15:20', '16:30', '17:30']
 const SLOT_DURATION_MIN = 70
 
 // ── State ──────────────────────────────────────────────────
@@ -224,7 +281,10 @@ const canchas   = ref([])
 const equipos   = ref([])
 const incidenciasByEvento = ref({})
 const selectedDate = ref(todayDate())
-const horarioSel   = ref(HORARIOS[0])
+const horarioSel   = ref(null)
+const calendarOpen = ref(false)
+const calendarAnchor = ref(null)
+const calendarMonth = ref(startOfMonth(selectedDate.value))
 const fetchingIncidenciasIds = new Set()
 
 // ── Date helpers ───────────────────────────────────────────
@@ -239,6 +299,13 @@ function formatDateISO(d) {
   const mon = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${mon}-${day}`
+}
+
+function startOfMonth(d) {
+  const next = new Date(d)
+  next.setDate(1)
+  next.setHours(0, 0, 0, 0)
+  return next
 }
 
 function timeToMin(hhmm) {
@@ -267,18 +334,111 @@ function nextDay() {
   selectedDate.value = d
 }
 
+const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom']
+
+const calendarMonthLabel = computed(() => {
+  const d = calendarMonth.value
+  return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`
+})
+
+const eventCountsByDate = computed(() => {
+  const map = {}
+  eventos.value.forEach(ev => {
+    const dateStr = String(ev.fecha_hora_inicio || '').substring(0, 10)
+    if (!dateStr) return
+    map[dateStr] = (map[dateStr] || 0) + 1
+  })
+  return map
+})
+
+const calendarDays = computed(() => {
+  const base = startOfMonth(calendarMonth.value)
+  const year = base.getFullYear()
+  const month = base.getMonth()
+  const firstDay = base.getDay()
+  const offset = (firstDay - 1 + 7) % 7
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const totalCells = 42
+  const todayStr = formatDateISO(todayDate())
+  const selectedStr = formatDateISO(selectedDate.value)
+
+  return Array.from({ length: totalCells }, (_, idx) => {
+    const dayIndex = idx - offset + 1
+    const date = new Date(year, month, dayIndex)
+    const inMonth = dayIndex >= 1 && dayIndex <= daysInMonth
+    const iso = formatDateISO(date)
+    const eventCount = eventCountsByDate.value[iso] || 0
+    return {
+      date,
+      day: date.getDate(),
+      inMonth,
+      iso,
+      eventCount,
+      isToday: iso === todayStr,
+      isSelected: iso === selectedStr,
+    }
+  })
+})
+
+function toggleCalendar() {
+  calendarOpen.value = !calendarOpen.value
+  if (calendarOpen.value) {
+    calendarMonth.value = startOfMonth(selectedDate.value)
+  }
+}
+
+function prevMonth() {
+  const d = new Date(calendarMonth.value)
+  d.setMonth(d.getMonth() - 1)
+  calendarMonth.value = startOfMonth(d)
+}
+
+function nextMonth() {
+  const d = new Date(calendarMonth.value)
+  d.setMonth(d.getMonth() + 1)
+  calendarMonth.value = startOfMonth(d)
+}
+
+function selectCalendarDay(day) {
+  if (!day?.date) return
+  const d = new Date(day.date)
+  d.setHours(0, 0, 0, 0)
+  selectedDate.value = d
+  calendarOpen.value = false
+}
+
+function goToday() {
+  selectedDate.value = todayDate()
+  calendarOpen.value = false
+}
+
+const horariosDisponibles = computed(() => {
+  const dateStr = formatDateISO(selectedDate.value)
+  const seen = new Set()
+  eventos.value.forEach(ev => {
+    if (!ev.fecha_hora_inicio) return
+    const evDate = String(ev.fecha_hora_inicio).substring(0, 10)
+    if (evDate !== dateStr) return
+    const timePart = String(ev.fecha_hora_inicio).substring(11, 16)
+    if (timePart) seen.add(timePart)
+  })
+  return Array.from(seen).sort((a, b) => timeToMin(a) - timeToMin(b))
+})
+
 // ── Auto-select current time slot ─────────────────────────
 function currentSlot() {
   const todayStr = formatDateISO(todayDate())
   const selStr   = formatDateISO(selectedDate.value)
+  const list = horariosDisponibles.value
+  if (!list.length) return null
   if (selStr === todayStr) {
     const now = new Date()
     const mins = now.getHours() * 60 + now.getMinutes()
-    for (let i = HORARIOS.length - 1; i >= 0; i--) {
-      if (mins >= timeToMin(HORARIOS[i])) return HORARIOS[i]
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (mins >= timeToMin(list[i])) return list[i]
     }
   }
-  return HORARIOS[0]
+  return list[0]
 }
 
 // ── Equipos map (id → equipo) ──────────────────────────────
@@ -295,7 +455,9 @@ function getEscudo(idEquipo) {
 // ── Events filtering ───────────────────────────────────────
 const eventosFiltrados = computed(() => {
   const dateStr  = formatDateISO(selectedDate.value)
-  const slotMin  = timeToMin(horarioSel.value)
+  const selected = horarioSel.value
+  if (!selected) return []
+  const slotMin  = timeToMin(selected)
   const slotEnd  = slotMin + SLOT_DURATION_MIN
 
   return eventos.value.filter(ev => {
@@ -349,6 +511,19 @@ const fetchIncidenciasForEventos = async (ids = []) => {
 
 watch(eventosFiltradosIds, (ids) => {
   fetchIncidenciasForEventos(ids)
+})
+
+watch(selectedDate, (value) => {
+  if (!calendarOpen.value) {
+    calendarMonth.value = startOfMonth(value)
+  }
+})
+
+watch([selectedDate, eventos], () => {
+  const next = currentSlot()
+  if (next !== horarioSel.value) {
+    horarioSel.value = next
+  }
 })
 
 const getIncidenciasEquipo = (partido, idEquipo) => {
@@ -445,6 +620,23 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+const onOutsideClick = (event) => {
+  if (!calendarOpen.value) return
+  const target = event?.target
+  if (!calendarAnchor.value || !target) return
+  if (!calendarAnchor.value.contains(target)) {
+    calendarOpen.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', onOutsideClick)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onOutsideClick)
+})
 </script>
 
 <style scoped>
@@ -482,6 +674,12 @@ onMounted(async () => {
   justify-content: center;
   gap: 1rem;
 }
+.date-center-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+}
 .date-arrow {
   background: none;
   border: 1px solid #dee2e6;
@@ -504,6 +702,23 @@ onMounted(async () => {
   text-align: center;
   min-width: 200px;
 }
+.date-calendar-btn {
+  border: 1px solid #dee2e6;
+  background: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #495057;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.date-calendar-btn:hover {
+  background: #f0f0f0;
+  border-color: #adb5bd;
+}
 .date-dayname {
   font-size: .85rem;
   color: #6c757d;
@@ -514,6 +729,150 @@ onMounted(async () => {
   font-size: 1.15rem;
   font-weight: 600;
   color: #212529;
+}
+
+/* ── Calendar popover ── */
+.calendar-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .15);
+  padding: .75rem .75rem .6rem;
+  z-index: 20;
+  width: 280px;
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-bottom: .5rem;
+}
+
+.cal-title {
+  font-size: .95rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  color: #212529;
+}
+
+.cal-nav {
+  border: 1px solid #dee2e6;
+  background: #f8f9fa;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #495057;
+  cursor: pointer;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: .25rem;
+  margin-bottom: .35rem;
+  text-align: center;
+  font-size: .7rem;
+  font-weight: 700;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: .25rem;
+}
+
+.calendar-day {
+  border: 1px solid transparent;
+  background: #fff;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  color: #212529;
+  cursor: pointer;
+  position: relative;
+  transition: background .12s, border-color .12s, color .12s;
+}
+
+.calendar-day:hover {
+  background: #f1f3f5;
+  border-color: #dee2e6;
+}
+
+.calendar-day.is-other {
+  color: #adb5bd;
+}
+
+.calendar-day.is-selected {
+  background: #1a1a2e;
+  color: #fff;
+}
+
+.calendar-day.is-today:not(.is-selected) {
+  border-color: #1a1a2e;
+}
+
+.calendar-day-num {
+  font-size: .75rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.calendar-event-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f4a261;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendar-event-dot.has-count {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #f4a261;
+}
+
+.calendar-event-count {
+  font-size: .55rem;
+  line-height: 1;
+  color: #1a1a2e;
+  font-weight: 800;
+  transform: translateY(-.5px);
+}
+
+.calendar-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: .5rem;
+}
+
+.cal-today-btn {
+  border: 1px solid #dee2e6;
+  background: #fff;
+  border-radius: 999px;
+  padding: .25rem .85rem;
+  font-size: .75rem;
+  font-weight: 700;
+  color: #495057;
+  cursor: pointer;
 }
 
 /* ── Loading ── */
@@ -845,6 +1204,16 @@ onMounted(async () => {
   justify-content: center;
   flex-wrap: wrap;
   padding: .25rem 0 .5rem;
+}
+
+.horarios-empty {
+  font-size: .9rem;
+  font-weight: 600;
+  color: #6c757d;
+  padding: .4rem .8rem;
+  border-radius: 999px;
+  background: #f8f9fa;
+  border: 1px dashed #dee2e6;
 }
 
 .horario-chip {
