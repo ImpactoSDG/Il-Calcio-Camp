@@ -25,6 +25,7 @@ import ArbitrosView from '@/views/ArbitrosView.vue'
 import EventosView from '@/views/EventosView.vue'
 import PlanTorneoView from '@/views/PlanTorneoView.vue'
 import GestionTorneosView from '@/views/GestionTorneosView.vue'
+import CalendarioTorneosView from '@/views/CalendarioTorneosView.vue'
 import RtadoPartidoView from '@/views/RtadoPartidoView.vue'
 import RtadoTorneoView from '@/views/RtadoTorneoView.vue'
 import GrillaCanchasView from '@/views/GrillaCanchasView.vue'
@@ -175,6 +176,12 @@ const router = createRouter({
       path: '/gestiontorneos',
       name: 'gestiontorneos',
       component: GestionTorneosView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/calendario-torneos',
+      name: 'calendario-torneos',
+      component: CalendarioTorneosView,
       meta: { requiresAuth: true }
     },
     {

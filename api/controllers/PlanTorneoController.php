@@ -8,6 +8,7 @@ class PlanTorneoController extends BaseController
 {
     private const ESTADO_EVENTO_PROGRAMACION_PENDIENTE_ID = 1;
     private const ESTADO_EVENTO_PROGRAMADO_ID = 2;
+    private const ESTADO_TORNEO_EN_CURSO_ID = 4;
     private ?array $eventoPagoColumns = null;
 
     public function simular(): void
@@ -262,6 +263,8 @@ class PlanTorneoController extends BaseController
             if ($idTorneo === null) {
                 $this->respond(400, ['message' => 'id_torneo es obligatorio.']);
             }
+
+            $this->actualizarTorneoEnCursoSiCorresponde($idTorneo);
 
             $sqlTorneo = "SELECT t.id, t.nombre, t.descripcion, t.id_disciplina, t.id_estado_torneo,
                                  t.fecha_inicio, t.fecha_fin, t.cupo_equipos, t.valor_inscripcion,
@@ -2477,6 +2480,30 @@ class PlanTorneoController extends BaseController
         $stmt->bindValue(':id', $idTorneo, PDO::PARAM_INT);
         $stmt->execute();
         return (bool)$stmt->fetchColumn();
+    }
+
+    private function actualizarTorneoEnCursoSiCorresponde(int $idTorneo): void
+    {
+        $sql = "UPDATE torneo t
+                LEFT JOIN estado_torneo et ON et.id = t.id_estado_torneo
+                SET t.id_estado_torneo = :id_estado_en_curso
+                WHERE t.id = :id_torneo
+                  AND COALESCE(t.activo, 1) = 1
+                  AND COALESCE(t.id_estado_torneo, 0) <> :id_estado_en_curso
+                  AND UPPER(COALESCE(et.descripcion, '')) NOT IN ('FINALIZADO', 'FINALIZADA', 'CANCELADO', 'CANCELADA')
+                  AND EXISTS (
+                      SELECT 1
+                      FROM evento ev
+                      WHERE ev.id_torneo = t.id
+                        AND LOWER(ev.tipo_evento) = 'partido'
+                        AND ev.fecha_hora_inicio IS NOT NULL
+                        AND ev.fecha_hora_inicio <= NOW()
+                  )";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':id_estado_en_curso', self::ESTADO_TORNEO_EN_CURSO_ID, PDO::PARAM_INT);
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->execute();
     }
 
     private function crearTorneoDesdePlanificacion(array $torneoNuevo, array $payload): int

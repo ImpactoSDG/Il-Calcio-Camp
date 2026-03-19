@@ -42,8 +42,13 @@
               </div>
               <span class="badge rounded-pill text-bg-light">#{{ torneo.id }}</span>
             </div>
-            <div class="small text-muted text-start mt-2">
-              {{ torneo.estado_torneo_descripcion || 'Sin estado' }}
+            <div class="text-start mt-2">
+              <span
+                class="badge rounded-pill torneo-estado-pill"
+                :class="getEstadoTorneoBadgeClass(torneo.estado_torneo_descripcion)"
+              >
+                {{ torneo.estado_torneo_descripcion || 'Sin estado' }}
+              </span>
             </div>
             <div
               v-if="loadingDetalle && Number(idTorneoSeleccionado) === Number(torneo.id)"
@@ -117,6 +122,11 @@
           <li class="nav-item">
             <button class="torneo-tab" :class="{ active: tabActiva === 'programacion' }" @click="tabActiva = 'programacion'">
               <i class="bi bi-calendar3 me-1"></i>Programación
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="torneo-tab" :class="{ active: tabActiva === 'calendario' }" @click="tabActiva = 'calendario'">
+              <i class="bi bi-calendar-week me-1"></i>Calendario
             </button>
           </li>
         </ul>
@@ -731,6 +741,13 @@
             </div>
           </template>
         </template>
+
+        <template v-if="tabActiva === 'calendario'">
+          <div class="small text-muted mb-3">
+            Vista mensual de partidos programados del torneo. Este componente es reusable para otras pantallas.
+          </div>
+          <TorneoCalendar :eventos="eventosCalendario" :torneo-nombre="detalle?.torneo?.nombre || ''" />
+        </template>
       </div>
     </div>
 
@@ -1081,6 +1098,7 @@ import { useRoute } from 'vue-router'
 import datosMaestrosService from '@/services/datosMaestrosService'
 import planTorneoService from '@/services/planTorneoService'
 import { useToastStore } from '@/stores/toastStore'
+import TorneoCalendar from '@/components/torneos/TorneoCalendar.vue'
 
 const toast = useToastStore()
 const route = useRoute()
@@ -1145,6 +1163,17 @@ const tabActiva = ref('resumen')
 const subTabAsignaciones = ref('zonas')
 
 const getApiMessage = (error, fallback) => error?.response?.data?.message || fallback
+
+const getEstadoTorneoBadgeClass = (estado) => {
+  const key = String(estado || '').trim().toUpperCase()
+
+  if (key === 'PLANIFICADO') return 'bg-secondary-subtle text-secondary'
+  if (key === 'EN CURSO') return 'bg-success-subtle text-success'
+  if (key === 'FINALIZADO') return 'bg-dark-subtle text-dark'
+  if (key === 'CANCELADO') return 'bg-danger-subtle text-danger'
+
+  return 'bg-light text-muted'
+}
 
 const formatMoney = (value) => {
   const amount = Number(value || 0)
@@ -1572,6 +1601,16 @@ const eventosPagoPartido = computed(() => {
       return !Number.isNaN(dt.getTime()) && dt >= now
     })
 })
+
+const eventosCalendario = computed(() =>
+  (detalle.value?.eventos_partido || [])
+    .map(ev => ({ ...ev, id: Number(ev.id) }))
+    .filter(ev => {
+      if (!ev.fecha_hora_inicio) return false
+      const dt = new Date(String(ev.fecha_hora_inicio).replace(' ', 'T'))
+      return !Number.isNaN(dt.getTime())
+    })
+)
 
 const pagoEventoSeleccionado = computed(() => {
   const id = Number(idPagoEventoSeleccionado.value || 0)
@@ -2577,6 +2616,12 @@ onMounted(async () => {
   border-color: #0ea5e9;
   box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.12);
   background: #f0f9ff;
+}
+
+.torneo-estado-pill {
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .torneo-card-create {
