@@ -79,64 +79,24 @@
       </div>
 
       <div class="col-12 col-xl-8">
-        <div class="card shadow-sm border-0 rounded-lg mb-4">
-          <div class="card-body p-4">
-            <h2 class="h6 fw-bold text-secondary mb-3">Resumen</h2>
+        <div v-if="resultado" class="d-flex align-items-center gap-2 mb-3">
+          <span class="text-muted small">Total de partidos:</span>
+          <span class="badge rounded-pill text-bg-light border">{{ resultado.resumen.total_partidos }}</span>
+        </div>
 
-            <div v-if="resultado" class="row g-3">
-              <div class="col-6 col-md-4">
-                <div class="metric-box">
-                  <small>Total partidos</small>
-                  <div class="metric-value">{{ resultado.resumen.total_partidos }}</div>
-                </div>
-              </div>
-              <div class="col-6 col-md-4">
-                <div class="metric-box">
-                  <small>Partidos en zonas</small>
-                  <div class="metric-value">{{ resultado.resumen.partidos_fase_zonas }}</div>
-                </div>
-              </div>
-              <div class="col-6 col-md-4">
-                <div class="metric-box">
-                  <small>Partidos eliminación</small>
-                  <div class="metric-value">{{ resultado.resumen.partidos_eliminacion }}</div>
-                </div>
-              </div>
-              <div class="col-6 col-md-4">
-                <div class="metric-box">
-                  <small>Cantidad de zonas</small>
-                  <div class="metric-value">{{ resultado.resumen.cantidad_zonas }}</div>
-                </div>
-              </div>
-              <div class="col-6 col-md-4">
-                <div class="metric-box">
-                  <small>Llave</small>
-                  <div class="metric-value">{{ resultado.resumen.llave_equipos }}</div>
-                </div>
-              </div>
-              <div class="col-6 col-md-4">
-                <div class="metric-box">
-                  <small>Mínimo por equipo</small>
-                  <div class="metric-value">{{ resultado.resumen.minimo_partidos_por_equipo }}</div>
-                </div>
-              </div>
-            </div>
+        <p v-else class="text-muted mb-3">Cargá los parámetros y ejecutá una simulación para ver el resultado.</p>
 
-            <p v-else class="text-muted mb-0">Cargá los parámetros y ejecutá una simulación para ver el resultado.</p>
+        <div v-if="resultado?.observaciones?.length" class="alert alert-warning mb-3 py-2 px-3">
+          <ul class="mb-0 ps-3">
+            <li v-for="item in resultado.observaciones" :key="item">{{ item }}</li>
+          </ul>
+        </div>
 
-            <div v-if="resultado?.observaciones?.length" class="mt-3 alert alert-warning mb-0 py-2 px-3">
-              <ul class="mb-0 ps-3">
-                <li v-for="item in resultado.observaciones" :key="item">{{ item }}</li>
-              </ul>
-            </div>
-
-            <div v-if="resultadoConfirmacion" class="mt-3 alert alert-success mb-0 py-2 px-3">
-              <div class="fw-semibold">Confirmación persistida</div>
-              <div class="small">Generación: {{ resultadoConfirmacion.id_generacion_fixture }}</div>
-              <div class="small">Fases: {{ resultadoConfirmacion.ids_fases?.length || 0 }} | Grupos: {{ resultadoConfirmacion.ids_grupos?.length || 0 }}</div>
-              <div class="small">Cruces: {{ resultadoConfirmacion.ids_cruces?.length || 0 }} | Eventos: {{ resultadoConfirmacion.ids_eventos?.length || 0 }}</div>
-            </div>
-          </div>
+        <div v-if="resultadoConfirmacion" class="alert alert-success mb-3 py-2 px-3">
+          <div class="fw-semibold">Confirmación persistida</div>
+          <div class="small">Generación: {{ resultadoConfirmacion.id_generacion_fixture }}</div>
+          <div class="small">Fases: {{ resultadoConfirmacion.ids_fases?.length || 0 }} | Grupos: {{ resultadoConfirmacion.ids_grupos?.length || 0 }}</div>
+          <div class="small">Cruces: {{ resultadoConfirmacion.ids_cruces?.length || 0 }} | Eventos: {{ resultadoConfirmacion.ids_eventos?.length || 0 }}</div>
         </div>
 
         <div v-if="resultado?.zonas?.length" class="card shadow-sm border-0 rounded-lg mb-4">
@@ -263,11 +223,13 @@
 
 <script setup>
 import { onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import datosMaestrosService from '@/services/datosMaestrosService'
 import planTorneoService from '@/services/planTorneoService'
 import { useToastStore } from '@/stores/toastStore'
 
 const toast = useToastStore()
+const router = useRouter()
 
 const loading = ref(false)
 const confirming = ref(false)
@@ -422,6 +384,14 @@ const confirmarSimulacion = async () => {
       message: 'Torneo creado y planificación confirmada correctamente.',
       type: 'success',
     })
+
+    const idTorneo = Number(data?.id_torneo || 0)
+    if (idTorneo > 0) {
+      await router.push({
+        name: 'gestiontorneos',
+        query: { id_torneo: String(idTorneo) },
+      })
+    }
   } catch (error) {
     toast.showToast({
       message: getApiMessage(error, 'No se pudo confirmar la planificación.'),

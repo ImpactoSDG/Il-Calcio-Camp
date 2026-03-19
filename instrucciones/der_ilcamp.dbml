@@ -252,6 +252,7 @@ Table cancha {
   id int [pk, increment]
   nombre varchar(100)
   descripcion varchar(255)
+  id_disciplina int
   activo tinyint
 }
 
@@ -340,6 +341,7 @@ Ref: cruce_torneo.id_fase_torneo > fase_torneo.id
 Ref: cruce_torneo.id_grupo_torneo > grupo_torneo.id
 Ref: cruce_torneo.id_evento > evento.id
 Ref: generacion_fixture.id_torneo > torneo.id
+Ref: cancha.id_disciplina > disciplina.id
 Ref: estado_evento_hist.id_evento > evento.id
 Ref: estado_evento_hist.id_estado_evento > estado_evento.id
 Ref: evento.id_torneo > torneo.id

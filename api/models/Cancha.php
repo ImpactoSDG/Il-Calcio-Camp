@@ -14,9 +14,15 @@ class Cancha
 
     public function getAll(): array
     {
-        $sql = "SELECT id, nombre, descripcion, activo
-                FROM {$this->table}
-                ORDER BY nombre ASC, id ASC";
+        $sql = "SELECT c.id,
+                   c.nombre,
+                   c.descripcion,
+                   c.id_disciplina,
+                   d.nombre AS disciplina_nombre,
+                   c.activo
+            FROM {$this->table} c
+            LEFT JOIN disciplina d ON d.id = c.id_disciplina
+            ORDER BY c.nombre ASC, c.id ASC";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -24,9 +30,15 @@ class Cancha
 
     public function getById(int $id): ?array
     {
-        $sql = "SELECT id, nombre, descripcion, activo
-                FROM {$this->table}
-                WHERE id = :id
+        $sql = "SELECT c.id,
+                   c.nombre,
+                   c.descripcion,
+                   c.id_disciplina,
+                   d.nombre AS disciplina_nombre,
+                   c.activo
+            FROM {$this->table} c
+            LEFT JOIN disciplina d ON d.id = c.id_disciplina
+            WHERE c.id = :id
                 LIMIT 1";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
@@ -35,13 +47,14 @@ class Cancha
         return $result ?: null;
     }
 
-    public function create(string $nombre, ?string $descripcion, bool $activo = true): int|false
+        public function create(string $nombre, ?string $descripcion, int $idDisciplina, bool $activo = true): int|false
     {
-        $sql = "INSERT INTO {$this->table} (nombre, descripcion, activo)
-                VALUES (:nombre, :descripcion, :activo)";
+        $sql = "INSERT INTO {$this->table} (nombre, descripcion, id_disciplina, activo)
+            VALUES (:nombre, :descripcion, :id_disciplina, :activo)";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':nombre', $nombre);
         $stmt->bindValue(':descripcion', $descripcion);
+        $stmt->bindValue(':id_disciplina', $idDisciplina, PDO::PARAM_INT);
         $stmt->bindValue(':activo', $activo ? 1 : 0, PDO::PARAM_INT);
 
         if ($stmt->execute()) {
@@ -51,17 +64,19 @@ class Cancha
         return false;
     }
 
-    public function update(int $id, string $nombre, ?string $descripcion, bool $activo): bool
+    public function update(int $id, string $nombre, ?string $descripcion, int $idDisciplina, bool $activo): bool
     {
         $sql = "UPDATE {$this->table}
                 SET nombre = :nombre,
                     descripcion = :descripcion,
+                    id_disciplina = :id_disciplina,
                     activo = :activo
                 WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         $stmt->bindValue(':nombre', $nombre);
         $stmt->bindValue(':descripcion', $descripcion);
+        $stmt->bindValue(':id_disciplina', $idDisciplina, PDO::PARAM_INT);
         $stmt->bindValue(':activo', $activo ? 1 : 0, PDO::PARAM_INT);
 
         return $stmt->execute();

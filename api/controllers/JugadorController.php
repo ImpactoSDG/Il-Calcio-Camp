@@ -87,7 +87,8 @@ class JugadorController extends BaseController
                 $fechaAlta,
                 isset($data['activo']) ? (bool)$data['activo'] : true,
                 !empty($data['id_equipo_actual']) ? (int)$data['id_equipo_actual'] : null,
-                isset($data['capitan']) ? (bool)$data['capitan'] : false
+                isset($data['capitan']) ? (bool)$data['capitan'] : false,
+                isset($data['arquero']) ? (bool)$data['arquero'] : false
             );
 
             if ($nuevoId !== false) {
@@ -126,7 +127,8 @@ class JugadorController extends BaseController
                 isset($data['fecha_alta']) && $data['fecha_alta'] !== '' ? (string)$data['fecha_alta'] : null,
                 (bool)$data['activo'],
                 !empty($data['id_equipo_actual']) ? (int)$data['id_equipo_actual'] : null,
-                isset($data['capitan']) ? (bool)$data['capitan'] : false
+                isset($data['capitan']) ? (bool)$data['capitan'] : false,
+                isset($data['arquero']) ? (bool)$data['arquero'] : false
             )) {
                 $this->respond(200, ['message' => 'Jugador actualizado exitosamente.']);
             }

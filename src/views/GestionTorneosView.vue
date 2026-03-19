@@ -52,6 +52,17 @@
               Cargando...
             </div>
           </button>
+
+          <button
+            type="button"
+            class="torneo-card torneo-card-create"
+            title="Crear nuevo torneo"
+            @click="$router.push('/plantorneo')"
+          >
+            <div class="torneo-card-create-content" aria-hidden="true">
+              <i class="bi bi-plus-lg torneo-card-create-icon"></i>
+            </div>
+          </button>
         </div>
       </div>
     </div>
@@ -126,7 +137,7 @@
                 <p class="mb-1 text-muted">Partidos programados: {{ detalle.eventos.programados || 0 }} de {{ detalle.eventos.total || 0 }}</p>
                 <p class="mb-1 text-muted">Partidos finalizados: {{ detalle.eventos.finalizados || 0 }}</p>
                 <p class="mb-1 text-muted">Inscripciones: {{ detalle.inscripciones?.total || 0 }}</p>
-                <p class="mb-1 text-muted">Pagas: {{ detalle.inscripciones?.pagas || 0 }}</p>
+                <p class="mb-1 text-muted">Cobros por partido: {{ pagosPartidoResumen.pagados }} de {{ pagosPartidoResumen.total }}</p>
                 <p class="mb-0 text-muted">Equipos asignados: {{ detalle.inscripciones?.asignadas || 0 }}</p>
               </div>
             </div>
@@ -136,19 +147,22 @@
         <template v-if="tabActiva === 'inscripciones'">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
-              <p class="mb-1 text-muted">Listado de equipos inscriptos y estado administrativo.</p>
+              <p class="mb-1 text-muted">Listado de equipos inscriptos al torneo.</p>
               <div class="d-flex align-items-center gap-2 small">
                 <span class="text-secondary">Inscriptos:</span>
                 <span class="badge rounded-pill" :class="inscripcionesCompletas ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'">
                   {{ detalle.inscripciones?.total || 0 }}/{{ totalInscriptosObjetivo }}
                 </span>
               </div>
+              <div v-if="cupoLleno" class="small text-danger mt-1">
+                Cupo completo: no se permiten nuevas inscripciones.
+              </div>
             </div>
             <div class="d-flex gap-2">
-              <button class="btn btn-outline-success" @click="abrirBulkInscripcionModal">
+              <button class="btn btn-outline-success" @click="abrirBulkInscripcionModal" :disabled="cupoLleno" :title="cupoLleno ? 'Cupo completo' : ''">
                 <i class="bi bi-check2-all me-1"></i>Inscribir varios
               </button>
-              <button class="btn btn-outline-primary" @click="abrirInscripcionesModal">Agregar nueva inscripción</button>
+              <button class="btn btn-outline-primary" @click="abrirInscripcionesModal" :disabled="cupoLleno" :title="cupoLleno ? 'Cupo completo' : ''">Agregar nueva inscripción</button>
             </div>
           </div>
 
@@ -161,10 +175,7 @@
               <thead>
                 <tr>
                   <th>Equipo</th>
-                  <th>Estado</th>
-                  <th>Fecha pago</th>
-                  <th>Comprobante</th>
-                  <th>Asignado</th>
+                  <th>Fecha inscripción</th>
                   <th class="text-end">Acciones</th>
                 </tr>
               </thead>
@@ -176,20 +187,9 @@
                       <span>{{ item.equipo_nombre }}</span>
                     </div>
                   </td>
-                  <td>{{ item.estado_inscripcion || '-' }}</td>
-                  <td>{{ item.fecha_pago || '-' }}</td>
-                  <td>
-                    <a v-if="item.comprobante_pago" :href="item.comprobante_pago" target="_blank" rel="noopener noreferrer">Ver</a>
-                    <span v-else>-</span>
-                  </td>
-                  <td>
-                    <span class="badge rounded-pill" :class="Number(item.asignado) ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary'">
-                      {{ Number(item.asignado) ? 'Sí' : 'No' }}
-                    </span>
-                  </td>
+                  <td>{{ item.fecha_inscripcion || '-' }}</td>
                   <td class="text-end">
                     <div class="d-inline-flex gap-2">
-                      <button class="btn btn-sm btn-outline-secondary" @click="editarInscripcion(item)">Editar</button>
                       <button class="btn btn-sm btn-outline-danger" @click="eliminarInscripcion(item)">Eliminar</button>
                     </div>
                   </td>
@@ -197,141 +197,393 @@
               </tbody>
             </table>
           </div>
-        </template>
 
-        <template v-if="tabActiva === 'asignaciones'">
-          <div v-if="!detalle.grupos?.length" class="alert alert-warning mb-0">
-            Este torneo no tiene grupos configurados (fase de zonas).
-          </div>
+          <div class="mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h3 class="h6 mb-0">Pagos por partido</h3>
+              <span class="small text-muted">Monto por equipo: {{ formatMoney(detalle?.torneo?.valor_inscripcion) }}</span>
+            </div>
+            <p class="small text-muted mb-3">
+              Registrá el pago por equipo para cada próximo partido y adjuntá comprobante si corresponde.
+            </p>
 
-          <template v-else-if="asignacionesCompletas">
-            <!-- Vista de solo lectura: asignaciones ya confirmadas -->
-            <div class="d-flex justify-content-between align-items-start mb-3">
-              <div>
-                <div class="d-flex align-items-center gap-2 mb-1">
-                  <span class="badge bg-success-subtle text-success rounded-pill"><i class="bi bi-check-circle me-1"></i>Asignaciones completas</span>
-                  <span v-if="hayPartidosJugados" class="badge bg-danger-subtle text-danger rounded-pill">
-                    <i class="bi bi-lock me-1"></i>Hay partidos jugados
-                  </span>
-                </div>
-                <p class="small text-muted mb-0">Los equipos ya quedaron distribuidos en sus grupos.</p>
-              </div>
-              <button
-                class="btn btn-outline-danger btn-sm"
-                :disabled="hayPartidosJugados || savingEliminarAsignaciones"
-                :title="hayPartidosJugados ? 'No se puede eliminar: hay partidos finalizados' : 'Eliminar todas las asignaciones'"
-                @click="eliminarAsignaciones"
-              >
-                <span v-if="savingEliminarAsignaciones" class="spinner-border spinner-border-sm me-1"></span>
-                <i v-else class="bi bi-trash me-1"></i>
-                Eliminar asignaciones
-              </button>
+            <div v-if="!eventosPagoPartido.length" class="alert alert-info mb-0">
+              No hay próximos partidos con equipos asignados para gestionar pagos.
             </div>
 
-            <div class="row g-3">
-              <div v-for="grupo in asignacionesPorGrupo" :key="grupo.id" class="col-12 col-md-6">
-                <div class="group-card h-100">
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h3 class="h6 mb-0">{{ grupo.nombre }}</h3>
-                    <small class="text-muted">{{ grupo.equipos.length }}/{{ grupo.cantidad_equipos_objetivo }}</small>
-                  </div>
-                  <div v-if="!grupo.equipos.length" class="text-muted small">Sin equipos asignados.</div>
-                  <ul v-else class="list-unstyled mb-0">
-                    <li
-                      v-for="asig in grupo.equipos"
-                      :key="asig.id_equipo"
-                      class="d-flex align-items-center gap-2 py-1 border-bottom"
-                    >
-                      <span class="text-muted small" style="width:1.4rem;text-align:right;">{{ asig.posicion_inicial }}.</span>
-                      <img v-if="asig.escudo" :src="resolveEscudoUrl(asig.escudo)" alt="escudo" class="escudo-thumb" />
-                      <span v-else class="escudo-thumb-placeholder"><i class="bi bi-shield"></i></span>
-                      <span class="fw-semibold">{{ asig.equipo_nombre }}</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </template>
-
-          <template v-else>
-            <div class="table-responsive mb-3">
+            <div v-else class="table-responsive">
               <table class="table table-sm align-middle mb-0">
                 <thead>
                   <tr>
-                    <th>Grupo</th>
-                    <th class="text-center">Asignados</th>
-                    <th class="text-center">Cupo</th>
-                    <th class="text-center">Estado</th>
+                    <th>Partido</th>
+                    <th>Fecha/Hora</th>
+                    <th>Equipo local</th>
+                    <th>Equipo visitante</th>
+                    <th>Estado pagos</th>
+                    <th class="text-end">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="grupo in detalle.grupos" :key="grupo.id">
-                    <td>{{ grupo.nombre }}</td>
-                    <td class="text-center">{{ grupo.asignados }}</td>
-                    <td class="text-center">{{ grupo.cantidad_equipos_objetivo }}</td>
-                    <td class="text-center">
-                      <span class="badge rounded-pill" :class="Number(grupo.asignados) >= Number(grupo.cantidad_equipos_objetivo) ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'">
-                        {{ Number(grupo.asignados) >= Number(grupo.cantidad_equipos_objetivo) ? 'Completo' : 'Pendiente' }}
-                      </span>
+                  <tr v-for="ev in eventosPagoPartido" :key="`pago-evento-${ev.id}`">
+                    <td>
+                      <div class="fw-semibold">{{ ev.titulo || `Partido ${ev.id}` }}</div>
+                      <div class="small text-muted">Estado: {{ ev.estado_evento_descripcion || '-' }}</div>
+                    </td>
+                    <td>{{ formatearFechaHora(ev.fecha_hora_inicio) }}</td>
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        <img v-if="ev.equipo_local_escudo" :src="resolveEscudoUrl(ev.equipo_local_escudo)" alt="escudo" class="escudo-thumb" />
+                        <span>{{ ev.equipo_local_nombre || '-' }}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        <img v-if="ev.equipo_visitante_escudo" :src="resolveEscudoUrl(ev.equipo_visitante_escudo)" alt="escudo" class="escudo-thumb" />
+                        <span>{{ ev.equipo_visitante_nombre || '-' }}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="d-flex flex-column gap-1">
+                        <span
+                          class="badge rounded-pill align-self-start"
+                          :class="Number(ev.pago_local_realizado || 0) === 1 ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'"
+                        >
+                          Local: {{ Number(ev.pago_local_realizado || 0) === 1 ? 'Pagado' : 'Pendiente' }}
+                        </span>
+                        <span
+                          class="badge rounded-pill align-self-start"
+                          :class="Number(ev.pago_visitante_realizado || 0) === 1 ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'"
+                        >
+                          Visitante: {{ Number(ev.pago_visitante_realizado || 0) === 1 ? 'Pagado' : 'Pendiente' }}
+                        </span>
+                      </div>
+                    </td>
+                    <td class="text-end">
+                      <button class="btn btn-sm btn-outline-primary" @click="abrirPagoEventoModal(ev)">
+                        Gestionar
+                      </button>
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
+          </div>
+        </template>
 
-            <div class="pool-box mb-3">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <strong>Equipos para sorteo</strong>
-                <small class="text-muted">{{ selectedPool.length }}/{{ totalSlots }} seleccionados</small>
-              </div>
-              <div class="row g-2">
-                <div v-for="equipo in poolTeams" :key="equipo.id" class="col-12 col-md-6">
-                  <label class="pool-item">
-                    <input type="checkbox" :value="Number(equipo.id)" v-model="selectedPool" />
-                    <img v-if="equipo.escudo" :src="resolveEscudoUrl(equipo.escudo)" alt="escudo" class="escudo-thumb" />
-                    <span class="me-auto">{{ equipo.nombre }}</span>
-                    <span v-if="equipo.pagada" class="badge rounded-pill bg-success-subtle text-success">Paga</span>
-                    <span v-else class="badge rounded-pill bg-warning-subtle text-warning">Pendiente</span>
-                    <span v-if="equipo.asignado" class="badge rounded-pill bg-info-subtle text-info">Asignado</span>
-                  </label>
+        <template v-if="tabActiva === 'asignaciones'">
+          <ul class="nav nav-pills mb-3 asignaciones-subtabs">
+            <li class="nav-item">
+              <button class="nav-link" :class="{ active: subTabAsignaciones === 'zonas' }" @click="subTabAsignaciones = 'zonas'">
+                Asignaciones de zonas
+              </button>
+            </li>
+            <li class="nav-item">
+              <button class="nav-link" :class="{ active: subTabAsignaciones === 'cruces' }" @click="subTabAsignaciones = 'cruces'">
+                Asignaciones de cruces
+              </button>
+            </li>
+          </ul>
+
+          <template v-if="subTabAsignaciones === 'zonas'">
+            <div v-if="!detalle.grupos?.length" class="alert alert-warning mb-0">
+              Este torneo no tiene grupos configurados (fase de zonas).
+            </div>
+
+            <template v-else-if="asignacionesCompletas">
+              <div class="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                  <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="badge bg-success-subtle text-success rounded-pill"><i class="bi bi-check-circle me-1"></i>Asignaciones completas</span>
+                    <span v-if="hayPartidosJugados" class="badge bg-danger-subtle text-danger rounded-pill">
+                      <i class="bi bi-lock me-1"></i>Hay partidos jugados
+                    </span>
+                  </div>
+                  <p class="small text-muted mb-0">Los equipos ya quedaron distribuidos en sus grupos.</p>
                 </div>
+                <button
+                  class="btn btn-outline-danger btn-sm"
+                  :disabled="hayPartidosJugados || savingEliminarAsignaciones"
+                  :title="hayPartidosJugados ? 'No se puede eliminar: hay partidos finalizados' : 'Eliminar todas las asignaciones'"
+                  @click="eliminarAsignaciones"
+                >
+                  <span v-if="savingEliminarAsignaciones" class="spinner-border spinner-border-sm me-1"></span>
+                  <i v-else class="bi bi-trash me-1"></i>
+                  Eliminar asignaciones
+                </button>
+              </div>
+
+              <div class="row g-3">
+                <div v-for="grupo in asignacionesPorGrupo" :key="grupo.id" class="col-12 col-md-6">
+                  <div class="group-card h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <h3 class="h6 mb-0">{{ grupo.nombre }}</h3>
+                      <small class="text-muted">{{ grupo.equipos.length }}/{{ grupo.cantidad_equipos_objetivo }}</small>
+                    </div>
+                    <div v-if="!grupo.equipos.length" class="text-muted small">Sin equipos asignados.</div>
+                    <ul v-else class="list-unstyled mb-0">
+                      <li
+                        v-for="asig in grupo.equipos"
+                        :key="asig.id_equipo"
+                        class="d-flex align-items-center gap-2 py-1 border-bottom"
+                      >
+                        <span class="text-muted small" style="width:1.4rem;text-align:right;">{{ asig.posicion_inicial }}.</span>
+                        <img v-if="asig.escudo" :src="resolveEscudoUrl(asig.escudo)" alt="escudo" class="escudo-thumb" />
+                        <span v-else class="escudo-thumb-placeholder"><i class="bi bi-shield"></i></span>
+                        <span class="fw-semibold">{{ asig.equipo_nombre }}</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else>
+              <div class="table-responsive mb-3">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Grupo</th>
+                      <th class="text-center">Asignados</th>
+                      <th class="text-center">Cupo</th>
+                      <th class="text-center">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="grupo in detalle.grupos" :key="grupo.id">
+                      <td>{{ grupo.nombre }}</td>
+                      <td class="text-center">{{ grupo.asignados }}</td>
+                      <td class="text-center">{{ grupo.cantidad_equipos_objetivo }}</td>
+                      <td class="text-center">
+                        <span class="badge rounded-pill" :class="Number(grupo.asignados) >= Number(grupo.cantidad_equipos_objetivo) ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'">
+                          {{ Number(grupo.asignados) >= Number(grupo.cantidad_equipos_objetivo) ? 'Completo' : 'Pendiente' }}
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="pool-box mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <strong>Equipos para sorteo</strong>
+                  <small class="text-muted">{{ selectedPool.length }}/{{ totalSlots }} seleccionados</small>
+                </div>
+                <div class="row g-2">
+                  <div v-for="equipo in poolTeams" :key="equipo.id" class="col-12 col-md-6">
+                    <label class="pool-item">
+                      <input type="checkbox" :value="Number(equipo.id)" v-model="selectedPool" />
+                      <img v-if="equipo.escudo" :src="resolveEscudoUrl(equipo.escudo)" alt="escudo" class="escudo-thumb" />
+                      <span class="me-auto">{{ equipo.nombre }}</span>
+                      <span v-if="equipo.asignado" class="badge rounded-pill bg-info-subtle text-info">Asignado</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="row g-3">
+                <div v-for="grupo in detalle.grupos" :key="grupo.id" class="col-12 col-md-6">
+                  <div class="group-card h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <h3 class="h6 mb-0">{{ grupo.nombre }}</h3>
+                      <small class="text-muted">{{ grupo.asignados }}/{{ grupo.cantidad_equipos_objetivo }}</small>
+                    </div>
+
+                    <div v-for="pos in Number(grupo.cantidad_equipos_objetivo || 0)" :key="`${grupo.id}-${pos}`" class="mb-2">
+                      <label class="form-label small mb-1">Posición {{ pos }}</label>
+                      <select class="form-select form-select-sm" :value="getSelected(grupo.id, pos)" @change="setSelected(grupo.id, pos, $event.target.value)">
+                        <option value="">Sin asignar</option>
+                        <option v-for="equipo in getAvailableOptions(grupo.id, pos)" :key="equipo.id" :value="equipo.id">
+                          {{ equipo.nombre }}
+                        </option>
+                      </select>
+                      <div v-if="getSelectedTeam(grupo.id, pos)?.escudo" class="mt-1 small text-muted d-flex align-items-center gap-2">
+                        <img :src="resolveEscudoUrl(getSelectedTeam(grupo.id, pos).escudo)" alt="escudo" class="escudo-thumb" />
+                        Escudo cargado
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="d-flex justify-content-between mt-3">
+                <div class="d-flex gap-2">
+                  <button class="btn btn-outline-secondary" @click="limpiarAsignacion" :disabled="savingAsignacion">Limpiar</button>
+                  <button class="btn btn-outline-primary" @click="asignarAleatorio" :disabled="savingAsignacion">Asignar aleatorio</button>
+                </div>
+                <button class="btn btn-success" @click="guardarAsignaciones" :disabled="savingAsignacion">
+                  <span v-if="savingAsignacion" class="spinner-border spinner-border-sm me-2"></span>
+                  Guardar asignación
+                </button>
+              </div>
+            </template>
+          </template>
+
+          <template v-else>
+            <div v-if="!crucesHabilitados" class="alert alert-warning mb-3">
+              Los cruces se habilitan cuando la fase de zonas está concretada (todos los partidos de zona finalizados) o cuando el torneo no tiene fase de zonas.
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div class="small text-muted">
+                Cruces definidos: <strong>{{ crucesConEquiposDefinidos }}</strong>/<strong>{{ eventosCruceProgramacion.length }}</strong>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge rounded-pill" :class="crucesHabilitados ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'">
+                  {{ crucesHabilitados ? 'Cruces habilitados' : 'Cruces bloqueados' }}
+                </span>
+                <button
+                  class="btn btn-sm btn-outline-primary"
+                  @click="asignarCruces"
+                  :disabled="savingAsignacionCruces || !crucesHabilitados || !eventosCruceProgramacion.length"
+                >
+                  <span v-if="savingAsignacionCruces" class="spinner-border spinner-border-sm me-2"></span>
+                  Asignar equipos a cruces
+                </button>
               </div>
             </div>
 
-            <div class="row g-3">
-              <div v-for="grupo in detalle.grupos" :key="grupo.id" class="col-12 col-md-6">
-                <div class="group-card h-100">
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                    <h3 class="h6 mb-0">{{ grupo.nombre }}</h3>
-                    <small class="text-muted">{{ grupo.asignados }}/{{ grupo.cantidad_equipos_objetivo }}</small>
-                  </div>
+            <div v-if="!eventosCruceProgramacion.length" class="alert alert-info mb-0">
+              No hay cruces configurados para este torneo.
+            </div>
 
-                  <div v-for="pos in Number(grupo.cantidad_equipos_objetivo || 0)" :key="`${grupo.id}-${pos}`" class="mb-2">
-                    <label class="form-label small mb-1">Posición {{ pos }}</label>
-                    <select class="form-select form-select-sm" :value="getSelected(grupo.id, pos)" @change="setSelected(grupo.id, pos, $event.target.value)">
-                      <option value="">Sin asignar</option>
-                      <option v-for="equipo in getAvailableOptions(grupo.id, pos)" :key="equipo.id" :value="equipo.id">
-                        {{ equipo.nombre }}
-                      </option>
-                    </select>
-                    <div v-if="getSelectedTeam(grupo.id, pos)?.escudo" class="mt-1 small text-muted d-flex align-items-center gap-2">
-                      <img :src="resolveEscudoUrl(getSelectedTeam(grupo.id, pos).escudo)" alt="escudo" class="escudo-thumb" />
-                      Escudo cargado
+            <div v-else class="cruce-bracket-box mb-3">
+              <div class="small fw-semibold text-secondary mb-2">Visualización de llave</div>
+              <div class="cruce-bracket-scroll">
+                <div class="cruce-bracket-grid" :style="{ '--round-count': Math.max(1, cruceRounds.length) }">
+                  <div v-for="(ronda, roundIndex) in cruceRounds" :key="`${ronda.nombre}-${roundIndex}`" class="cruce-round-column">
+                    <h3 class="cruce-round-title">{{ ronda.nombre }}</h3>
+
+                    <div class="cruce-round-track" :style="getCruceRoundTrackStyle(roundIndex, ronda.partidos.length)">
+                      <div
+                        v-for="(partido, partidoIndex) in ronda.partidos"
+                        :key="partido.id"
+                        class="cruce-match-wrapper"
+                        :style="getCruceMatchStyle(roundIndex, partidoIndex)"
+                      >
+                        <div
+                          class="cruce-match-card"
+                          :class="{
+                            'has-next': roundIndex < cruceRounds.length - 1,
+                            'has-prev': roundIndex > 0,
+                          }"
+                        >
+                          <div class="cruce-team-line">
+                            <img v-if="partido.local.escudo" :src="resolveEscudoUrl(partido.local.escudo)" alt="escudo local" class="escudo-thumb" />
+                            <span v-else class="escudo-thumb-placeholder"><i class="bi bi-shield"></i></span>
+                            <span class="team-name">{{ partido.local.nombre || 'Por definir' }}</span>
+                          </div>
+                          <div class="cruce-team-line">
+                            <img v-if="partido.visitante.escudo" :src="resolveEscudoUrl(partido.visitante.escudo)" alt="escudo visitante" class="escudo-thumb" />
+                            <span v-else class="escudo-thumb-placeholder"><i class="bi bi-shield"></i></span>
+                            <span class="team-name">{{ partido.visitante.nombre || 'Por definir' }}</span>
+                          </div>
+                          <div v-if="partido.resultado !== null" class="cruce-score-pill">
+                            {{ partido.resultado }}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div
+                        v-if="roundIndex < cruceRounds.length - 1"
+                        v-for="pairIndex in Math.floor(ronda.partidos.length / 2)"
+                        :key="`cruce-merge-${roundIndex}-${pairIndex}`"
+                        class="cruce-round-merge"
+                        :style="getCruceMergeStyle(roundIndex, pairIndex - 1)"
+                      ></div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div class="d-flex justify-content-between mt-3">
-              <div class="d-flex gap-2">
-                <button class="btn btn-outline-secondary" @click="limpiarAsignacion" :disabled="savingAsignacion">Limpiar</button>
-                <button class="btn btn-outline-primary" @click="asignarAleatorio" :disabled="savingAsignacion">Asignar aleatorio</button>
-              </div>
-              <button class="btn btn-success" @click="guardarAsignaciones" :disabled="savingAsignacion">
-                <span v-if="savingAsignacion" class="spinner-border spinner-border-sm me-2"></span>
-                Guardar asignación
-              </button>
+            <div v-if="eventosCruceProgramacion.length" class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Cruce</th>
+                    <th>Local</th>
+                    <th>Visitante</th>
+                    <th>Estado</th>
+                    <th class="text-end">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="ev in eventosCruceProgramacion" :key="ev.id">
+                    <td>{{ ev.titulo }}</td>
+                    <td>
+                      <template v-if="isEditingCruceManual(ev.id)">
+                        <select
+                          class="form-select form-select-sm"
+                          :value="getCruceDraft(ev.id).id_equipo_local ?? ''"
+                          @change="setCruceDraftField(ev.id, 'id_equipo_local', $event.target.value)"
+                          :disabled="!crucesHabilitados || isSavingCruceManual(ev.id)"
+                        >
+                          <option value="">Por definir</option>
+                          <option v-for="equipo in equiposCruceOptions" :key="`l-${ev.id}-${equipo.id}`" :value="equipo.id">
+                            {{ equipo.nombre }}
+                          </option>
+                        </select>
+                      </template>
+                      <template v-else>
+                        <span>{{ getCruceEquipoDisplay(ev, 'local').nombre || 'Por definir' }}</span>
+                      </template>
+                    </td>
+                    <td>
+                      <template v-if="isEditingCruceManual(ev.id)">
+                        <select
+                          class="form-select form-select-sm"
+                          :value="getCruceDraft(ev.id).id_equipo_visitante ?? ''"
+                          @change="setCruceDraftField(ev.id, 'id_equipo_visitante', $event.target.value)"
+                          :disabled="!crucesHabilitados || isSavingCruceManual(ev.id)"
+                        >
+                          <option value="">Por definir</option>
+                          <option v-for="equipo in equiposCruceOptions" :key="`v-${ev.id}-${equipo.id}`" :value="equipo.id">
+                            {{ equipo.nombre }}
+                          </option>
+                        </select>
+                      </template>
+                      <template v-else>
+                        <span>{{ getCruceEquipoDisplay(ev, 'visitante').nombre || 'Por definir' }}</span>
+                      </template>
+                    </td>
+                    <td>
+                      <span class="badge rounded-pill" :class="ev.equipo_local_nombre && ev.equipo_visitante_nombre ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary'">
+                        {{ ev.equipo_local_nombre && ev.equipo_visitante_nombre ? 'Definido' : 'Pendiente' }}
+                      </span>
+                    </td>
+                    <td class="text-end">
+                      <div class="d-inline-flex gap-2">
+                        <button
+                          v-if="!isEditingCruceManual(ev.id)"
+                          class="btn btn-sm btn-outline-primary"
+                          @click="editarCruceManual(ev)"
+                          :disabled="!crucesHabilitados || isSavingCruceManual(ev.id)"
+                        >
+                          Editar
+                        </button>
+
+                        <template v-else>
+                          <button
+                            class="btn btn-sm btn-outline-secondary"
+                            @click="cancelarEdicionCruceManual(ev)"
+                            :disabled="isSavingCruceManual(ev.id)"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            class="btn btn-sm btn-success"
+                            @click="guardarAsignacionCruceManual(ev)"
+                            :disabled="!crucesHabilitados || isSavingCruceManual(ev.id)"
+                          >
+                            <span v-if="isSavingCruceManual(ev.id)" class="spinner-border spinner-border-sm me-1"></span>
+                            Guardar
+                          </button>
+                        </template>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </template>
         </template>
@@ -343,61 +595,167 @@
           </div>
 
           <template v-else>
-            <div class="row g-3 mb-3">
-              <div class="col-12 col-md-4">
-                <div class="resumen-box h-100">
-                  <div class="small text-muted">Partidos totales</div>
-                  <div class="h5 mb-0">{{ programacionData?.resumen?.total_eventos || 0 }}</div>
-                </div>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div class="small text-muted">
+                Total partidos: <strong>{{ programacionEventos.length }}</strong> · Seleccionados: <strong>{{ selectedProgramacionIds.length }}</strong>
               </div>
-              <div class="col-12 col-md-4">
-                <div class="resumen-box h-100">
-                  <div class="small text-muted">Pendientes de programar</div>
-                  <div class="h5 mb-0 text-warning">{{ programacionData?.resumen?.pendientes_programar || 0 }}</div>
-                </div>
-              </div>
-              <div class="col-12 col-md-4">
-                <div class="resumen-box h-100">
-                  <div class="small text-muted">Ya programados</div>
-                  <div class="h5 mb-0 text-success">{{ programacionData?.resumen?.ya_programados || 0 }}</div>
-                </div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-outline-danger" @click="deshacerProgramacion" :disabled="savingProgramacion">
+                  <span v-if="savingProgramacion" class="spinner-border spinner-border-sm me-2"></span>
+                  Deshacer programación seleccionados
+                </button>
+                <button class="btn btn-primary" @click="abrirModalProgramacionSeleccionados" :disabled="!selectedProgramacionIds.length || savingProgramacion">
+                  <i class="bi bi-calendar-plus me-1"></i>Programar seleccionados
+                </button>
               </div>
             </div>
 
-            <div class="programacion-box mb-3">
-              <h3 class="h6 mb-3">Programación automática</h3>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th style="width: 42px" class="text-center">
+                      <input
+                        type="checkbox"
+                        class="form-check-input"
+                        :checked="allProgramacionSelected"
+                        :indeterminate.prop="hasSomeProgramacionSelected && !allProgramacionSelected"
+                        @change="toggleSeleccionTodosProgramacion"
+                      />
+                    </th>
+                    <th>Partido</th>
+                    <th>Equipo local</th>
+                    <th>Equipo visitante</th>
+                    <th>Estado</th>
+                    <th>Fecha/Hora</th>
+                    <th>Cancha</th>
+                    <th>Árbitro</th>
+                    <th class="text-end">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="ev in programacionEventos"
+                    :key="ev.id"
+                    :class="{ 'programacion-row-selected': selectedProgramacionIds.includes(Number(ev.id)) }"
+                  >
+                    <td class="text-center">
+                      <input type="checkbox" class="form-check-input" :value="Number(ev.id)" v-model="selectedProgramacionIds" />
+                    </td>
+                    <td>{{ ev.titulo }}</td>
+                    <td>{{ ev.equipo_local_nombre || 'Por definir' }}</td>
+                    <td>{{ ev.equipo_visitante_nombre || 'Por definir' }}</td>
+                    <td>{{ ev.estado_evento_descripcion || '-' }}</td>
+                    <td>
+                      <template v-if="isEditingProgramacion(ev.id)">
+                        <input
+                          type="datetime-local"
+                          class="form-control form-control-sm"
+                          :value="getProgramacionDraft(ev.id).fecha_hora_inicio"
+                          @change="setProgramacionDraftField(ev.id, 'fecha_hora_inicio', $event.target.value)"
+                        />
+                      </template>
+                      <template v-else>
+                        <span>{{ formatearFechaHora(ev.fecha_hora_inicio) }}</span>
+                      </template>
+                    </td>
+                    <td>
+                      <template v-if="isEditingProgramacion(ev.id)">
+                        <select
+                          class="form-select form-select-sm"
+                          :value="getProgramacionDraft(ev.id).id_cancha"
+                          @change="setProgramacionDraftField(ev.id, 'id_cancha', $event.target.value ? Number($event.target.value) : null)"
+                        >
+                          <option :value="null">Seleccionar cancha</option>
+                          <option v-for="c in (programacionData?.canchas || [])" :key="c.id" :value="Number(c.id)">
+                            {{ c.nombre }}
+                          </option>
+                        </select>
+                      </template>
+                      <template v-else>
+                        <span>{{ getProgramacionCanchaLabel(ev) }}</span>
+                      </template>
+                    </td>
+                    <td>
+                      <template v-if="isEditingProgramacion(ev.id)">
+                        <select
+                          class="form-select form-select-sm"
+                          :value="getProgramacionDraft(ev.id).id_arbitro"
+                          @change="setProgramacionDraftField(ev.id, 'id_arbitro', $event.target.value ? Number($event.target.value) : null)"
+                        >
+                          <option :value="null">Seleccionar árbitro</option>
+                          <option v-for="a in (programacionData?.arbitros || [])" :key="a.id" :value="Number(a.id)">
+                            {{ a.nombre_completo || `${a.apellido || ''} ${a.nombre || ''}`.trim() }}
+                          </option>
+                        </select>
+                      </template>
+                      <template v-else>
+                        <span>{{ getProgramacionArbitroLabel(ev) }}</span>
+                      </template>
+                    </td>
+                    <td class="text-end">
+                      <div class="d-inline-flex gap-2">
+                        <button
+                          v-if="!isEditingProgramacion(ev.id)"
+                          class="btn btn-sm btn-outline-primary"
+                          @click="editarProgramacionEvento(ev)"
+                          :disabled="savingProgramacion"
+                        >
+                          Editar
+                        </button>
+
+                        <template v-else>
+                          <button
+                            class="btn btn-sm btn-outline-secondary"
+                            @click="cancelarEdicionProgramacionEvento(ev)"
+                            :disabled="savingProgramacion"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            class="btn btn-sm btn-success"
+                            @click="guardarProgramacionEvento(ev.id)"
+                            :disabled="savingProgramacion"
+                          >
+                            Guardar
+                          </button>
+                        </template>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr v-if="!programacionEventos.length">
+                    <td colspan="9" class="text-center text-muted py-3">No hay partidos para mostrar.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+        </template>
+      </div>
+    </div>
+
+    <Teleport to="body">
+      <div v-if="showProgramacionModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Programar partidos seleccionados</h5>
+              <button type="button" class="btn-close" @click="showProgramacionModal = false"></button>
+            </div>
+
+            <div class="modal-body">
+              <div class="small text-muted mb-3">
+                Se programarán <strong>{{ selectedProgramacionIds.length }}</strong> partido(s).
+              </div>
+
               <div class="row g-3">
-                <div class="col-12 col-md-4">
-                  <label class="form-label small mb-1">Fase a programar</label>
-                  <select class="form-select" v-model="programacionForm.fase_programar" @change="onFaseProgramarChange">
-                    <option value="todas">Todas</option>
-                    <option value="zonas">Solo fase de grupos</option>
-                    <option value="eliminacion">Solo eliminación</option>
-                    <option value="seleccionados">Partidos seleccionados</option>
-                  </select>
-                </div>
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-md-6">
                   <label class="form-label small mb-1">Fecha inicio</label>
                   <input type="date" class="form-control" v-model="programacionForm.fecha_inicio" />
                 </div>
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-md-6">
                   <label class="form-label small mb-1">Duración por partido (min)</label>
                   <input type="number" min="20" max="240" step="5" class="form-control" v-model.number="programacionForm.duracion_minutos" />
-                </div>
-
-              </div>
-
-              <div v-if="programacionForm.fase_programar === 'seleccionados'" class="mt-3">
-                <div class="small fw-semibold mb-2">Partidos pendientes a programar (seleccionables)</div>
-                <div class="selector-box">
-                  <label v-for="ev in eventosPendientesProgramacion" :key="ev.id" class="selector-item">
-                    <input type="checkbox" :value="Number(ev.id)" v-model="programacionForm.id_eventos" />
-                    <span class="me-auto">{{ ev.titulo }}</span>
-                    <span class="small text-muted">#{{ ev.id }}</span>
-                  </label>
-                  <div v-if="!eventosPendientesProgramacion.length" class="small text-muted px-1 py-2">
-                    No hay partidos pendientes para seleccionar.
-                  </div>
                 </div>
               </div>
 
@@ -440,103 +798,19 @@
                   </div>
                 </div>
               </div>
-
-              <div class="d-flex justify-content-end mt-3">
-                <div class="d-flex gap-2">
-                  <button class="btn btn-outline-danger" @click="deshacerProgramacion" :disabled="savingProgramacion">
-                    <span v-if="savingProgramacion" class="spinner-border spinner-border-sm me-2"></span>
-                    Deshacer programación
-                  </button>
-                  <button class="btn btn-primary" @click="programarAutomatico" :disabled="savingProgramacion">
-                    <span v-if="savingProgramacion" class="spinner-border spinner-border-sm me-2"></span>
-                    Programar automáticamente
-                  </button>
-                </div>
-              </div>
             </div>
 
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0">
-                <thead>
-                  <tr>
-                    <th>Partido</th>
-                    <th>Equipo local</th>
-                    <th>Equipo visitante</th>
-                    <th>Estado</th>
-                    <th>Fecha/Hora</th>
-                    <th>Cancha</th>
-                    <th>Árbitro</th>
-                    <th class="text-end">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="ev in (programacionData?.eventos || [])" :key="ev.id">
-                    <td>{{ ev.titulo }}</td>
-                    <td>{{ ev.equipo_local_nombre || 'Por definir' }}</td>
-                    <td>{{ ev.equipo_visitante_nombre || 'Por definir' }}</td>
-                    <td>{{ ev.estado_evento_descripcion || '-' }}</td>
-                    <td>
-                      <template v-if="isEditingProgramacionEvento(ev.id)">
-                        <input type="datetime-local" class="form-control form-control-sm" v-model="editProgramacionForm.fecha_hora_inicio" />
-                      </template>
-                      <template v-else>
-                        {{ ev.fecha_hora_inicio || '-' }}
-                      </template>
-                    </td>
-                    <td>
-                      <template v-if="isEditingProgramacionEvento(ev.id)">
-                        <select class="form-select form-select-sm" v-model.number="editProgramacionForm.id_cancha">
-                          <option :value="null">Seleccionar cancha</option>
-                          <option v-for="c in (programacionData?.canchas || [])" :key="c.id" :value="Number(c.id)">
-                            {{ c.nombre }}
-                          </option>
-                        </select>
-                      </template>
-                      <template v-else>
-                        {{ ev.cancha_nombre || '-' }}
-                      </template>
-                    </td>
-                    <td>
-                      <template v-if="isEditingProgramacionEvento(ev.id)">
-                        <select class="form-select form-select-sm" v-model.number="editProgramacionForm.id_arbitro">
-                          <option :value="null">Seleccionar árbitro</option>
-                          <option v-for="a in (programacionData?.arbitros || [])" :key="a.id" :value="Number(a.id)">
-                            {{ a.nombre_completo || `${a.apellido || ''} ${a.nombre || ''}`.trim() }}
-                          </option>
-                        </select>
-                      </template>
-                      <template v-else>
-                        {{ ev.arbitro_nombre_completo || '-' }}
-                      </template>
-                    </td>
-                    <td class="text-end">
-                      <div class="d-inline-flex gap-2">
-                        <template v-if="isEditingProgramacionEvento(ev.id)">
-                          <button class="btn btn-sm btn-success" @click="guardarEdicionProgramacionEvento" :disabled="savingProgramacion">
-                            Guardar
-                          </button>
-                          <button class="btn btn-sm btn-outline-secondary" @click="cancelarEdicionProgramacionEvento" :disabled="savingProgramacion">
-                            Cancelar
-                          </button>
-                        </template>
-                        <template v-else>
-                          <button class="btn btn-sm btn-outline-secondary" @click="iniciarEdicionProgramacionEvento(ev)">
-                            Editar
-                          </button>
-                        </template>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr v-if="!(programacionData?.eventos || []).length">
-                    <td colspan="8" class="text-center text-muted py-3">No hay partidos para mostrar.</td>
-                  </tr>
-                </tbody>
-              </table>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" @click="showProgramacionModal = false">Cancelar</button>
+              <button class="btn btn-primary" @click="programarSeleccionados" :disabled="savingProgramacion || !selectedProgramacionIds.length">
+                <span v-if="savingProgramacion" class="spinner-border spinner-border-sm me-2"></span>
+                Programar {{ selectedProgramacionIds.length }} partido(s)
+              </button>
             </div>
-          </template>
-        </template>
+          </div>
+        </div>
       </div>
-    </div>
+    </Teleport>
 
     <Teleport to="body">
       <div v-if="showBulkInscripcionModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
@@ -553,32 +827,7 @@
               </div>
 
               <template v-else>
-                <p class="small text-muted mb-3">Seleccioná los equipos a inscribir. Podés definir parámetros comunes para todos (opcionales).</p>
-
-                <!-- Parámetros comunes -->
-                <div class="row g-3 mb-4 p-3 rounded border bg-light">
-                  <div class="col-12">
-                    <span class="fw-semibold small text-secondary">Parámetros comunes para los seleccionados</span>
-                  </div>
-                  <div class="col-12 col-md-5">
-                    <label class="form-label small">Estado inscripción</label>
-                    <select class="form-select form-select-sm" v-model="bulkEstadoInscripcion">
-                      <option value="">Sin especificar</option>
-                      <option v-for="estado in estadosInscripcionOptions" :key="estado.id" :value="String(estado.id)">
-                        {{ estado.descripcion }}
-                      </option>
-                    </select>
-                  </div>
-                  <div class="col-12 col-md-4">
-                    <label class="form-label small">Fecha pago</label>
-                    <input type="date" class="form-control form-control-sm" v-model="bulkFechaPago" />
-                  </div>
-                  <div class="col-12 col-md-3 d-flex align-items-end">
-                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" @click="bulkFechaPago = ''; bulkEstadoInscripcion = ''">
-                      Limpiar
-                    </button>
-                  </div>
-                </div>
+                <p class="small text-muted mb-3">Seleccioná los equipos a inscribir en el torneo.</p>
 
                 <!-- Seleccionar todos -->
                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -680,7 +929,7 @@
             </div>
 
             <div class="modal-body">
-              <p class="small text-muted mb-3">Selecciona un equipo y carga sus datos de inscripción.</p>
+              <p class="small text-muted mb-3">Seleccioná un equipo para inscribirlo en el torneo.</p>
 
               <div v-if="!equiposParaInscripcion.length" class="alert alert-info mb-0">
                 No hay equipos disponibles para gestionar inscripciones.
@@ -696,40 +945,11 @@
                     </option>
                   </select>
                 </div>
-
-                <div class="col-12 col-md-4">
-                  <label class="form-label">Estado inscripción</label>
-                  <select class="form-select" v-model="inscripcionForm.id_estado_inscripcion" :disabled="!inscripcionForm.id_equipo">
-                    <option value="">Seleccionar estado</option>
-                    <option v-for="estado in estadosInscripcionOptions" :key="estado.id" :value="String(estado.id)">
-                      {{ estado.descripcion }}
-                    </option>
-                  </select>
-                </div>
-
-                <div class="col-12 col-md-3">
-                  <label class="form-label">Fecha pago</label>
-                  <input type="date" class="form-control" v-model="inscripcionForm.fecha_pago" :disabled="!inscripcionForm.id_equipo" />
-                </div>
-
-                <div class="col-12 col-md-5">
-                  <label class="form-label">Comprobante pago</label>
-                  <input
-                    type="file"
-                    class="form-control"
-                    accept=".pdf,image/*"
-                    @change="onComprobanteFileChange"
-                    :disabled="!inscripcionForm.id_equipo"
-                  />
-                  <div v-if="inscripcionForm.comprobante_pago" class="form-text">
-                    Comprobante actual:
-                    <a :href="inscripcionForm.comprobante_pago" target="_blank" rel="noopener noreferrer">ver archivo</a>
-                  </div>
-                </div>
-
                 <div class="col-12">
-                  <label class="form-label">Observación</label>
-                  <input type="text" class="form-control" placeholder="Dato adicional" v-model="inscripcionForm.observacion" :disabled="!inscripcionForm.id_equipo" />
+                  <div class="alert alert-light border mb-0 small">
+                    <div class="fw-semibold mb-1">Importante</div>
+                    El pago de inscripción ahora se registra por partido y por equipo.
+                  </div>
                 </div>
               </div>
             </div>
@@ -745,16 +965,125 @@
         </div>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div v-if="showPagoEventoModal && pagoEventoSeleccionado" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <div>
+                <h5 class="modal-title mb-0">Gestionar pago por partido</h5>
+                <p class="small text-muted mb-0 mt-1">{{ pagoEventoSeleccionado.titulo || `Partido ${pagoEventoSeleccionado.id}` }} · {{ formatearFechaHora(pagoEventoSeleccionado.fecha_hora_inicio) }}</p>
+              </div>
+              <button type="button" class="btn-close" @click="cerrarPagoEventoModal"></button>
+            </div>
+
+            <div class="modal-body">
+              <div class="alert alert-light border py-2 mb-3 d-flex justify-content-between align-items-center">
+                <span class="small text-muted mb-0">Monto de inscripción por equipo</span>
+                <span class="fw-semibold">{{ formatMoney(detalle?.torneo?.valor_inscripcion) }}</span>
+              </div>
+
+              <div class="row g-3">
+                <div class="col-12 col-md-6">
+                  <div class="pago-lado-card">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                      <img v-if="pagoEventoSeleccionado.equipo_local_escudo" :src="resolveEscudoUrl(pagoEventoSeleccionado.equipo_local_escudo)" alt="escudo" class="escudo-thumb" />
+                      <h6 class="mb-0">Local: {{ pagoEventoSeleccionado.equipo_local_nombre || '-' }}</h6>
+                    </div>
+
+                    <label class="form-check form-switch mb-2">
+                      <input
+                        class="form-check-input"
+                        type="checkbox"
+                        :checked="getPagoEventoDraft(pagoEventoSeleccionado.id, 'local').pago_realizado"
+                        @change="setPagoEventoDraftField(pagoEventoSeleccionado.id, 'local', 'pago_realizado', $event.target.checked)"
+                      />
+                      <span class="form-check-label small">Pago realizado</span>
+                    </label>
+
+                    <input
+                      type="file"
+                      class="form-control form-control-sm"
+                      accept=".pdf,image/*"
+                      @change="onPagoEventoFileChange(pagoEventoSeleccionado.id, 'local', $event)"
+                    />
+
+                    <div v-if="getPagoEventoDraft(pagoEventoSeleccionado.id, 'local').url_comprobante_pago" class="small mt-2">
+                      <a :href="getPagoEventoDraft(pagoEventoSeleccionado.id, 'local').url_comprobante_pago" target="_blank" rel="noopener noreferrer">Ver comprobante actual</a>
+                    </div>
+
+                    <button
+                      class="btn btn-sm btn-success mt-3"
+                      :disabled="isSavingPagoEvento(pagoEventoSeleccionado.id, 'local')"
+                      @click="guardarPagoEventoEquipo(pagoEventoSeleccionado, 'local')"
+                    >
+                      <span v-if="isSavingPagoEvento(pagoEventoSeleccionado.id, 'local')" class="spinner-border spinner-border-sm me-1"></span>
+                      Guardar local
+                    </button>
+                  </div>
+                </div>
+
+                <div class="col-12 col-md-6">
+                  <div class="pago-lado-card">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                      <img v-if="pagoEventoSeleccionado.equipo_visitante_escudo" :src="resolveEscudoUrl(pagoEventoSeleccionado.equipo_visitante_escudo)" alt="escudo" class="escudo-thumb" />
+                      <h6 class="mb-0">Visitante: {{ pagoEventoSeleccionado.equipo_visitante_nombre || '-' }}</h6>
+                    </div>
+
+                    <label class="form-check form-switch mb-2">
+                      <input
+                        class="form-check-input"
+                        type="checkbox"
+                        :checked="getPagoEventoDraft(pagoEventoSeleccionado.id, 'visitante').pago_realizado"
+                        @change="setPagoEventoDraftField(pagoEventoSeleccionado.id, 'visitante', 'pago_realizado', $event.target.checked)"
+                      />
+                      <span class="form-check-label small">Pago realizado</span>
+                    </label>
+
+                    <input
+                      type="file"
+                      class="form-control form-control-sm"
+                      accept=".pdf,image/*"
+                      @change="onPagoEventoFileChange(pagoEventoSeleccionado.id, 'visitante', $event)"
+                    />
+
+                    <div v-if="getPagoEventoDraft(pagoEventoSeleccionado.id, 'visitante').url_comprobante_pago" class="small mt-2">
+                      <a :href="getPagoEventoDraft(pagoEventoSeleccionado.id, 'visitante').url_comprobante_pago" target="_blank" rel="noopener noreferrer">Ver comprobante actual</a>
+                    </div>
+
+                    <button
+                      class="btn btn-sm btn-success mt-3"
+                      :disabled="isSavingPagoEvento(pagoEventoSeleccionado.id, 'visitante')"
+                      @click="guardarPagoEventoEquipo(pagoEventoSeleccionado, 'visitante')"
+                    >
+                      <span v-if="isSavingPagoEvento(pagoEventoSeleccionado.id, 'visitante')" class="spinner-border spinner-border-sm me-1"></span>
+                      Guardar visitante
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" @click="cerrarPagoEventoModal">Cerrar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import datosMaestrosService from '@/services/datosMaestrosService'
 import planTorneoService from '@/services/planTorneoService'
 import { useToastStore } from '@/stores/toastStore'
 
 const toast = useToastStore()
+const route = useRoute()
 
 const torneos = ref([])
 const idTorneoSeleccionado = ref(null)
@@ -763,6 +1092,8 @@ const equiposDisponibles = ref([])
 const loadingTorneos = ref(false)
 const loadingDetalle = ref(false)
 const savingAsignacion = ref(false)
+const savingAsignacionCruces = ref(false)
+const savingAsignacionCruceIds = ref([])
 const savingEliminarAsignaciones = ref(false)
 const savingInscripciones = ref(false)
 const savingEliminarTorneo = ref(false)
@@ -770,19 +1101,22 @@ const savingProgramacion = ref(false)
 const loadingProgramacion = ref(false)
 const selected = ref({})
 const selectedPool = ref([])
+const cruceDrafts = ref({})
+const pagoEventoDrafts = ref({})
+const savingPagoEventoKeys = ref([])
+const showPagoEventoModal = ref(false)
+const idPagoEventoSeleccionado = ref(null)
 const showInscripcionModal = ref(false)
 const showEliminarTorneoModal = ref(false)
 const showAccionesMenu = ref(false)
 const confirmNombreEliminar = ref('')
 const motivoBajaTorneo = ref('')
 const programacionData = ref(null)
-const editingProgramacionEventoId = ref(null)
-const editProgramacionForm = ref({
-  id_evento: null,
-  fecha_hora_inicio: '',
-  id_cancha: null,
-  id_arbitro: null,
-})
+const selectedProgramacionIds = ref([])
+const showProgramacionModal = ref(false)
+const programacionDrafts = ref({})
+const editingProgramacionIds = ref([])
+const editingCruceManualIds = ref([])
 const programacionForm = ref({
   fase_programar: 'todas',
   fecha_inicio: new Date().toISOString().slice(0, 10),
@@ -803,25 +1137,92 @@ const programacionForm = ref({
 })
 const inscripcionForm = ref({
   id_equipo: '',
-  id_estado_inscripcion: '',
-  fecha_pago: '',
-  comprobante_pago: '',
-  comprobante_file: null,
-  observacion: '',
 })
 const showBulkInscripcionModal = ref(false)
 const savingBulkInscripciones = ref(false)
 const bulkSeleccionados = ref([])
-const bulkFechaPago = ref('')
-const bulkEstadoInscripcion = ref('')
 const tabActiva = ref('resumen')
+const subTabAsignaciones = ref('zonas')
 
 const getApiMessage = (error, fallback) => error?.response?.data?.message || fallback
+
+const formatMoney = (value) => {
+  const amount = Number(value || 0)
+  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(amount)
+}
+
+const formatearFechaHora = (value) => {
+  if (!value) return '-'
+  const dt = new Date(String(value).replace(' ', 'T'))
+  if (Number.isNaN(dt.getTime())) return String(value)
+  return dt.toLocaleString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+const CRUCE_BRACKET_CARD_HEIGHT = 86
+const CRUCE_BRACKET_BASE_SLOT = 118
 
 const toDateTimeLocal = (value) => {
   if (!value) return ''
   const txt = String(value).trim().replace(' ', 'T')
   return txt.length >= 16 ? txt.slice(0, 16) : txt
+}
+
+const buildProgramacionDrafts = () => {
+  const next = {}
+  for (const ev of (programacionData.value?.eventos || [])) {
+    const id = Number(ev.id)
+    next[id] = {
+      fecha_hora_inicio: toDateTimeLocal(ev.fecha_hora_inicio),
+      id_cancha: ev.id_cancha ? Number(ev.id_cancha) : null,
+      id_arbitro: ev.id_arbitro ? Number(ev.id_arbitro) : null,
+    }
+  }
+  programacionDrafts.value = next
+  const permitidos = new Set(Object.keys(next).map(Number))
+  selectedProgramacionIds.value = selectedProgramacionIds.value.filter(id => permitidos.has(Number(id)))
+  editingProgramacionIds.value = editingProgramacionIds.value.filter(id => permitidos.has(Number(id)))
+}
+
+const buildCruceDrafts = () => {
+  const next = {}
+  for (const ev of (programacionData.value?.eventos || [])) {
+    const titulo = String(ev?.titulo || '').trim()
+    if (/^zona\s/i.test(titulo)) continue
+    const id = Number(ev.id)
+    next[id] = {
+      id_equipo_local: ev?.id_equipo_local ? Number(ev.id_equipo_local) : null,
+      id_equipo_visitante: ev?.id_equipo_visitante ? Number(ev.id_equipo_visitante) : null,
+    }
+  }
+  cruceDrafts.value = next
+  const permitidos = new Set(Object.keys(next).map(Number))
+  editingCruceManualIds.value = editingCruceManualIds.value.filter(id => permitidos.has(Number(id)))
+}
+
+const buildPagoEventoDrafts = () => {
+  const next = {}
+  for (const ev of (detalle.value?.eventos_partido || [])) {
+    const id = Number(ev.id)
+    next[id] = {
+      local: {
+        pago_realizado: Number(ev?.pago_local_realizado || 0) === 1,
+        url_comprobante_pago: ev?.url_comprobante_pago_local || '',
+        comprobante_file: null,
+      },
+      visitante: {
+        pago_realizado: Number(ev?.pago_visitante_realizado || 0) === 1,
+        url_comprobante_pago: ev?.url_comprobante_pago_visitante || '',
+        comprobante_file: null,
+      },
+    }
+  }
+  pagoEventoDrafts.value = next
 }
 
 const isEventoPendienteProgramacion = (ev) => {
@@ -894,6 +1295,9 @@ const cargarDetalle = async (idTorneo = null) => {
     detalle.value = detalleData
     equiposDisponibles.value = disponibles
     programacionData.value = dataProgramacion
+    buildProgramacionDrafts()
+    buildCruceDrafts()
+    buildPagoEventoDrafts()
 
     const next = {}
     for (const item of (detalleData.asignaciones || [])) {
@@ -923,6 +1327,8 @@ const cargarProgramacionData = async () => {
       programacionForm.value.fase_programar,
     )
     programacionData.value = dataProgramacion
+    buildProgramacionDrafts()
+    buildCruceDrafts()
     if (programacionForm.value.fase_programar === 'seleccionados') {
       const permitidos = new Set(eventosPendientesProgramacion.value.map(ev => Number(ev.id)))
       programacionForm.value.id_eventos = (programacionForm.value.id_eventos || [])
@@ -943,16 +1349,99 @@ const onFaseProgramarChange = async () => {
   await cargarProgramacionData()
 }
 
+const getProgramacionDraft = (idEvento) => {
+  const id = Number(idEvento)
+  if (!programacionDrafts.value[id]) {
+    programacionDrafts.value[id] = {
+      fecha_hora_inicio: '',
+      id_cancha: null,
+      id_arbitro: null,
+    }
+  }
+  return programacionDrafts.value[id]
+}
+
+const setProgramacionDraftField = (idEvento, field, value) => {
+  const draft = getProgramacionDraft(idEvento)
+  draft[field] = value
+}
+
+const isEditingProgramacion = (idEvento) => editingProgramacionIds.value.includes(Number(idEvento))
+
+const resetProgramacionDraftFromEvento = (evento) => {
+  const id = Number(evento?.id || 0)
+  if (!id) return
+  programacionDrafts.value[id] = {
+    fecha_hora_inicio: toDateTimeLocal(evento?.fecha_hora_inicio),
+    id_cancha: evento?.id_cancha ? Number(evento.id_cancha) : null,
+    id_arbitro: evento?.id_arbitro ? Number(evento.id_arbitro) : null,
+  }
+}
+
+const editarProgramacionEvento = (evento) => {
+  const id = Number(evento?.id || 0)
+  if (!id) return
+  resetProgramacionDraftFromEvento(evento)
+  if (!isEditingProgramacion(id)) {
+    editingProgramacionIds.value = [...editingProgramacionIds.value, id]
+  }
+}
+
+const cancelarEdicionProgramacionEvento = (evento) => {
+  const id = Number(evento?.id || 0)
+  if (!id) return
+  resetProgramacionDraftFromEvento(evento)
+  editingProgramacionIds.value = editingProgramacionIds.value.filter(item => item !== id)
+}
+
+const getCanchaNombreById = (idCancha) => {
+  const id = Number(idCancha || 0)
+  if (!id) return ''
+  const cancha = (programacionData.value?.canchas || []).find(item => Number(item.id) === id)
+  return cancha?.nombre || ''
+}
+
+const getArbitroNombreById = (idArbitro) => {
+  const id = Number(idArbitro || 0)
+  if (!id) return ''
+  const arbitro = (programacionData.value?.arbitros || []).find(item => Number(item.id) === id)
+  return arbitro?.nombre_completo || `${arbitro?.apellido || ''} ${arbitro?.nombre || ''}`.trim()
+}
+
+const getProgramacionCanchaLabel = (evento) => {
+  const draft = getProgramacionDraft(evento?.id)
+  return getCanchaNombreById(draft?.id_cancha || evento?.id_cancha) || 'Sin definir'
+}
+
+const getProgramacionArbitroLabel = (evento) => {
+  const draft = getProgramacionDraft(evento?.id)
+  return getArbitroNombreById(draft?.id_arbitro || evento?.id_arbitro) || 'Sin definir'
+}
+
+const toggleSeleccionTodosProgramacion = () => {
+  if (allProgramacionSelected.value) {
+    selectedProgramacionIds.value = []
+    return
+  }
+  selectedProgramacionIds.value = programacionEventos.value.map(ev => Number(ev.id))
+}
+
+const abrirModalProgramacionSeleccionados = () => {
+  if (!selectedProgramacionIds.value.length) {
+    toast.showToast({ message: 'Selecciona al menos un partido.', type: 'warning' })
+    return
+  }
+  showProgramacionModal.value = true
+}
+
 const allTeamsMap = computed(() => {
   const map = {}
   for (const item of (detalle.value?.inscriptos || [])) {
     const id = Number(item.id_equipo)
-    const estado = String(item.estado_inscripcion || '').toUpperCase()
     map[id] = {
       id,
       nombre: item.equipo_nombre,
       escudo: item.escudo || null,
-      pagada: Boolean(item.fecha_pago) || estado === 'INSCRIPTA',
       asignado: Number(item.asignado || 0) === 1,
     }
   }
@@ -987,10 +1476,6 @@ const equiposParaInscripcion = computed(() => {
 
   return Object.values(map).sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'))
 })
-
-const estadosInscripcionOptions = computed(() =>
-  (detalle.value?.estados_inscripcion || []).map(e => ({ id: Number(e.id), descripcion: e.descripcion }))
-)
 
 const equiposSinInscribir = computed(() => {
   const inscriptosIds = new Set((detalle.value?.inscriptos || []).map(i => Number(i.id_equipo)))
@@ -1031,6 +1516,20 @@ const inscripcionesCompletas = computed(() => {
   return total >= objetivo
 })
 
+const cupoLleno = computed(() => {
+  const objetivo = Number(totalInscriptosObjetivo.value || 0)
+  const total = Number(detalle.value?.inscripciones?.total || 0)
+  if (objetivo <= 0) return false
+  return total >= objetivo
+})
+
+const vacantesDisponibles = computed(() => {
+  const objetivo = Number(totalInscriptosObjetivo.value || 0)
+  const total = Number(detalle.value?.inscripciones?.total || 0)
+  if (objetivo <= 0) return Number.MAX_SAFE_INTEGER
+  return Math.max(0, objetivo - total)
+})
+
 const nombreEliminarCoincide = computed(() => {
   const actual = String(detalle.value?.torneo?.nombre || '').trim()
   const confirm = String(confirmNombreEliminar.value || '').trim()
@@ -1047,6 +1546,203 @@ const totalSlots = computed(() => {
 
 const eventosPendientesProgramacion = computed(() =>
   (programacionData.value?.eventos || []).filter(isEventoPendienteProgramacion)
+)
+
+const programacionEventos = computed(() =>
+  (programacionData.value?.eventos || []).map(ev => ({ ...ev, id: Number(ev.id) }))
+)
+
+const eventosZonaProgramacion = computed(() =>
+  programacionEventos.value.filter(ev => /^zona\s/i.test(String(ev.titulo || '').trim()))
+)
+
+const eventosCruceProgramacion = computed(() =>
+  programacionEventos.value.filter(ev => !/^zona\s/i.test(String(ev.titulo || '').trim()))
+)
+
+const eventosPagoPartido = computed(() => {
+  const allEventos = (detalle.value?.eventos_partido || []).map(ev => ({ ...ev, id: Number(ev.id) }))
+  const now = new Date()
+  return allEventos
+    .filter(ev => Number(ev.id_equipo_local || 0) > 0 && Number(ev.id_equipo_visitante || 0) > 0)
+    .filter(ev => Number(ev.id_estado_evento || 0) !== 4)
+    .filter(ev => {
+      if (!ev.fecha_hora_inicio) return false
+      const dt = new Date(String(ev.fecha_hora_inicio).replace(' ', 'T'))
+      return !Number.isNaN(dt.getTime()) && dt >= now
+    })
+})
+
+const pagoEventoSeleccionado = computed(() => {
+  const id = Number(idPagoEventoSeleccionado.value || 0)
+  if (!id) return null
+  return eventosPagoPartido.value.find(ev => Number(ev.id) === id) || null
+})
+
+const pagosPartidoResumen = computed(() => {
+  let pagados = 0
+  let total = 0
+  for (const ev of eventosPagoPartido.value) {
+    if (Number(ev.id_equipo_local || 0) > 0) {
+      total++
+      if (Number(ev.pago_local_realizado || 0) === 1) pagados++
+    }
+    if (Number(ev.id_equipo_visitante || 0) > 0) {
+      total++
+      if (Number(ev.pago_visitante_realizado || 0) === 1) pagados++
+    }
+  }
+  return { pagados, total }
+})
+
+const getPagoEventoDraft = (idEvento, lado) => {
+  const id = Number(idEvento)
+  if (!pagoEventoDrafts.value[id]) {
+    pagoEventoDrafts.value[id] = {
+      local: { pago_realizado: false, url_comprobante_pago: '', comprobante_file: null },
+      visitante: { pago_realizado: false, url_comprobante_pago: '', comprobante_file: null },
+    }
+  }
+  if (!pagoEventoDrafts.value[id][lado]) {
+    pagoEventoDrafts.value[id][lado] = { pago_realizado: false, url_comprobante_pago: '', comprobante_file: null }
+  }
+  return pagoEventoDrafts.value[id][lado]
+}
+
+const setPagoEventoDraftField = (idEvento, lado, field, value) => {
+  const draft = getPagoEventoDraft(idEvento, lado)
+  draft[field] = value
+  if (field === 'pago_realizado' && !value) {
+    draft.url_comprobante_pago = ''
+    draft.comprobante_file = null
+  }
+}
+
+const onPagoEventoFileChange = (idEvento, lado, event) => {
+  const file = event?.target?.files?.[0] || null
+  const draft = getPagoEventoDraft(idEvento, lado)
+  draft.comprobante_file = file
+}
+
+const getPagoEventoKey = (idEvento, lado) => `${Number(idEvento)}-${lado}`
+const isSavingPagoEvento = (idEvento, lado) => savingPagoEventoKeys.value.includes(getPagoEventoKey(idEvento, lado))
+
+const getNombreRondaCruce = (titulo, fallback) => {
+  const value = String(titulo || '').trim()
+  if (!value) return fallback
+  const cleaned = value.replace(/\s*-\s*partido\s*\d+\s*$/i, '').trim()
+  return cleaned || fallback
+}
+
+const getCruceEquipoDisplay = (ev, side) => {
+  const fieldId = side === 'local' ? 'id_equipo_local' : 'id_equipo_visitante'
+  const fieldNombre = side === 'local' ? 'equipo_local_nombre' : 'equipo_visitante_nombre'
+  const fieldEscudo = side === 'local' ? 'equipo_local_escudo' : 'equipo_visitante_escudo'
+
+  const draft = getCruceDraft(ev.id)
+  const idDraft = Number(draft?.[fieldId] || 0)
+  if (idDraft > 0 && allTeamsMap.value[idDraft]) {
+    return {
+      id: idDraft,
+      nombre: allTeamsMap.value[idDraft]?.nombre || '',
+      escudo: allTeamsMap.value[idDraft]?.escudo || null,
+    }
+  }
+
+  return {
+    id: Number(ev?.[fieldId] || 0) || null,
+    nombre: String(ev?.[fieldNombre] || ''),
+    escudo: ev?.[fieldEscudo] || null,
+  }
+}
+
+const cruceRounds = computed(() => {
+  const byFecha = new Map()
+  const sorted = [...eventosCruceProgramacion.value]
+    .sort((a, b) => {
+      const fa = Number(a?.numero_fecha || 0)
+      const fb = Number(b?.numero_fecha || 0)
+      if (fa !== fb) return fa - fb
+      return Number(a?.id || 0) - Number(b?.id || 0)
+    })
+
+  for (const ev of sorted) {
+    const fecha = Number(ev?.numero_fecha || 0)
+    const key = Number.isFinite(fecha) ? fecha : 0
+    if (!byFecha.has(key)) {
+      byFecha.set(key, {
+        fecha: key,
+        nombre: getNombreRondaCruce(ev?.titulo, `Ronda ${byFecha.size + 1}`),
+        partidos: [],
+      })
+    }
+
+    const row = byFecha.get(key)
+    const resultadoDisponible = ev?.resultado_local !== null
+      && ev?.resultado_local !== undefined
+      && ev?.resultado_visitante !== null
+      && ev?.resultado_visitante !== undefined
+
+    row.partidos.push({
+      id: Number(ev.id),
+      local: getCruceEquipoDisplay(ev, 'local'),
+      visitante: getCruceEquipoDisplay(ev, 'visitante'),
+      resultado: resultadoDisponible ? `${ev.resultado_local} - ${ev.resultado_visitante}` : null,
+    })
+  }
+
+  return Array.from(byFecha.values())
+})
+
+const getCruceRoundTrackStyle = (roundIndex, matchCount) => {
+  const slot = CRUCE_BRACKET_BASE_SLOT * (2 ** roundIndex)
+  return {
+    height: `${slot * matchCount}px`,
+  }
+}
+
+const getCruceMatchStyle = (roundIndex, matchIndex) => {
+  const slot = CRUCE_BRACKET_BASE_SLOT * (2 ** roundIndex)
+  const top = (slot / 2) - (CRUCE_BRACKET_CARD_HEIGHT / 2) + (matchIndex * slot)
+  return {
+    top: `${top}px`,
+  }
+}
+
+const getCruceMergeStyle = (roundIndex, pairIndex) => {
+  const slot = CRUCE_BRACKET_BASE_SLOT * (2 ** roundIndex)
+  const top = (slot / 2) + (pairIndex * 2 * slot)
+  return {
+    top: `${top}px`,
+    height: `${slot}px`,
+  }
+}
+
+const zonasConcretadas = computed(() => {
+  const hayFaseDeZonas = Boolean(detalle.value?.grupos?.length)
+  if (!hayFaseDeZonas) return true
+  if (!eventosZonaProgramacion.value.length) return false
+  return eventosZonaProgramacion.value.every(ev => [4, 7].includes(Number(ev.id_estado_evento)))
+})
+
+const crucesHabilitados = computed(() => !detalle.value?.grupos?.length || zonasConcretadas.value)
+
+const crucesConEquiposDefinidos = computed(() =>
+  eventosCruceProgramacion.value.filter(ev => ev.equipo_local_nombre && ev.equipo_visitante_nombre).length
+)
+
+const equiposCruceOptions = computed(() =>
+  Object.values(allTeamsMap.value)
+    .map(item => ({ id: Number(item.id), nombre: item.nombre }))
+    .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'))
+)
+
+const allProgramacionSelected = computed(() =>
+  programacionEventos.value.length > 0 && selectedProgramacionIds.value.length === programacionEventos.value.length
+)
+
+const hasSomeProgramacionSelected = computed(() =>
+  selectedProgramacionIds.value.length > 0 && selectedProgramacionIds.value.length < programacionEventos.value.length
 )
 
 const selectedIds = computed(() => {
@@ -1159,13 +1855,135 @@ const guardarAsignaciones = async () => {
   }
 }
 
+const asignarCruces = async () => {
+  if (!idTorneoSeleccionado.value) return
+  if (!crucesHabilitados.value) {
+    toast.showToast({ message: 'Los cruces aún están bloqueados. Debes finalizar la fase de zonas.', type: 'warning' })
+    return
+  }
+  if (!eventosCruceProgramacion.value.length) {
+    toast.showToast({ message: 'No hay cruces configurados para este torneo.', type: 'warning' })
+    return
+  }
+
+  savingAsignacionCruces.value = true
+  try {
+    const response = await planTorneoService.asignarCruces({ id_torneo: idTorneoSeleccionado.value })
+    toast.showToast({ message: response?.message || 'Cruces asignados correctamente.', type: 'success' })
+    await cargarDetalle()
+  } catch (error) {
+    toast.showToast({ message: getApiMessage(error, 'No se pudieron asignar los cruces.'), type: 'danger' })
+  } finally {
+    savingAsignacionCruces.value = false
+  }
+}
+
+const getCruceDraft = (idEvento) => {
+  const id = Number(idEvento)
+  if (!cruceDrafts.value[id]) {
+    cruceDrafts.value[id] = {
+      id_equipo_local: null,
+      id_equipo_visitante: null,
+    }
+  }
+  return cruceDrafts.value[id]
+}
+
+const setCruceDraftField = (idEvento, field, value) => {
+  const draft = getCruceDraft(idEvento)
+  const parsed = Number(value)
+  draft[field] = Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+const isEditingCruceManual = (idEvento) => editingCruceManualIds.value.includes(Number(idEvento))
+
+const resetCruceDraftFromEvento = (evento) => {
+  const id = Number(evento?.id || 0)
+  if (!id) return
+  cruceDrafts.value[id] = {
+    id_equipo_local: evento?.id_equipo_local ? Number(evento.id_equipo_local) : null,
+    id_equipo_visitante: evento?.id_equipo_visitante ? Number(evento.id_equipo_visitante) : null,
+  }
+}
+
+const editarCruceManual = (evento) => {
+  if (!crucesHabilitados.value) return
+  const id = Number(evento?.id || 0)
+  if (!id) return
+  resetCruceDraftFromEvento(evento)
+  if (!isEditingCruceManual(id)) {
+    editingCruceManualIds.value = [...editingCruceManualIds.value, id]
+  }
+}
+
+const cancelarEdicionCruceManual = (evento) => {
+  const id = Number(evento?.id || 0)
+  if (!id) return
+  resetCruceDraftFromEvento(evento)
+  editingCruceManualIds.value = editingCruceManualIds.value.filter(item => item !== id)
+}
+
+const isSavingCruceManual = (idEvento) => savingAsignacionCruceIds.value.includes(Number(idEvento))
+
+const guardarAsignacionCruceManual = async (evento) => {
+  const idEvento = Number(evento?.id || 0)
+  if (!idEvento || !idTorneoSeleccionado.value) return
+  if (!crucesHabilitados.value) {
+    toast.showToast({ message: 'Los cruces aún están bloqueados para edición.', type: 'warning' })
+    return
+  }
+
+  const draft = getCruceDraft(idEvento)
+  if (
+    draft.id_equipo_local !== null &&
+    draft.id_equipo_visitante !== null &&
+    Number(draft.id_equipo_local) === Number(draft.id_equipo_visitante)
+  ) {
+    toast.showToast({ message: 'El equipo local y visitante no pueden ser el mismo.', type: 'warning' })
+    return
+  }
+
+  savingAsignacionCruceIds.value = Array.from(new Set([...savingAsignacionCruceIds.value, idEvento]))
+  try {
+    await planTorneoService.actualizarAsignacionCruce({
+      id_torneo: Number(idTorneoSeleccionado.value),
+      id_evento: idEvento,
+      id_equipo_local: draft.id_equipo_local,
+      id_equipo_visitante: draft.id_equipo_visitante,
+    })
+    editingCruceManualIds.value = editingCruceManualIds.value.filter(item => item !== idEvento)
+    toast.showToast({ message: 'Asignación manual del cruce guardada.', type: 'success' })
+    await cargarDetalle()
+  } catch (error) {
+    toast.showToast({ message: getApiMessage(error, 'No se pudo guardar la asignación manual del cruce.'), type: 'danger' })
+  } finally {
+    savingAsignacionCruceIds.value = savingAsignacionCruceIds.value.filter(id => id !== idEvento)
+  }
+}
+
 const abrirInscripcionesModal = () => {
   if (!idTorneoSeleccionado.value) {
     toast.showToast({ message: 'Selecciona un torneo antes de cargar inscripciones.', type: 'warning' })
     return
   }
+  if (cupoLleno.value) {
+    toast.showToast({ message: 'No se pueden cargar más inscripciones: el cupo del torneo está completo.', type: 'warning' })
+    return
+  }
   resetInscripcionForm()
   showInscripcionModal.value = true
+}
+
+const abrirPagoEventoModal = (evento) => {
+  const idEvento = Number(evento?.id || 0)
+  if (!idEvento) return
+  idPagoEventoSeleccionado.value = idEvento
+  showPagoEventoModal.value = true
+}
+
+const cerrarPagoEventoModal = () => {
+  showPagoEventoModal.value = false
+  idPagoEventoSeleccionado.value = null
 }
 
 const eliminarAsignaciones = async () => {
@@ -1192,9 +2010,11 @@ const abrirBulkInscripcionModal = () => {
     toast.showToast({ message: 'Selecciona un torneo antes de cargar inscripciones.', type: 'warning' })
     return
   }
+  if (cupoLleno.value) {
+    toast.showToast({ message: 'No se pueden cargar más inscripciones: el cupo del torneo está completo.', type: 'warning' })
+    return
+  }
   bulkSeleccionados.value = []
-  bulkFechaPago.value = ''
-  bulkEstadoInscripcion.value = ''
   showBulkInscripcionModal.value = true
 }
 
@@ -1212,13 +2032,21 @@ const guardarBulkInscripciones = async () => {
     return
   }
 
+  if (vacantesDisponibles.value <= 0) {
+    toast.showToast({ message: 'No se pueden cargar más inscripciones: el cupo del torneo está completo.', type: 'warning' })
+    return
+  }
+
+  if (bulkSeleccionados.value.length > vacantesDisponibles.value) {
+    toast.showToast({
+      message: `Solo hay ${vacantesDisponibles.value} vacante(s) disponible(s).`,
+      type: 'warning',
+    })
+    return
+  }
+
   const inscripciones = bulkSeleccionados.value.map(idEquipo => ({
     id_equipo: Number(idEquipo),
-    pagada: Boolean(bulkFechaPago.value),
-    fecha_pago: bulkFechaPago.value || null,
-    id_estado_inscripcion: bulkEstadoInscripcion.value ? Number(bulkEstadoInscripcion.value) : null,
-    comprobante_pago: null,
-    observacion: null,
   }))
 
   savingBulkInscripciones.value = true
@@ -1278,11 +2106,6 @@ const eliminarTorneoSeleccionado = async () => {
 const resetInscripcionForm = () => {
   inscripcionForm.value = {
     id_equipo: '',
-    id_estado_inscripcion: '',
-    fecha_pago: '',
-    comprobante_pago: '',
-    comprobante_file: null,
-    observacion: '',
   }
 }
 
@@ -1292,34 +2115,9 @@ const onEquipoInscripcionChange = () => {
     resetInscripcionForm()
     return
   }
-
-  const inscripto = (detalle.value?.inscriptos || []).find(i => Number(i.id_equipo) === idEquipo)
   inscripcionForm.value = {
     id_equipo: String(idEquipo),
-    id_estado_inscripcion: inscripto?.id_estado_inscripcion ? String(inscripto.id_estado_inscripcion) : '',
-    fecha_pago: inscripto?.fecha_pago || '',
-    comprobante_pago: inscripto?.comprobante_pago || '',
-    comprobante_file: null,
-    observacion: inscripto?.observacion || '',
   }
-}
-
-const onComprobanteFileChange = (event) => {
-  const file = event?.target?.files?.[0] || null
-  inscripcionForm.value.comprobante_file = file
-}
-
-const editarInscripcion = (item) => {
-  if (!item?.id_equipo) return
-  inscripcionForm.value = {
-    id_equipo: String(item.id_equipo),
-    id_estado_inscripcion: item?.id_estado_inscripcion ? String(item.id_estado_inscripcion) : '',
-    fecha_pago: item?.fecha_pago || '',
-    comprobante_pago: item?.comprobante_pago || '',
-    comprobante_file: null,
-    observacion: item?.observacion || '',
-  }
-  showInscripcionModal.value = true
 }
 
 const eliminarInscripcion = async (item) => {
@@ -1346,25 +2144,16 @@ const guardarInscripciones = async () => {
     return
   }
 
-  let comprobantePago = inscripcionForm.value.comprobante_pago || null
+  const yaInscripto = (detalle.value?.inscriptos || []).some(i => Number(i.id_equipo) === idEquipo)
+  if (!yaInscripto && vacantesDisponibles.value <= 0) {
+    toast.showToast({ message: 'No se pueden cargar más inscripciones: el cupo del torneo está completo.', type: 'warning' })
+    return
+  }
 
   savingInscripciones.value = true
   try {
-    if (inscripcionForm.value.comprobante_file) {
-      const formData = new FormData()
-      formData.append('comprobante', inscripcionForm.value.comprobante_file)
-      formData.append('id_torneo', String(idTorneoSeleccionado.value || ''))
-      const uploadResp = await planTorneoService.subirComprobante(formData)
-      comprobantePago = uploadResp?.comprobante_pago || comprobantePago
-    }
-
     const payload = [{
       id_equipo: idEquipo,
-      pagada: Boolean(inscripcionForm.value.fecha_pago),
-      fecha_pago: inscripcionForm.value.fecha_pago || null,
-      id_estado_inscripcion: inscripcionForm.value.id_estado_inscripcion ? Number(inscripcionForm.value.id_estado_inscripcion) : null,
-      comprobante_pago: comprobantePago ? String(comprobantePago).trim() : null,
-      observacion: inscripcionForm.value.observacion?.trim() || null,
     }]
 
     await planTorneoService.inscribirEquipos({
@@ -1380,6 +2169,44 @@ const guardarInscripciones = async () => {
     toast.showToast({ message: getApiMessage(error, 'No se pudieron guardar las inscripciones.'), type: 'danger' })
   } finally {
     savingInscripciones.value = false
+  }
+}
+
+const guardarPagoEventoEquipo = async (evento, lado) => {
+  const idEvento = Number(evento?.id || 0)
+  if (!idTorneoSeleccionado.value || !idEvento) return
+  if (lado !== 'local' && lado !== 'visitante') return
+
+  const draft = getPagoEventoDraft(idEvento, lado)
+  const key = getPagoEventoKey(idEvento, lado)
+  savingPagoEventoKeys.value = Array.from(new Set([...savingPagoEventoKeys.value, key]))
+
+  try {
+    let comprobantePago = draft.url_comprobante_pago || null
+    if (draft.comprobante_file) {
+      const formData = new FormData()
+      formData.append('comprobante', draft.comprobante_file)
+      formData.append('id_torneo', String(idTorneoSeleccionado.value || ''))
+      const uploadResp = await planTorneoService.subirComprobante(formData)
+      comprobantePago = uploadResp?.comprobante_pago || comprobantePago
+    }
+
+    await planTorneoService.actualizarPagoEventoEquipo({
+      id_torneo: Number(idTorneoSeleccionado.value),
+      id_evento: idEvento,
+      lado,
+      pago_realizado: Boolean(draft.pago_realizado),
+      url_comprobante_pago: draft.pago_realizado
+        ? (comprobantePago ? String(comprobantePago).trim() : null)
+        : null,
+    })
+
+    toast.showToast({ message: `Pago de ${lado} guardado correctamente.`, type: 'success' })
+    await cargarDetalle()
+  } catch (error) {
+    toast.showToast({ message: getApiMessage(error, 'No se pudo guardar el pago por partido.'), type: 'danger' })
+  } finally {
+    savingPagoEventoKeys.value = savingPagoEventoKeys.value.filter(item => item !== key)
   }
 }
 
@@ -1435,18 +2262,28 @@ const programarAutomatico = async () => {
   }
 }
 
+const programarSeleccionados = async () => {
+  if (!selectedProgramacionIds.value.length) {
+    toast.showToast({ message: 'Selecciona al menos un partido para programar.', type: 'warning' })
+    return
+  }
+
+  programacionForm.value.fase_programar = 'seleccionados'
+  programacionForm.value.id_eventos = selectedProgramacionIds.value.map(Number)
+  await programarAutomatico()
+  showProgramacionModal.value = false
+}
+
 const deshacerProgramacion = async () => {
   if (!idTorneoSeleccionado.value) return
 
-  const etiquetaFase =
-    programacionForm.value.fase_programar === 'zonas'
-      ? 'fase de grupos'
-      : programacionForm.value.fase_programar === 'eliminacion'
-        ? 'fase eliminatoria'
-        : 'todas las fases'
+  if (!selectedProgramacionIds.value.length) {
+    toast.showToast({ message: 'Selecciona al menos un partido para deshacer la programación.', type: 'warning' })
+    return
+  }
 
   const ok = window.confirm(
-    `Se deshará la programación de los partidos en estado Programado para ${etiquetaFase}.\n` +
+    `Se deshará la programación de ${selectedProgramacionIds.value.length} partido(s) seleccionados en estado Programado.\n` +
       'Esto limpiará fecha/hora, cancha y árbitro, y los devolverá a Programación pendiente.\n\n' +
       '¿Deseas continuar?'
   )
@@ -1456,8 +2293,8 @@ const deshacerProgramacion = async () => {
   try {
     const resp = await planTorneoService.deshacerProgramacion({
       id_torneo: idTorneoSeleccionado.value,
-      fase_programar: programacionForm.value.fase_programar,
-      id_eventos: (programacionForm.value.id_eventos || []).map(Number),
+      fase_programar: 'seleccionados',
+      id_eventos: selectedProgramacionIds.value.map(Number),
     })
 
     toast.showToast({
@@ -1465,6 +2302,8 @@ const deshacerProgramacion = async () => {
       type: 'success',
     })
 
+    selectedProgramacionIds.value = []
+    programacionForm.value.id_eventos = []
     await cargarDetalle()
   } catch (error) {
     toast.showToast({ message: getApiMessage(error, 'No se pudo deshacer la programación.'), type: 'danger' })
@@ -1473,32 +2312,11 @@ const deshacerProgramacion = async () => {
   }
 }
 
-const isEditingProgramacionEvento = (idEvento) => Number(editingProgramacionEventoId.value) === Number(idEvento)
+const guardarProgramacionEvento = async (idEvento) => {
+  if (!idTorneoSeleccionado.value || !idEvento) return
 
-const iniciarEdicionProgramacionEvento = (ev) => {
-  editingProgramacionEventoId.value = Number(ev.id)
-  editProgramacionForm.value = {
-    id_evento: Number(ev.id),
-    fecha_hora_inicio: toDateTimeLocal(ev.fecha_hora_inicio),
-    id_cancha: ev.id_cancha ? Number(ev.id_cancha) : null,
-    id_arbitro: ev.id_arbitro ? Number(ev.id_arbitro) : null,
-  }
-}
-
-const cancelarEdicionProgramacionEvento = () => {
-  editingProgramacionEventoId.value = null
-  editProgramacionForm.value = {
-    id_evento: null,
-    fecha_hora_inicio: '',
-    id_cancha: null,
-    id_arbitro: null,
-  }
-}
-
-const guardarEdicionProgramacionEvento = async () => {
-  if (!idTorneoSeleccionado.value || !editProgramacionForm.value.id_evento) return
-
-  if (!editProgramacionForm.value.fecha_hora_inicio || !editProgramacionForm.value.id_cancha || !editProgramacionForm.value.id_arbitro) {
+  const draft = getProgramacionDraft(idEvento)
+  if (!draft.fecha_hora_inicio || !draft.id_cancha || !draft.id_arbitro) {
     toast.showToast({ message: 'Debes completar fecha/hora, cancha y árbitro.', type: 'warning' })
     return
   }
@@ -1507,15 +2325,15 @@ const guardarEdicionProgramacionEvento = async () => {
   try {
     await planTorneoService.actualizarProgramacionEvento({
       id_torneo: idTorneoSeleccionado.value,
-      id_evento: Number(editProgramacionForm.value.id_evento),
-      fecha_hora_inicio: editProgramacionForm.value.fecha_hora_inicio,
-      id_cancha: Number(editProgramacionForm.value.id_cancha),
-      id_arbitro: Number(editProgramacionForm.value.id_arbitro),
+      id_evento: Number(idEvento),
+      fecha_hora_inicio: draft.fecha_hora_inicio,
+      id_cancha: Number(draft.id_cancha),
+      id_arbitro: Number(draft.id_arbitro),
       duracion_minutos: Number(programacionForm.value.duracion_minutos || 70),
     })
 
+    editingProgramacionIds.value = editingProgramacionIds.value.filter(item => item !== Number(idEvento))
     toast.showToast({ message: 'Partido actualizado correctamente.', type: 'success' })
-    cancelarEdicionProgramacionEvento()
     await cargarDetalle()
   } catch (error) {
     toast.showToast({ message: getApiMessage(error, 'No se pudo actualizar el partido.'), type: 'danger' })
@@ -1524,7 +2342,17 @@ const guardarEdicionProgramacionEvento = async () => {
   }
 }
 
-onMounted(cargarTorneos)
+onMounted(async () => {
+  await cargarTorneos()
+
+  const idTorneoDesdeQuery = Number(route.query?.id_torneo || 0)
+  if (idTorneoDesdeQuery > 0) {
+    const existeEnListado = torneos.value.some(t => Number(t.id) === idTorneoDesdeQuery)
+    if (existeEnListado) {
+      await cargarDetalle(idTorneoDesdeQuery)
+    }
+  }
+})
 </script>
 
 <style scoped>
@@ -1545,6 +2373,17 @@ onMounted(cargarTorneos)
 .torneo-tab.active {
   color: #0f172a;
   background: #f1f5f9;
+}
+
+.asignaciones-subtabs .nav-link {
+  border-radius: 999px;
+  color: #475569;
+  font-weight: 600;
+}
+
+.asignaciones-subtabs .nav-link.active {
+  background: #0ea5e9;
+  color: #fff;
 }
 
 .resumen-box {
@@ -1651,6 +2490,13 @@ onMounted(cargarTorneos)
   background: #fff;
 }
 
+.pago-lado-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
 .escudo-thumb {
   width: 24px;
   height: 24px;
@@ -1717,6 +2563,9 @@ onMounted(cargarTorneos)
   padding: 12px;
   background: #fff;
   transition: all 0.2s ease;
+  width: 100%;
+  min-height: 110px;
+  text-align: left;
 }
 
 .torneo-card:hover {
@@ -1728,5 +2577,148 @@ onMounted(cargarTorneos)
   border-color: #0ea5e9;
   box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.12);
   background: #f0f9ff;
+}
+
+.torneo-card-create {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.torneo-card-create:hover {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.torneo-card-create-icon {
+  font-size: 2rem;
+  color: #64748b;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.torneo-card-create:hover .torneo-card-create-icon {
+  color: #2563eb;
+  transform: scale(1.08);
+}
+
+.programacion-row-selected {
+  background: #eff6ff;
+}
+
+.cruce-bracket-box {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.cruce-bracket-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 6px;
+}
+
+.cruce-bracket-grid {
+  --round-count: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--round-count), minmax(220px, 1fr));
+  gap: 22px;
+  min-width: calc(var(--round-count) * 220px + (var(--round-count) - 1) * 22px);
+}
+
+.cruce-round-column {
+  position: relative;
+}
+
+.cruce-round-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cruce-round-track {
+  position: relative;
+}
+
+.cruce-match-wrapper {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+.cruce-match-card {
+  background: #fff;
+  border: 1px solid #dbe1ea;
+  border-radius: 12px;
+  padding: 8px;
+  display: grid;
+  gap: 4px;
+  position: relative;
+  min-height: 84px;
+}
+
+.cruce-match-card.has-next::after,
+.cruce-match-card.has-prev::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  border-top: 2px solid #cbd5e1;
+}
+
+.cruce-match-card.has-next::after {
+  right: -14px;
+}
+
+.cruce-match-card.has-prev::before {
+  left: -14px;
+}
+
+.cruce-round-merge {
+  position: absolute;
+  right: -11px;
+  width: 11px;
+  border-right: 2px solid #cbd5e1;
+  border-bottom: 2px solid #cbd5e1;
+}
+
+.cruce-team-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cruce-team-line .team-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.88rem;
+}
+
+.cruce-score-pill {
+  justify-self: end;
+  font-size: 0.78rem;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .cruce-bracket-grid {
+    gap: 14px;
+    grid-template-columns: repeat(var(--round-count), minmax(190px, 1fr));
+    min-width: calc(var(--round-count) * 190px + (var(--round-count) - 1) * 14px);
+  }
 }
 </style>

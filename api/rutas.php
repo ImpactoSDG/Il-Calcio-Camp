@@ -518,6 +518,12 @@ switch ($resource) {
             $planTorneoController->deshacerProgramacionEventos();
         } elseif ($method === 'POST' && $id === 'asignar-equipos') {
             $planTorneoController->asignarEquipos();
+        } elseif ($method === 'POST' && $id === 'asignar-cruces') {
+            $planTorneoController->asignarEquiposCruces();
+        } elseif ($method === 'POST' && $id === 'actualizar-asignacion-cruce') {
+            $planTorneoController->actualizarAsignacionCruce();
+        } elseif ($method === 'POST' && $id === 'actualizar-pago-evento-equipo') {
+            $planTorneoController->actualizarPagoEventoEquipo();
         } elseif ($method === 'POST' && $id === 'eliminar-asignaciones') {
             $planTorneoController->eliminarAsignaciones();
         } elseif ($method === 'POST') {

@@ -184,109 +184,53 @@
                 <h3 class="section-title mb-0">Llave eliminatoria</h3>
               </div>
               <div v-if="!llave.length" class="empty-state">No hay cruces para mostrar.</div>
-              <div v-else class="bracket-wrap">
-                <div class="bracket-board">
-                  <div class="bracket-side bracket-side-left">
-                    <section class="bracket-round" v-for="(ronda, rIdx) in llaveEstructura.izquierda" :key="`left-${ronda.round}-${rIdx}`">
+              <div v-else class="rt-bracket-box">
+                <div class="rt-bracket-scroll">
+                  <div class="rt-bracket-grid" :style="{ '--round-count': Math.max(1, llaveRondas.length) }">
+                    <section v-for="(ronda, roundIndex) in llaveRondas" :key="`${ronda.nombre}-${roundIndex}`" class="rt-round-column">
                       <div class="round-title">{{ ronda.nombre }}</div>
-                      <div class="round-matches" :style="getBracketRoundStyle(ronda.depth)">
-                        <article
-                          class="bracket-match-literal bml-left"
-                          v-for="(match, mIdx) in ronda.partidos"
-                          :key="match?.id_cruce || `left-${rIdx}-${mIdx}`"
-                          :class="{ 'is-placeholder': !match }"
-                          @click="match ? abrirDetalleLlave(match, ronda.nombre) : null"
-                          @keyup.enter="match ? abrirDetalleLlave(match, ronda.nombre) : null"
-                          :tabindex="match ? 0 : -1"
-                          :role="match ? 'button' : undefined"
-                          :title="match ? 'Ver detalle del partido' : undefined"
-                        >
-                          <template v-if="match">
-                            <div class="team-line team-line-left" :class="{ winner: ganadorLocal(match) }">
-                              <img v-if="match.equipo_local?.escudo" :src="resolveEscudoUrl(match.equipo_local.escudo)" alt="escudo local" class="escudo escudo-mini" />
-                              <span class="team-line-name">{{ match.equipo_local?.nombre || 'Por definir' }}</span>
-                              <span class="team-line-score">{{ safeNum(match.equipo_local?.resultado) }}</span>
-                            </div>
-                            <div class="team-line team-line-left" :class="{ winner: ganadorVisitante(match) }">
-                              <img v-if="match.equipo_visitante?.escudo" :src="resolveEscudoUrl(match.equipo_visitante.escudo)" alt="escudo visitante" class="escudo escudo-mini" />
-                              <span class="team-line-name">{{ match.equipo_visitante?.nombre || 'Por definir' }}</span>
-                              <span class="team-line-score">{{ safeNum(match.equipo_visitante?.resultado) }}</span>
-                            </div>
-                          </template>
-                          <template v-else>
-                            <div class="match-placeholder">Cruce por definir</div>
-                          </template>
-                        </article>
-                      </div>
-                    </section>
-                  </div>
 
-                  <div class="bracket-center">
-                    <section class="bracket-round bracket-round-final">
-                      <div class="round-title text-center">{{ llaveEstructura.final.nombre }}</div>
-                      <div class="round-matches final-matches" :style="finalRoundStyle">
+                      <div class="rt-round-track" :style="getLlaveRoundTrackStyle(roundIndex, ronda.partidos.length)">
                         <article
-                          class="bracket-match-literal bml-final"
-                          v-for="(match, mIdx) in llaveEstructura.final.partidos"
-                          :key="match?.id_cruce || `final-${mIdx}`"
-                          :class="{ 'is-placeholder': !match }"
-                          @click="match ? abrirDetalleLlave(match, llaveEstructura.final.nombre) : null"
-                          @keyup.enter="match ? abrirDetalleLlave(match, llaveEstructura.final.nombre) : null"
-                          :tabindex="match ? 0 : -1"
-                          :role="match ? 'button' : undefined"
-                          :title="match ? 'Ver detalle del partido' : undefined"
+                          v-for="(match, matchIndex) in ronda.partidos"
+                          :key="match.id_cruce || `llave-${roundIndex}-${matchIndex}`"
+                          class="rt-match-wrap"
+                          :style="getLlaveMatchStyle(roundIndex, matchIndex)"
                         >
-                          <template v-if="match">
-                            <div class="team-line team-line-center" :class="{ winner: ganadorLocal(match) }">
+                          <div
+                            class="rt-match-card"
+                            :class="{ 'has-next': roundIndex < llaveRondas.length - 1, 'has-prev': roundIndex > 0 }"
+                            @click="abrirDetalleLlave(match, ronda.nombre)"
+                            @keyup.enter="abrirDetalleLlave(match, ronda.nombre)"
+                            tabindex="0"
+                            role="button"
+                            title="Ver detalle del partido"
+                          >
+                            <div class="rt-team-line" :class="{ winner: ganadorLocal(match) }">
                               <img v-if="match.equipo_local?.escudo" :src="resolveEscudoUrl(match.equipo_local.escudo)" alt="escudo local" class="escudo escudo-mini" />
-                              <span class="team-line-name">{{ match.equipo_local?.nombre || 'Por definir' }}</span>
-                              <span class="team-line-score">{{ safeNum(match.equipo_local?.resultado) }}</span>
+                              <span v-else class="escudo-fallback"><i class="bi bi-shield"></i></span>
+                              <span class="rt-team-name">{{ match.equipo_local?.nombre || 'Por definir' }}</span>
                             </div>
-                            <div class="team-line team-line-center" :class="{ winner: ganadorVisitante(match) }">
-                              <img v-if="match.equipo_visitante?.escudo" :src="resolveEscudoUrl(match.equipo_visitante.escudo)" alt="escudo visitante" class="escudo escudo-mini" />
-                              <span class="team-line-name">{{ match.equipo_visitante?.nombre || 'Por definir' }}</span>
-                              <span class="team-line-score">{{ safeNum(match.equipo_visitante?.resultado) }}</span>
-                            </div>
-                          </template>
-                          <template v-else>
-                            <div class="match-placeholder">Final pendiente</div>
-                          </template>
-                        </article>
-                      </div>
-                    </section>
-                  </div>
 
-                  <div class="bracket-side bracket-side-right">
-                    <section class="bracket-round" v-for="(ronda, rIdx) in rondasDerechaRender" :key="`right-${ronda.round}-${rIdx}`">
-                      <div class="round-title text-end">{{ ronda.nombre }}</div>
-                      <div class="round-matches" :style="getBracketRoundStyle(ronda.depth)">
-                        <article
-                          class="bracket-match-literal bml-right"
-                          v-for="(match, mIdx) in ronda.partidos"
-                          :key="match?.id_cruce || `right-${rIdx}-${mIdx}`"
-                          :class="{ 'is-placeholder': !match }"
-                          @click="match ? abrirDetalleLlave(match, ronda.nombre) : null"
-                          @keyup.enter="match ? abrirDetalleLlave(match, ronda.nombre) : null"
-                          :tabindex="match ? 0 : -1"
-                          :role="match ? 'button' : undefined"
-                          :title="match ? 'Ver detalle del partido' : undefined"
-                        >
-                          <template v-if="match">
-                            <div class="team-line team-line-right" :class="{ winner: ganadorLocal(match) }">
-                              <span class="team-line-score">{{ safeNum(match.equipo_local?.resultado) }}</span>
-                              <span class="team-line-name">{{ match.equipo_local?.nombre || 'Por definir' }}</span>
-                              <img v-if="match.equipo_local?.escudo" :src="resolveEscudoUrl(match.equipo_local.escudo)" alt="escudo local" class="escudo escudo-mini" />
-                            </div>
-                            <div class="team-line team-line-right" :class="{ winner: ganadorVisitante(match) }">
-                              <span class="team-line-score">{{ safeNum(match.equipo_visitante?.resultado) }}</span>
-                              <span class="team-line-name">{{ match.equipo_visitante?.nombre || 'Por definir' }}</span>
+                            <div class="rt-team-line" :class="{ winner: ganadorVisitante(match) }">
                               <img v-if="match.equipo_visitante?.escudo" :src="resolveEscudoUrl(match.equipo_visitante.escudo)" alt="escudo visitante" class="escudo escudo-mini" />
+                              <span v-else class="escudo-fallback"><i class="bi bi-shield"></i></span>
+                              <span class="rt-team-name">{{ match.equipo_visitante?.nombre || 'Por definir' }}</span>
                             </div>
-                          </template>
-                          <template v-else>
-                            <div class="match-placeholder">Cruce por definir</div>
-                          </template>
+
+                            <div v-if="tieneResultado(match)" class="rt-score-pill">
+                              {{ safeNum(match.equipo_local?.resultado) }} - {{ safeNum(match.equipo_visitante?.resultado) }}
+                            </div>
+                          </div>
                         </article>
+
+                        <div
+                          v-if="roundIndex < llaveRondas.length - 1"
+                          v-for="pairIndex in Math.floor(ronda.partidos.length / 2)"
+                          :key="`llave-merge-${roundIndex}-${pairIndex}`"
+                          class="rt-round-merge"
+                          :style="getLlaveMergeStyle(roundIndex, pairIndex - 1)"
+                        ></div>
                       </div>
                     </section>
                   </div>
@@ -407,6 +351,9 @@ const showDetalleModal = ref(false)
 const eventosPartidoDetalle = ref([])
 const loadingEventosPartido = ref(false)
 
+const LLAVE_CARD_HEIGHT = 86
+const LLAVE_BASE_SLOT = 118
+
 const normalizeRoundName = (nombre, idx, totalRounds) => {
   const raw = String(nombre || '').trim()
   if (raw && !/^Ronda\s+\d+$/i.test(raw)) return raw
@@ -422,83 +369,47 @@ const normalizeRoundName = (nombre, idx, totalRounds) => {
 const sortMatches = (partidos) => [...(Array.isArray(partidos) ? partidos : [])]
   .sort((a, b) => Number(a?.orden || 0) - Number(b?.orden || 0) || Number(a?.id_cruce || 0) - Number(b?.id_cruce || 0))
 
-const fillMatchSlots = (matches, expected) => {
-  const slots = Math.max(expected, matches.length)
-  const out = new Array(slots).fill(null)
-  matches.forEach((m, idx) => {
-    if (idx < slots) out[idx] = m
-  })
-  return out
-}
-
-const llaveEstructura = computed(() => {
+const llaveRondas = computed(() => {
   const rounds = [...llave.value]
     .sort((a, b) => Number(a?.round || 0) - Number(b?.round || 0))
-    .map(r => ({
+    .map((r, idx, arr) => ({
       ...r,
+      nombre: normalizeRoundName(r.nombre, idx, arr.length),
       partidos: sortMatches(r.partidos),
     }))
 
-  if (!rounds.length) {
-    return {
-      izquierda: [],
-      derecha: [],
-      final: { nombre: 'Final', partidos: [] },
-    }
-  }
-
-  const totalRounds = rounds.length
-
-  const expectedByRound = rounds.map((r, idx) => {
-    const basedOnPower = Math.max(1, Math.pow(2, Math.max(0, totalRounds - idx - 1)))
-    return Math.max(basedOnPower, r.partidos.length)
-  })
-
-  const nonFinalRounds = rounds.slice(0, -1).map((r, idx) => {
-    const expected = expectedByRound[idx]
-    const leftCount = Math.max(1, Math.floor(expected / 2))
-    const rightCount = Math.max(1, expected - leftCount)
-    const leftMatches = r.partidos.slice(0, leftCount)
-    const rightMatches = [...r.partidos.slice(Math.max(0, r.partidos.length - rightCount))].reverse()
-
-    return {
-      round: r.round,
-      nombre: normalizeRoundName(r.nombre, idx, totalRounds),
-      izquierda: fillMatchSlots(leftMatches, leftCount),
-      derecha: fillMatchSlots(rightMatches, rightCount),
-    }
-  })
-
-  const finalRound = rounds[totalRounds - 1]
-  const finalExpected = Math.max(1, expectedByRound[totalRounds - 1])
-
-  return {
-    izquierda: nonFinalRounds.map((r, idx) => ({ round: r.round, nombre: r.nombre, partidos: r.izquierda, depth: idx })),
-    derecha: nonFinalRounds.map((r, idx) => ({ round: r.round, nombre: r.nombre, partidos: r.derecha, depth: idx })),
-    final: {
-      nombre: normalizeRoundName(finalRound.nombre, totalRounds - 1, totalRounds),
-      partidos: fillMatchSlots(finalRound.partidos, finalExpected),
-    },
-  }
+  return rounds.filter(r => Array.isArray(r.partidos) && r.partidos.length)
 })
 
-const rondasDerechaRender = computed(() => [...llaveEstructura.value.derecha].reverse())
-
-const getBracketRoundStyle = (roundIdx) => {
-  const baseUnit = 20
-  const marginTop = Math.max(0, (Math.pow(2, roundIdx) - 1) * baseUnit)
-  const gap = Math.max(12, (Math.pow(2, roundIdx + 1) - 1) * baseUnit)
+const getLlaveRoundTrackStyle = (roundIndex, matchCount) => {
+  const slot = LLAVE_BASE_SLOT * (2 ** roundIndex)
   return {
-    marginTop: `${marginTop}px`,
-    rowGap: `${gap}px`,
+    height: `${slot * matchCount}px`,
   }
 }
 
-const finalRoundStyle = computed(() => {
-  const finalDepth = llaveEstructura.value.izquierda.length
-  const { marginTop } = getBracketRoundStyle(finalDepth)
-  return { marginTop }
-})
+const getLlaveMatchStyle = (roundIndex, matchIndex) => {
+  const slot = LLAVE_BASE_SLOT * (2 ** roundIndex)
+  const top = (slot / 2) - (LLAVE_CARD_HEIGHT / 2) + (matchIndex * slot)
+  return {
+    top: `${top}px`,
+  }
+}
+
+const getLlaveMergeStyle = (roundIndex, pairIndex) => {
+  const slot = LLAVE_BASE_SLOT * (2 ** roundIndex)
+  const top = (slot / 2) + (pairIndex * 2 * slot)
+  return {
+    top: `${top}px`,
+    height: `${slot}px`,
+  }
+}
+
+const tieneResultado = (match) =>
+  match?.equipo_local?.resultado !== null
+  && match?.equipo_local?.resultado !== undefined
+  && match?.equipo_visitante?.resultado !== null
+  && match?.equipo_visitante?.resultado !== undefined
 
 const getApiMessage = (error, fallback) => error?.response?.data?.message || fallback
 
@@ -1057,6 +968,128 @@ onMounted(() => {
   font-size: 0.78rem;
 }
 
+.rt-bracket-box {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 0.8rem;
+}
+
+.rt-bracket-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.35rem;
+}
+
+.rt-bracket-grid {
+  --round-count: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--round-count), minmax(220px, 1fr));
+  gap: 22px;
+  min-width: calc(var(--round-count) * 220px + (var(--round-count) - 1) * 22px);
+}
+
+.rt-round-column {
+  position: relative;
+}
+
+.rt-round-track {
+  position: relative;
+}
+
+.rt-match-wrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+.rt-match-card {
+  background: #fefefe;
+  border: 1px solid #dbe1ea;
+  border-radius: 12px;
+  padding: 8px;
+  min-height: 84px;
+  display: grid;
+  gap: 4px;
+  position: relative;
+}
+
+.rt-match-card[role='button'] {
+  cursor: pointer;
+}
+
+.rt-match-card[role='button']:hover,
+.rt-match-card[role='button']:focus-visible {
+  outline: none;
+  border-color: #91b6cf;
+  box-shadow: 0 0 0 2px rgba(33, 98, 150, 0.12);
+}
+
+.rt-match-card.has-next::after,
+.rt-match-card.has-prev::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  border-top: 2px solid #d5e2ea;
+}
+
+.rt-match-card.has-next::after {
+  right: -14px;
+}
+
+.rt-match-card.has-prev::before {
+  left: -14px;
+}
+
+.rt-round-merge {
+  position: absolute;
+  right: -11px;
+  width: 11px;
+  border-right: 2px solid #d5e2ea;
+  border-bottom: 2px solid #d5e2ea;
+}
+
+.rt-team-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 24px;
+}
+
+.rt-team-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.escudo-fallback {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid #d4e0e6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #9aaab5;
+  background: #f5f8fa;
+  font-size: 0.76rem;
+  flex-shrink: 0;
+}
+
+.rt-score-pill {
+  justify-self: end;
+  font-size: 0.78rem;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-weight: 700;
+}
+
 .bracket-wrap {
   overflow-x: auto;
   padding-bottom: 0.45rem;
@@ -1330,8 +1363,10 @@ onMounted(() => {
     font-size: 1.25rem;
   }
 
-  .bracket-board {
-    min-width: 980px;
+  .rt-bracket-grid {
+    gap: 14px;
+    grid-template-columns: repeat(var(--round-count), minmax(190px, 1fr));
+    min-width: calc(var(--round-count) * 190px + (var(--round-count) - 1) * 14px);
   }
 }
 </style>
