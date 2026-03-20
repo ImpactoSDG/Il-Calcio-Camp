@@ -47,7 +47,8 @@
             @dragover.prevent="onDragOver($event, categoria, index)"
             @dragleave="onDragLeave"
             @drop.stop="onDrop($event, categoria, index)"
-            :class="{ 'drag-over': dragOver.categoria === categoria && dragOver.index === index }"
+            @dragend="onDragEnd"
+            :class="{ 'drag-over': dragOver.categoria === categoria && dragOver.index === index, 'is-dragging': draggingKey === `${categoria}-${index}` }"
           >
             <div class="drag-handle">
               <i class="bi bi-grip-vertical"></i>
@@ -71,13 +72,16 @@
       <div v-for="(modulos, categoria) in menuEstructurado" :key="categoria" class="category-section mb-5">
 
         <div class="category-header d-flex align-items-center gap-3 mb-4">
-          <h3 class="category-title mb-0">{{ categoria.toUpperCase() }}</h3>
+          <h3 class="category-title mb-0" :class="{ 'favoritos-title': categoria === 'FAVORITOS' }">
+            <i v-if="categoria === 'FAVORITOS'" class="bi bi-star-fill me-2" style="color:#ffc107;font-size:1rem;"></i>
+            {{ categoria.toUpperCase() }}
+          </h3>
           <div class="category-line flex-grow-1"></div>
         </div>
 
-        <div class="card-grid">
+        <div class="card-grid" :class="{ 'card-grid--favoritos': categoria === 'FAVORITOS' }">
           <template v-for="modulo in modulos" :key="modulo.id">
-            <div class="action-card-wrapper position-relative">
+            <div class="action-card-wrapper position-relative" :class="{ 'favorito-wrapper': categoria === 'FAVORITOS' }">
               <button
                 @click.stop.prevent="toggleFavorito(modulo)"
                 class="favorite-btn"
@@ -191,6 +195,7 @@ const modulosOrdenables = ref({});
 // Estado temporal para el drag
 const dragInfo = ref({ categoria: null, fromIndex: null });
 const dragOver = ref({ categoria: null, index: null });
+const draggingKey = ref(null); // '{categoria}-{index}'
 
 function iniciarOrden() {
   // Copia mutable del menú (sin FAVORITOS, ya que es una vista derivada)
@@ -209,6 +214,7 @@ function cancelarOrden() {
   modulosOrdenables.value = {};
   dragInfo.value = { categoria: null, fromIndex: null };
   dragOver.value = { categoria: null, index: null };
+  draggingKey.value = null;
 }
 
 async function guardarOrden() {
@@ -234,6 +240,23 @@ async function guardarOrden() {
 function onDragStart(event, categoria, index) {
   dragInfo.value = { categoria, fromIndex: index };
   event.dataTransfer.effectAllowed = 'move';
+
+  // Usar solo la tarjeta interior como ghost para evitar capturar contenido extra
+  const cardEl = event.currentTarget.querySelector('.action-card');
+  const ghost = cardEl.cloneNode(true);
+  ghost.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${cardEl.offsetWidth}px;height:${cardEl.offsetHeight}px;pointer-events:none;opacity:0.9;border-radius:12px;`;
+  document.body.appendChild(ghost);
+  event.dataTransfer.setDragImage(ghost, cardEl.offsetWidth / 2, cardEl.offsetHeight / 2);
+
+  setTimeout(() => {
+    document.body.removeChild(ghost);
+    draggingKey.value = `${categoria}-${index}`;
+  }, 0);
+}
+
+function onDragEnd() {
+  draggingKey.value = null;
+  dragOver.value = { categoria: null, index: null };
 }
 
 function onDragOver(event, categoria, index) {
@@ -257,6 +280,7 @@ function onDrop(event, categoria, toIndex) {
   mods.splice(toIndex, 0, moved);
 
   dragInfo.value = { categoria: null, fromIndex: null };
+  draggingKey.value = null;
 }
 </script>
 
@@ -343,5 +367,41 @@ function onDrop(event, categoria, toIndex) {
   font-size: 0.85rem;
   box-shadow: 0 1px 3px rgba(0,0,0,0.15);
   pointer-events: none;
+}
+
+.is-dragging {
+  opacity: 0;
+}
+
+/* ── FAVORITOS ──────────────────────────────────────────────────── */
+.favoritos-title {
+  color: #b8860b;
+}
+
+.card-grid--favoritos {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1rem;
+}
+
+.favorito-wrapper :deep(.action-card) {
+  background-color: #fffbee;
+  border-color: #fde68a;
+  padding: 1.4rem 1rem;
+}
+
+.favorito-wrapper :deep(.action-card:hover) {
+  background-color: #fff8d6;
+  border-color: #ffc107;
+}
+
+.favorito-wrapper :deep(.icon-container) {
+  width: 48px;
+  height: 48px;
+  font-size: 1.5rem;
+  margin-bottom: 0.9rem;
+}
+
+.favorito-wrapper :deep(.card-label) {
+  font-size: 0.8rem;
 }
 </style>

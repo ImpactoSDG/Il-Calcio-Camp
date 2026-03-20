@@ -200,7 +200,7 @@
 
     <!-- ── Modal: Actualización masiva de precios ── -->
     <Teleport to="body">
-      <div v-if="showBulkModal" class="modal-backdrop-custom" @click.self="closeBulkModal">
+      <div v-if="showBulkModal" class="modal-backdrop-custom">
         <div class="modal-panel modal-panel--bulk animate-modal-in">
           <div class="modal-panel__header modal-panel__header--bulk">
             <div class="d-flex align-items-center gap-3">
@@ -300,7 +300,7 @@
 
     <!-- ── Modal: Formulario artículo ── -->
     <Teleport to="body">
-      <div v-if="showFormModal" class="modal-backdrop-custom modal-backdrop-custom--scrollable" @click.self="showFormModal = false">
+      <div v-if="showFormModal" class="modal-backdrop-custom modal-backdrop-custom--scrollable">
         <div class="modal-panel animate-modal-in my-4">
           <div class="modal-panel__header">
             <div class="d-flex align-items-center gap-3">

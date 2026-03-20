@@ -233,7 +233,6 @@
       class="modal fade show d-block"
       tabindex="-1"
       style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);"
-      @click.self="showDetalle = false"
     >
       <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content">

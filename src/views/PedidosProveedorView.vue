@@ -103,7 +103,7 @@
 
     <!-- ============ MODAL CREAR / EDITAR ============ -->
     <Teleport to="body">
-      <div v-if="showFormModal" class="modal-fullscreen-container animate-fade-in" @click.self="showFormModal = false">
+      <div v-if="showFormModal" class="modal-fullscreen-container animate-fade-in">
         <div class="modal-fullscreen-content shadow-2xl overflow-hidden d-flex flex-column">
           <!-- Header Minimalista -->
           <div class="modal-header border-0 bg-white p-4 pb-0 d-flex align-items-center justify-content-between flex-shrink-0">

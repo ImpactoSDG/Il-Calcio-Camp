@@ -177,7 +177,7 @@
                   <CustomNumberInput v-model="form.cantidad" placeholder="0" :decimals="2" required @update:modelValue="recalculateFromQuantity" />
                 </div>
                 <div class="col-md-4">
-                  <label class="form-label">Precio Unitario ($) <span class="text-danger">*</span></label>
+                  <label class="form-label">Costo Unitario ($) <span class="text-danger">*</span></label>
                   <CustomNumberInput v-model="form.precio_unitario" placeholder="0.00" :decimals="2" required @update:modelValue="recalculateFromUnit" />
                 </div>
                 <div class="col-md-4">
@@ -303,8 +303,8 @@ const originalForm = ref({});
 const onArticuloChange = () => {
   const art = articulos.value.find(a => a.id === form.value.id_articulo);
   if (art) {
-    // Al seleccionar el artículo, completamos con el precio_actual (precio de venta)
-    form.value.precio_unitario = Number(art.precio_actual) || 0;
+    // Al seleccionar el artículo, completamos con el costo_actual (precio de costo)
+    form.value.precio_unitario = Number(art.costo_actual) || 0;
     recalculateFromUnit();
   }
 };

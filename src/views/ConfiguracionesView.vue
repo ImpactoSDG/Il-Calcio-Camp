@@ -9,12 +9,24 @@
         <h1 class="h5 fw-bold mb-0 text-secondary">CONFIGURACIONES</h1>
       </div>
       
-      <div class="d-flex gap-2">
-        <button @click="openModal()" class="btn-primary-modern d-flex align-items-center">
-          <i class="bi bi-plus-circle-fill fs-6 me-2"></i> Nueva
-        </button>
-      </div>
     </div>
+
+    <!-- ── ACORDEÓN: PARÁMETROS GLOBALES ──────────────────────── -->
+    <div class="accordion-section">
+      <button class="accordion-header" @click="toggleAccordion('parametros')">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-sliders fs-5 text-secondary"></i>
+          <span>PARÁMETROS GLOBALES</span>
+          <span v-if="configs.length" class="badge bg-secondary-subtle text-secondary fw-bold ms-1">{{ configs.length }}</span>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+          <button v-if="accordion.parametros" @click.stop="openModal()" class="btn-primary-modern d-flex align-items-center py-1 px-3">
+            <i class="bi bi-plus-circle-fill fs-6 me-2"></i> Nueva
+          </button>
+          <i class="bi accordion-chevron" :class="accordion.parametros ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+        </div>
+      </button>
+      <div v-show="accordion.parametros" class="accordion-body">
 
     <div class="card shadow-sm border-0 rounded-lg overflow-hidden position-relative" :style="{ minHeight: loading ? '300px' : 'auto' }">
       
@@ -59,6 +71,9 @@
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
       </div>
     </div>
 
@@ -120,17 +135,22 @@
 
     <ToastNotification />
 
-    <!-- ── SECCIÓN IMPRESORAS TIQUETERA (CRUD) ──────────────────────── -->
-    <div class="mt-5 pt-4 border-top">
-      <div class="d-flex justify-content-between align-items-center mb-3">
+    <!-- ── ACORDEÓN: IMPRESORAS TIQUETERA ──────────────────────── -->
+    <div class="accordion-section mt-3">
+      <button class="accordion-header" @click="toggleAccordion('impresoras')">
         <div class="d-flex align-items-center gap-2">
-          <i class="bi bi-printer-fill fs-4 text-secondary"></i>
-          <h2 class="h5 fw-bold mb-0 text-secondary">IMPRESORAS TIQUETERA</h2>
+          <i class="bi bi-printer-fill fs-5 text-secondary"></i>
+          <span>IMPRESORAS TIQUETERA</span>
+          <span v-if="impresoras.length" class="badge bg-secondary-subtle text-secondary fw-bold ms-1">{{ impresoras.length }}</span>
         </div>
-        <button @click="openImpresoraModal()" class="btn-primary-modern d-flex align-items-center">
-          <i class="bi bi-plus-circle-fill fs-6 me-2"></i> Nueva
-        </button>
-      </div>
+        <div class="d-flex align-items-center gap-3">
+          <button v-if="accordion.impresoras" @click.stop="openImpresoraModal()" class="btn-primary-modern d-flex align-items-center py-1 px-3">
+            <i class="bi bi-plus-circle-fill fs-6 me-2"></i> Nueva
+          </button>
+          <i class="bi accordion-chevron" :class="accordion.impresoras ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+        </div>
+      </button>
+      <div v-show="accordion.impresoras" class="accordion-body">
 
       <div class="card shadow-sm border-0 rounded-lg overflow-hidden position-relative" :style="{ minHeight: loadingImpresoras ? '200px' : 'auto' }">
         <div v-if="loadingImpresoras" class="loading-overlay-local d-flex flex-column align-items-center justify-content-center">
@@ -182,6 +202,7 @@
             </tbody>
           </table>
         </div>
+      </div>
       </div>
     </div>
 
@@ -286,12 +307,98 @@
       @confirm="handleDeleteImpresora"
     />
 
-    <!-- ── SECCIÓN CERTIFICADOS QZ TRAY ─────────────────────────── -->
-    <div class="mt-5 pt-4 border-top">
-      <div class="d-flex align-items-center gap-2 mb-3">
-        <i class="bi bi-shield-lock-fill fs-4 text-secondary"></i>
-        <h2 class="h5 fw-bold mb-0 text-secondary">CERTIFICADOS QZ TRAY</h2>
+    <!-- ── ACORDEÓN: IMPRESORA DE ESTA MÁQUINA ──────────────────────── -->
+    <div class="accordion-section">
+      <button class="accordion-header" @click="toggleAccordion('maquina')">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-laptop fs-5 text-secondary"></i>
+          <span>IMPRESORA DE ESTA MÁQUINA</span>
+          <span v-if="machinePreferredPrinterRef" class="badge bg-success-subtle text-success fw-bold ms-1">
+            <i class="bi bi-check-circle-fill me-1"></i>{{ machinePreferredPrinterRef.nombre }}
+          </span>
+          <span v-else class="badge bg-secondary-subtle text-secondary fw-bold ms-1">Usando global</span>
+        </div>
+        <i class="bi accordion-chevron" :class="accordion.maquina ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+      </button>
+      <div v-show="accordion.maquina" class="accordion-body">
+
+      <div class="alert alert-light border d-flex align-items-center gap-3 mb-3">
+        <i class="bi bi-pc-display fs-4 text-secondary flex-shrink-0"></i>
+        <div class="flex-grow-1">
+          <div class="small text-muted mb-1">Máquina: <code>{{ thisMachineId }}</code></div>
+          <div v-if="machinePreferredPrinterRef" class="fw-semibold">
+            <i class="bi bi-printer-fill text-success me-1"></i>
+            {{ machinePreferredPrinterRef.nombre }}
+          </div>
+          <div v-else class="text-muted small">Sin impresora asignada — se usa el predeterminado global</div>
+        </div>
+        <span v-if="machinePreferredPrinterRef" class="badge bg-success d-flex align-items-center gap-1 flex-shrink-0">
+          <i class="bi bi-check-circle-fill"></i> Configurada
+        </span>
+        <span v-else class="badge bg-secondary d-flex align-items-center gap-1 flex-shrink-0">
+          <i class="bi bi-arrow-repeat"></i> Usando global
+        </span>
       </div>
+
+      <div class="card shadow-sm border-0 rounded-lg">
+        <div class="card-header bg-light py-2 px-4 fw-semibold text-secondary small text-uppercase">
+          Asignar impresora a esta máquina
+        </div>
+        <div class="card-body px-4 py-3">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-8">
+              <label class="form-label fw-semibold">Seleccionar impresora</label>
+              <select v-model="selectedPrinterForMachine" class="form-select">
+                <option :value="null" disabled>-- Elegí una impresora --</option>
+                <option v-for="imp in impresoras" :key="imp.id" :value="imp">
+                  {{ imp.nombre }}{{ imp.es_default == 1 ? '  ★ (Predeterminado global)' : '' }}
+                </option>
+              </select>
+            </div>
+            <div class="col-md-4 d-flex gap-2">
+              <button
+                class="btn btn-primary-modern flex-grow-1"
+                :disabled="!selectedPrinterForMachine"
+                @click="assignPrinterToMachine"
+              >
+                <i class="bi bi-save me-2"></i>Asignar
+              </button>
+              <button
+                v-if="machinePreferredPrinterRef"
+                class="btn btn-outline-danger px-3"
+                title="Eliminar preferencia y volver al global"
+                @click="removeMachinePreference"
+              >
+                <i class="bi bi-x-circle"></i>
+              </button>
+            </div>
+          </div>
+          <div class="form-text mt-2">
+            Esta selección se guarda en este navegador y tiene prioridad sobre el predeterminado global.
+            Útil cuando cada PC usa una impresora diferente.
+          </div>
+        </div>
+      </div>
+
+      </div>
+    </div>
+
+    <!-- ── ACORDEÓN: CERTIFICADOS QZ TRAY ─────────────────────────── -->
+    <div class="accordion-section">
+      <button class="accordion-header" @click="toggleAccordion('certificados')">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-shield-lock-fill fs-5 text-secondary"></i>
+          <span>CERTIFICADOS QZ TRAY</span>
+          <span v-if="thisMachineCert" class="badge bg-success-subtle text-success fw-bold ms-1">
+            <i class="bi bi-check-circle-fill me-1"></i>Certificado registrado
+          </span>
+          <span v-else class="badge bg-warning-subtle text-warning fw-bold ms-1">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>Sin certificado
+          </span>
+        </div>
+        <i class="bi accordion-chevron" :class="accordion.certificados ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+      </button>
+      <div v-show="accordion.certificados" class="accordion-body">
 
       <!-- ID de esta máquina -->
       <div class="alert alert-light border d-flex align-items-center gap-3 mb-4">
@@ -436,6 +543,8 @@
           </table>
         </div>
       </div>
+
+      </div>
     </div>
 
     <ConfirmModal
@@ -452,7 +561,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, reactive } from 'vue';
 import configuracionService from '@/services/configuracionService';
 import impresoraTiqueteraService from '@/services/impresoraTiqueteraService';
 import qzCertificadoService from '@/services/qzCertificadoService';
@@ -464,12 +573,22 @@ import {
   setupQzSecurity, resetQzSecurity, listarImpresoras,
   savePrinterName, saveCutCmd, saveFeedLines, syncLocalStorage,
   getMachineId, saveMachineId,
+  getMachinePreferredPrinter, saveMachinePreferredPrinter, clearMachinePreferredPrinter,
   CUT_VARIANTS,
 } from '@/composables/usePrinterConfig';
 
 const toast = useToastStore();
 
 const { sortKey, sortDir, handleSort, sortItems } = useSorting()
+
+// ──── Estado de los acordeones ───────────────────────────────
+const accordion = reactive({
+  parametros:  false,
+  impresoras:  false,
+  maquina:     false,
+  certificados: false,
+});
+const toggleAccordion = (key) => { accordion[key] = !accordion[key]; };
 
 const columns = [
   { key: 'clave',       label: 'Clave',       sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary sticky-col-first' },
@@ -620,10 +739,16 @@ const fetchImpresoras = async () => {
   loadingImpresoras.value = true;
   try {
     impresoras.value = await impresoraTiqueteraService.getAll();
-    const def = impresoras.value.find(i => i.es_default == 1 || i.es_default === true);
-    if (def) {
-      syncLocalStorage(def);
+    // Solo aplicamos el predeterminado global si esta máquina NO tiene una preferencia específica
+    const machinePreference = getMachinePreferredPrinter();
+    if (machinePreference) {
+      saveMachinePreferredPrinter(machinePreference); // Re-aplica para asegurar sincronía
+    } else {
+      const def = impresoras.value.find(i => i.es_default == 1 || i.es_default === true);
+      if (def) syncLocalStorage(def);
     }
+    // Actualizar el ref reactivo con el estado actual
+    machinePreferredPrinterRef.value = getMachinePreferredPrinter();
   } catch {
     toast.showToast({ message: 'Error al cargar las impresoras', type: 'danger' });
   } finally {
@@ -716,6 +841,27 @@ const handleDeleteImpresora = async () => {
   } finally {
     isDeletingImpresora.value = false;
   }
+};
+
+// ──── Impresora de esta Máquina ──────────────────────────────
+const machinePreferredPrinterRef = ref(getMachinePreferredPrinter());
+const selectedPrinterForMachine  = ref(null);
+
+const assignPrinterToMachine = () => {
+  if (!selectedPrinterForMachine.value) return;
+  saveMachinePreferredPrinter(selectedPrinterForMachine.value);
+  machinePreferredPrinterRef.value = getMachinePreferredPrinter();
+  toast.showToast({ message: `Impresora "${selectedPrinterForMachine.value.nombre}" asignada a esta máquina.`, type: 'success' });
+  selectedPrinterForMachine.value = null;
+};
+
+const removeMachinePreference = () => {
+  clearMachinePreferredPrinter();
+  machinePreferredPrinterRef.value = null;
+  // Reaplicar el predeterminado global
+  const def = impresoras.value.find(i => i.es_default == 1 || i.es_default === true);
+  if (def) syncLocalStorage(def);
+  toast.showToast({ message: 'Preferencia eliminada. Se usará el predeterminado global.', type: 'info' });
 };
 
 // ──── Certificados QZ Tray ────────────────────────────────────
@@ -842,6 +988,49 @@ onMounted(() => {
   background-color: rgba(255, 255, 255, 0.85);
   z-index: 10;
   display: flex;
+}
+
+/* ── Acordeones ── */
+.accordion-section {
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.accordion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 1rem 1.25rem;
+  background: #f8f9fa;
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  color: #495057;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.accordion-header:hover {
+  background: #f1f3f5;
+}
+
+.accordion-chevron {
+  font-size: 0.9rem;
+  color: #adb5bd;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+
+.accordion-body {
+  padding: 1.25rem;
+  border-top: 1px solid #e9ecef;
+  background: #fff;
 }
 code {
   background-color: #f8f9fa;

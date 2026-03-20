@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="modelValue" class="quick-team-modal-overlay" @click.self="close">
+    <div v-if="modelValue" class="quick-team-modal-overlay">
       <div class="quick-team-modal-content animate-pop-in">
         <div class="modal-header border-0 p-4 pb-2 d-flex align-items-center justify-content-between">
           <div class="d-flex align-items-center gap-2">

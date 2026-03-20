@@ -363,7 +363,7 @@
 
     <!-- ── Modal Ventas Olvidadas ──────────────────────────────── -->
     <Teleport to="body">
-      <div v-if="showModalOlvidadas" class="modal-backdrop-custom" @click.self="showModalOlvidadas = false">
+      <div v-if="showModalOlvidadas" class="modal-backdrop-custom">
         <div class="modal-olvidadas">
           <div class="modal-olvidadas__header">
             <div class="d-flex align-items-center gap-2">
@@ -424,7 +424,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
-import { setupQzSecurity, ensureQzConnected, imprimirTicketEscPos, getMachineId, syncLocalStorage } from '@/composables/usePrinterConfig';
+import { setupQzSecurity, ensureQzConnected, imprimirTicketEscPos, getMachineId, syncLocalStorage, getMachinePreferredPrinter, saveMachinePreferredPrinter } from '@/composables/usePrinterConfig';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import FuzzySearch from '@/components/FuzzySearch.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
@@ -759,10 +759,11 @@ const openVentaModal = async (item = null, forceCierre = false) => {
         articulos: articulosExistentes.map(av => ({
           id_articulo: av.id_articulo,
           nombre: av.articulo_nombre,
+          url_imagen: av.url_imagen,
           cantidad: av.cantidad,
           precio_unitario: av.precio_unitario,
           total: av.total,
-          stock_actual: av.stock_actual // Asegurar que el componente lo reciba si está disponible
+          stock_actual: av.stock_actual
         })),
         forceCierre: forceCierre
       };
@@ -855,17 +856,20 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito }) => {
     if (isEditing.value) {
       await ventasService.actualizarVenta(payload);
       toast.showToast({ message: 'Venta actualizada.', type: 'success' });
-      idVenta = venta.id;
+      idVenta = formVenta.value.id;
     } else {
       const resp = await ventasService.crearVenta(payload);
       toast.showToast({ message: 'Venta creada.', type: 'success' });
-      idVenta = resp?.id ?? null;
+      // Aseguramos capturar el ID tanto si viene directo como dentro de .data (común en axios/prod)
+      idVenta = resp?.id || resp?.data?.id || null;
     }
+
     showVentaModal.value = false;
+    
+    // El fetchData() puede tardar en producción, por lo que idVenta es nuestra única verdad inmediata
     await fetchData();
 
     if (esCerrada && idVenta) {
-      // await descargarTicketVenta(idVenta); // Quitamos la descarga automática de PDF por ahorro de clics
       await imprimirTicketDirecto(idVenta);
     }
   } catch (err) {
@@ -893,13 +897,21 @@ const descargarTicketVenta = async (idVenta) => {
 };
 
 const imprimirTicketDirecto = async (idVenta) => {
-  const venta = ventas.value.find(v => v.id === idVenta);
-  if (!venta) return;
-
+  // Intentamos buscar en la lista local primero
+  let venta = ventas.value.find(v => v.id == idVenta);
+  
   try {
+    // Si fetchData aún no terminó de actualizar la lista (común en prod), la buscamos por ID individualmente
+    if (!venta) {
+      console.log('Venta no encontrada en la lista local, buscando en el servidor para imprimir...');
+      venta = await ventasService.getById(idVenta);
+    }
+    
+    if (!venta) throw new Error("No se pudo recuperar la información de la venta para imprimir.");
+
     const articulosVenta = await ventasService.getArticulosDeVenta(idVenta);
     await imprimirTicketEscPos({ venta, articulos: articulosVenta });
-    toast.showToast({ message: 'Ticket enviado a la tiquetera.', type: 'success' });
+    toast.showToast({ message: 'Ticket en cola de impresión.', type: 'info' });
   } catch (err) {
     console.error('Error al imprimir ticket:', err);
     toast.showToast({ message: err.message || 'Error en la comunicación con la impresora.', type: 'danger' });
@@ -1000,10 +1012,17 @@ onMounted(async () => {
   await initQzSecurity();
   ensureQzConnected().catch(() => console.warn('QZ Tray no disponible al inicio.'));
   
-  // Asegurar que la impresora default esté sincronizada en localStorage
+  // Asegurar que la impresora esté sincronizada: preferencia de máquina tiene prioridad sobre el global
   try {
-    const defaultPrinter = await impresoraTiqueteraService.getDefault();
-    if (defaultPrinter) syncLocalStorage(defaultPrinter);
+    const machinePreference = getMachinePreferredPrinter();
+    if (machinePreference) {
+      // Re-aplicar la preferencia específica de esta máquina (por si el localStorage fue limpiado)
+      saveMachinePreferredPrinter(machinePreference);
+    } else {
+      // Sin preferencia específica: usar el predeterminado global
+      const defaultPrinter = await impresoraTiqueteraService.getDefault();
+      if (defaultPrinter) syncLocalStorage(defaultPrinter);
+    }
   } catch (e) {
     console.warn('No se pudo cargar la impresora predeterminada:', e);
   }

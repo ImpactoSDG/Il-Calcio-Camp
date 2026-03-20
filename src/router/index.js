@@ -46,6 +46,10 @@ const router = createRouter({
   routes: [
     { 
       path: '/', 
+      redirect: '/login'
+    },
+    { 
+      path: '/inscripcion', 
       name: 'home',
       component: RegistroPublicoView
     },

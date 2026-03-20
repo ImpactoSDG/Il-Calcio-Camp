@@ -12,8 +12,9 @@
 import * as qz from 'qz-tray';
 import { KJUR, hextob64 } from 'jsrsasign';
 
-// ── Clave de localStorage para el identificador de máquina ──
-const LS_MACHINE_ID = 'qz_machine_id';
+// ── Claves de identificación y preferencia por máquina ──────
+const LS_MACHINE_ID                 = 'qz_machine_id';
+const LS_MACHINE_PREFERRED_PRINTER  = 'qz_machine_printer';
 
 /**
  * Persistencia híbrida para el Machine ID usando Cookies (10 años) y LocalStorage.
@@ -71,6 +72,62 @@ export function saveMachineId(newId) {
     localStorage.setItem(LS_MACHINE_ID, id);
     setMachineIdCookie(id);
   }
+}
+
+// ── Impresora preferida por máquina (localStorage + Cookie) ─
+function setMachinePreferredPrinterCookie(jsonStr) {
+  const d = new Date();
+  d.setTime(d.getTime() + (3650 * 24 * 60 * 60 * 1000)); // 10 años
+  document.cookie = `${LS_MACHINE_PREFERRED_PRINTER}=${encodeURIComponent(jsonStr)};expires=${d.toUTCString()};path=/;SameSite=Strict`;
+}
+
+function getMachinePreferredPrinterCookie() {
+  const name = LS_MACHINE_PREFERRED_PRINTER + '=';
+  for (const c of document.cookie.split(';')) {
+    const trimmed = c.trim();
+    if (trimmed.startsWith(name)) {
+      try { return decodeURIComponent(trimmed.substring(name.length)); } catch { return null; }
+    }
+  }
+  return null;
+}
+
+/**
+ * Devuelve la impresora preferida para esta máquina (localStorage -> Cookie).
+ * Retorna un objeto { id, nombre, comando_corte, lineas_avance } o null.
+ */
+export function getMachinePreferredPrinter() {
+  const raw = localStorage.getItem(LS_MACHINE_PREFERRED_PRINTER) || getMachinePreferredPrinterCookie();
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+/**
+ * Guarda la impresora elegida para esta máquina y la aplica al localStorage activo.
+ */
+export function saveMachinePreferredPrinter(imp) {
+  if (!imp) return;
+  const data = JSON.stringify({
+    id:            imp.id,
+    nombre:        imp.nombre,
+    comando_corte: imp.comando_corte || '\x1D\x56\x00',
+    lineas_avance: imp.lineas_avance || 5,
+  });
+  localStorage.setItem(LS_MACHINE_PREFERRED_PRINTER, data);
+  setMachinePreferredPrinterCookie(data);
+  // Aplicar inmediatamente al localStorage activo
+  savePrinterName(imp.nombre || '');
+  saveCutCmd(imp.comando_corte || '\x1D\x56\x00');
+  saveFeedLines(imp.lineas_avance || 5);
+}
+
+/**
+ * Elimina la preferencia específica de esta máquina.
+ * Al eliminarla, se volverá a usar el predeterminado global.
+ */
+export function clearMachinePreferredPrinter() {
+  localStorage.removeItem(LS_MACHINE_PREFERRED_PRINTER);
+  document.cookie = `${LS_MACHINE_PREFERRED_PRINTER}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict`;
 }
 
 // ── Claves de localStorage ───────────────────────────────────
