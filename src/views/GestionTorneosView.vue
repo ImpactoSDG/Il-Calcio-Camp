@@ -1029,15 +1029,6 @@
                     <div v-if="getPagoEventoDraft(pagoEventoSeleccionado.id, 'local').url_comprobante_pago" class="small mt-2">
                       <a :href="getPagoEventoDraft(pagoEventoSeleccionado.id, 'local').url_comprobante_pago" target="_blank" rel="noopener noreferrer">Ver comprobante actual</a>
                     </div>
-
-                    <button
-                      class="btn btn-sm btn-success mt-3"
-                      :disabled="isSavingPagoEvento(pagoEventoSeleccionado.id, 'local')"
-                      @click="guardarPagoEventoEquipo(pagoEventoSeleccionado, 'local')"
-                    >
-                      <span v-if="isSavingPagoEvento(pagoEventoSeleccionado.id, 'local')" class="spinner-border spinner-border-sm me-1"></span>
-                      Guardar local
-                    </button>
                   </div>
                 </div>
 
@@ -1068,21 +1059,21 @@
                     <div v-if="getPagoEventoDraft(pagoEventoSeleccionado.id, 'visitante').url_comprobante_pago" class="small mt-2">
                       <a :href="getPagoEventoDraft(pagoEventoSeleccionado.id, 'visitante').url_comprobante_pago" target="_blank" rel="noopener noreferrer">Ver comprobante actual</a>
                     </div>
-
-                    <button
-                      class="btn btn-sm btn-success mt-3"
-                      :disabled="isSavingPagoEvento(pagoEventoSeleccionado.id, 'visitante')"
-                      @click="guardarPagoEventoEquipo(pagoEventoSeleccionado, 'visitante')"
-                    >
-                      <span v-if="isSavingPagoEvento(pagoEventoSeleccionado.id, 'visitante')" class="spinner-border spinner-border-sm me-1"></span>
-                      Guardar visitante
-                    </button>
                   </div>
                 </div>
               </div>
             </div>
 
             <div class="modal-footer">
+              <button
+                type="button"
+                class="btn btn-success"
+                :disabled="isSavingPagoEventoPartido(pagoEventoSeleccionado.id)"
+                @click="guardarPagoEventoPartido(pagoEventoSeleccionado)"
+              >
+                <span v-if="isSavingPagoEventoPartido(pagoEventoSeleccionado.id)" class="spinner-border spinner-border-sm me-1"></span>
+                Guardar cambios
+              </button>
               <button type="button" class="btn btn-outline-secondary" @click="cerrarPagoEventoModal">Cerrar</button>
             </div>
           </div>
@@ -1665,6 +1656,8 @@ const onPagoEventoFileChange = (idEvento, lado, event) => {
 
 const getPagoEventoKey = (idEvento, lado) => `${Number(idEvento)}-${lado}`
 const isSavingPagoEvento = (idEvento, lado) => savingPagoEventoKeys.value.includes(getPagoEventoKey(idEvento, lado))
+const isSavingPagoEventoPartido = (idEvento) =>
+  isSavingPagoEvento(idEvento, 'local') || isSavingPagoEvento(idEvento, 'visitante')
 
 const getNombreRondaCruce = (titulo, fallback) => {
   const value = String(titulo || '').trim()
@@ -2211,7 +2204,13 @@ const guardarInscripciones = async () => {
   }
 }
 
-const guardarPagoEventoEquipo = async (evento, lado) => {
+const guardarPagoEventoEquipo = async (evento, lado, options = {}) => {
+  const {
+    showSuccessToast = true,
+    showErrorToast = true,
+    reloadOnSuccess = true,
+  } = options
+
   const idEvento = Number(evento?.id || 0)
   if (!idTorneoSeleccionado.value || !idEvento) return
   if (lado !== 'local' && lado !== 'visitante') return
@@ -2240,13 +2239,52 @@ const guardarPagoEventoEquipo = async (evento, lado) => {
         : null,
     })
 
-    toast.showToast({ message: `Pago de ${lado} guardado correctamente.`, type: 'success' })
-    await cargarDetalle()
+    if (showSuccessToast) {
+      toast.showToast({ message: `Pago de ${lado} guardado correctamente.`, type: 'success' })
+    }
+    if (reloadOnSuccess) {
+      await cargarDetalle()
+    }
+    return true
   } catch (error) {
-    toast.showToast({ message: getApiMessage(error, 'No se pudo guardar el pago por partido.'), type: 'danger' })
+    if (showErrorToast) {
+      toast.showToast({ message: getApiMessage(error, 'No se pudo guardar el pago por partido.'), type: 'danger' })
+    }
+    return false
   } finally {
     savingPagoEventoKeys.value = savingPagoEventoKeys.value.filter(item => item !== key)
   }
+}
+
+const guardarPagoEventoPartido = async (evento) => {
+  const idEvento = Number(evento?.id || 0)
+  if (!idEvento) return
+
+  const okLocal = await guardarPagoEventoEquipo(evento, 'local', {
+    showSuccessToast: false,
+    showErrorToast: false,
+    reloadOnSuccess: false,
+  })
+
+  const okVisitante = await guardarPagoEventoEquipo(evento, 'visitante', {
+    showSuccessToast: false,
+    showErrorToast: false,
+    reloadOnSuccess: false,
+  })
+
+  if (okLocal && okVisitante) {
+    toast.showToast({ message: 'Pagos de local y visitante guardados correctamente.', type: 'success' })
+    await cargarDetalle()
+    return
+  }
+
+  if (okLocal || okVisitante) {
+    toast.showToast({ message: 'Se guardo solo uno de los dos pagos. Revisar y reintentar.', type: 'warning' })
+    await cargarDetalle()
+    return
+  }
+
+  toast.showToast({ message: 'No se pudieron guardar los pagos del partido.', type: 'danger' })
 }
 
 const programarAutomatico = async () => {

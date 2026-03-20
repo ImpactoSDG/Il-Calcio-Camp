@@ -110,9 +110,9 @@
                     </select>
                   </div>
                   <div class="col-12">
-                    <div class="form-check form-switch ps-4">
-                      <input v-model="form.activo" class="form-check-input" type="checkbox" role="switch" id="chkActivoJugador" />
-                      <label class="form-check-label fw-semibold ms-2" for="chkActivoJugador">
+                    <div class="form-check form-switch mb-0 d-flex align-items-center gap-2 jugador-switch-row">
+                      <input v-model="form.activo" class="form-check-input mt-0" type="checkbox" role="switch" id="chkActivoJugador" />
+                      <label class="form-check-label fw-semibold mb-0" for="chkActivoJugador">
                         {{ form.activo ? 'Activo' : 'Inactivo' }}
                       </label>
                     </div>
@@ -348,5 +348,9 @@ onMounted(fetchData);
   top: 0; left: 0; width: 100%; height: 100%;
   background-color: rgba(255, 255, 255, 0.85);
   z-index: 10;
+}
+
+.jugador-switch-row .form-check-input {
+  margin-left: 0;
 }
 </style>

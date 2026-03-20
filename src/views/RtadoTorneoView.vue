@@ -48,8 +48,16 @@
         <div class="row g-4">
           <div class="col-12 col-xxl-6">
             <div class="panel h-100">
-              <div class="section-head">
+              <div class="section-head d-flex justify-content-between align-items-center gap-2">
                 <h3 class="section-title mb-0">Ultimos resultados</h3>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-outline-secondary"
+                  :disabled="!resultadosTorneo.length"
+                  @click="showTodosResultadosModal = true"
+                >
+                  Ver todos
+                </button>
               </div>
 
               <div v-if="!ultimosResultados.length" class="empty-state">No hay resultados finalizados.</div>
@@ -124,7 +132,7 @@
                   <div class="result-center">
                     <div class="score">vs</div>
                     <div class="pens" v-if="partido.fecha_hora_inicio">{{ formatFechaHora(partido.fecha_hora_inicio) }}</div>
-                    <div class="estado-chip" :class="estadoClass(partido.id_estado_evento)">{{ partido.estado || `Estado ${partido.id_estado_evento}` }}</div>
+                      <div class="estado-chip" :class="estadoClass(partido.id_estado_evento)">{{ partido.estado_evento_descripcion || partido.estado || `Estado ${partido.id_estado_evento}` }}</div>
                   </div>
                   <div class="team team-away">
                     <span class="team-name text-end">{{ partido.equipo_visitante_nombre || 'Visitante' }}</span>
@@ -210,16 +218,14 @@
                               <img v-if="match.equipo_local?.escudo" :src="resolveEscudoUrl(match.equipo_local.escudo)" alt="escudo local" class="escudo escudo-mini" />
                               <span v-else class="escudo-fallback"><i class="bi bi-shield"></i></span>
                               <span class="rt-team-name">{{ match.equipo_local?.nombre || 'Por definir' }}</span>
+                              <span class="rt-team-score">{{ tieneResultado(match) ? safeNum(match.equipo_local?.resultado) : '-' }}</span>
                             </div>
 
                             <div class="rt-team-line" :class="{ winner: ganadorVisitante(match) }">
                               <img v-if="match.equipo_visitante?.escudo" :src="resolveEscudoUrl(match.equipo_visitante.escudo)" alt="escudo visitante" class="escudo escudo-mini" />
                               <span v-else class="escudo-fallback"><i class="bi bi-shield"></i></span>
                               <span class="rt-team-name">{{ match.equipo_visitante?.nombre || 'Por definir' }}</span>
-                            </div>
-
-                            <div v-if="tieneResultado(match)" class="rt-score-pill">
-                              {{ safeNum(match.equipo_local?.resultado) }} - {{ safeNum(match.equipo_visitante?.resultado) }}
+                              <span class="rt-team-score">{{ tieneResultado(match) ? safeNum(match.equipo_visitante?.resultado) : '-' }}</span>
                             </div>
                           </div>
                         </article>
@@ -321,6 +327,60 @@
           </div>
         </div>
       </Teleport>
+
+      <Teleport to="body">
+        <div v-if="showTodosResultadosModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(2px);">
+          <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">Todos los resultados del torneo</h5>
+                <button type="button" class="btn-close" @click="showTodosResultadosModal = false"></button>
+              </div>
+
+              <div class="modal-body">
+                <div v-if="!resultadosTorneo.length" class="small text-muted">
+                  No hay resultados cargados para este torneo.
+                </div>
+
+                <div v-else class="table-responsive">
+                  <table class="table table-sm align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th>Partido</th>
+                        <th>Resultado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="partido in resultadosTorneo" :key="`all-result-${partido.id}`">
+                        <td>{{ formatFechaHora(partido.fecha_hora_inicio) }}</td>
+                        <td>
+                          <div class="d-flex align-items-center gap-2 fw-semibold">
+                            <img v-if="partido.equipo_local_escudo" :src="resolveEscudoUrl(partido.equipo_local_escudo)" alt="escudo local" class="escudo escudo-mini" />
+                            <span>{{ partido.equipo_local_nombre || 'Local' }}</span>
+                            <span class="text-muted">vs</span>
+                            <img v-if="partido.equipo_visitante_escudo" :src="resolveEscudoUrl(partido.equipo_visitante_escudo)" alt="escudo visitante" class="escudo escudo-mini" />
+                            <span>{{ partido.equipo_visitante_nombre || 'Visitante' }}</span>
+                          </div>
+                          <div v-if="partido.titulo" class="small text-muted">{{ partido.titulo }}</div>
+                        </td>
+                        <td>
+                          <div class="fw-semibold">{{ marcador(partido) }}</div>
+                          <div v-if="huboPenales(partido)" class="small text-muted">Pen {{ partido.resultado_penales_local }}-{{ partido.resultado_penales_visitante }}</div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="modal-footer">
+                <button type="button" class="btn btn-primary-modern" @click="showTodosResultadosModal = false">Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Teleport>
     </div>
   </div>
 </template>
@@ -340,6 +400,7 @@ const idTorneoSeleccionado = ref(null)
 const dashboard = ref(null)
 const topJugadoresGoleadores = ref([])
 const proximosPartidos = ref([])
+const resultadosTorneo = ref([])
 
 const torneosActivos = computed(() => torneos.value.filter(item => Number(item.activo ?? 1) === 1))
 const resumen = computed(() => dashboard.value?.resumen || {})
@@ -348,6 +409,7 @@ const zonas = computed(() => dashboard.value?.zonas || [])
 const llave = computed(() => dashboard.value?.llave || [])
 const partidoDetalle = ref(null)
 const showDetalleModal = ref(false)
+const showTodosResultadosModal = ref(false)
 const eventosPartidoDetalle = ref([])
 const loadingEventosPartido = ref(false)
 
@@ -604,6 +666,7 @@ const cargarDashboardSeleccionado = async () => {
     dashboard.value = null
     topJugadoresGoleadores.value = []
     proximosPartidos.value = []
+    resultadosTorneo.value = []
     return
   }
 
@@ -620,6 +683,11 @@ const cargarDashboardSeleccionado = async () => {
     const eventosTorneo = (Array.isArray(eventosData) ? eventosData : [])
       .filter(ev => Number(ev.id_torneo) === idTorneo)
       .filter(ev => String(ev.tipo_evento || '').toLowerCase() === 'partido')
+
+    resultadosTorneo.value = eventosTorneo
+      .filter(ev => [4, 7].includes(Number(ev.id_estado_evento)))
+      .filter(ev => ev.resultado_local !== null && ev.resultado_local !== undefined && ev.resultado_visitante !== null && ev.resultado_visitante !== undefined)
+      .sort((a, b) => String(b.fecha_hora_inicio || '').localeCompare(String(a.fecha_hora_inicio || '')))
 
     const pendientes = eventosTorneo
       .filter(ev => Number(ev.id_estado_evento) === 2)
@@ -666,6 +734,7 @@ const cargarDashboardSeleccionado = async () => {
     dashboard.value = null
     topJugadoresGoleadores.value = []
     proximosPartidos.value = []
+    resultadosTorneo.value = []
     toast.showToast({ message: getApiMessage(error, 'No se pudo cargar el dashboard del torneo.'), type: 'danger' })
   } finally {
     loading.value = false
@@ -1051,9 +1120,10 @@ onMounted(() => {
 }
 
 .rt-team-line {
-  display: flex;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 24px;
+  column-gap: 8px;
   align-items: center;
-  gap: 8px;
   min-width: 0;
   min-height: 24px;
 }
@@ -1063,6 +1133,19 @@ onMounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.1;
+}
+
+.rt-team-score {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 24px;
+  height: 24px;
+  text-align: right;
+  font-weight: 800;
+  color: #1d4ed8;
+  line-height: 1;
 }
 
 .escudo-fallback {
@@ -1077,17 +1160,6 @@ onMounted(() => {
   background: #f5f8fa;
   font-size: 0.76rem;
   flex-shrink: 0;
-}
-
-.rt-score-pill {
-  justify-self: end;
-  font-size: 0.78rem;
-  border: 1px solid #bfdbfe;
-  background: #eff6ff;
-  color: #1d4ed8;
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-weight: 700;
 }
 
 .bracket-wrap {

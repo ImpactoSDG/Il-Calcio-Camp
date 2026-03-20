@@ -41,12 +41,12 @@
           />
           <tbody class="bg-white">
             <tr v-for="item in eventosFiltrados" :key="item.id">
-              <td class="ps-4 text-muted fw-bold">{{ item.id }}</td>
               <td class="fw-medium text-dark">{{ item.titulo }}</td>
               <td class="text-muted text-capitalize">{{ item.tipo_evento }}</td>
               <td class="text-muted">{{ item.estado_evento_descripcion || item.id_estado_evento }}</td>
               <td class="text-muted">{{ formatDateTime(item.fecha_hora_inicio) }}</td>
               <td class="text-muted">{{ formatTeams(item) }}</td>
+              <td class="text-muted">{{ formatResult(item) }}</td>
               <td class="text-center">
                 <span class="badge rounded-pill px-3 bg-primary-subtle text-primary-custom">{{ item.numero_fecha || '-' }}</span>
               </td>
@@ -231,12 +231,12 @@ const { sortKey, sortDir, handleSort, sortItems } = useSorting();
 const tiposEvento = ['partido', 'festejo', 'reunion', 'otro'];
 
 const columns = [
-  { key: 'id',                       label: 'ID',      sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 80px' },
   { key: 'titulo',                   label: 'Titulo',  sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'tipo_evento',              label: 'Tipo',    sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'estado_evento_descripcion',label: 'Estado',  sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'fecha_hora_inicio',        label: 'Inicio',  sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'equipo_local_nombre',      label: 'Equipos', sortable: false, thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'resultado',                label: 'Resultado', sortable: false, thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'numero_fecha',             label: 'Fecha',   sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width: 100px' },
   { key: 'acciones',                 label: 'Acciones',sortable: false, thClass: 'pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary text-end' },
 ];
@@ -293,6 +293,13 @@ const formatDateTime = (value) => {
 const formatTeams = (item) => {
   if (!item.id_equipo_local && !item.id_equipo_visitante) return '-';
   return `${item.equipo_local_nombre || 'Local'} vs ${item.equipo_visitante_nombre || 'Visitante'}`;
+};
+
+const formatResult = (item) => {
+  const local = item.resultado_local;
+  const visitante = item.resultado_visitante;
+  if (local == null && visitante == null) return '-';
+  return `${local ?? '-'} - ${visitante ?? '-'}`;
 };
 
 const eventosFiltrados = computed(() => {

@@ -453,7 +453,7 @@ const torneosFuse = computed(() => torneos.value.map(torneo => ({
 
 const partidosFuse = computed(() => partidosFiltrados.value.map(partido => ({
   ...partido,
-  label: `#${partido.id} - ${partido.equipo_local_nombre || 'Local'} vs ${partido.equipo_visitante_nombre || 'Visitante'} (${partido.estado_evento_descripcion || `Estado ${partido.id_estado_evento}`})`,
+  label: `${partido.titulo || 'Partido'} - ${partido.equipo_local_nombre || 'Local'} vs ${partido.equipo_visitante_nombre || 'Visitante'} (${partido.estado_evento_descripcion || `Estado ${partido.id_estado_evento}`})`,
 })))
 
 const jugadoresFuse = computed(() => jugadoresFiltradosPorEquipo.value.map(jugador => ({
@@ -474,7 +474,7 @@ const torneoSeleccionadoLabel = computed(() => {
 const partidoSeleccionadoLabel = computed(() => {
   const partido = partidosFiltrados.value.find(item => Number(item.id) === Number(idPartidoSeleccionado.value))
   if (!partido) return ''
-  return `#${partido.id} - ${partido.equipo_local_nombre || 'Local'} vs ${partido.equipo_visitante_nombre || 'Visitante'}`
+  return `${partido.titulo || 'Partido'} - ${partido.equipo_local_nombre || 'Local'} vs ${partido.equipo_visitante_nombre || 'Visitante'}`
 })
 
 const jugadorIncidenciaSeleccionadoLabel = computed(() => {
@@ -770,14 +770,7 @@ const validarResultado = () => {
 
 const buildResultadoPayload = () => {
   const partido = partidoSeleccionado.value
-  const tieneIncidencias = incidenciasMostradas.value.length > 0
-
-  let idEstadoEvento = Number(partido.id_estado_evento)
-  if (tieneIncidencias) {
-    idEstadoEvento = ESTADO_FINALIZADO_REPORTADO
-  } else {
-    idEstadoEvento = ESTADO_FINALIZADO
-  }
+  const idEstadoEvento = ESTADO_FINALIZADO_REPORTADO
 
   return {
     ...partido,
