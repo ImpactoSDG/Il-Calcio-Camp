@@ -298,7 +298,31 @@
         <i class="bi bi-pc-display fs-4 text-secondary flex-shrink-0"></i>
         <div class="flex-grow-1">
           <div class="fw-semibold mb-1">ID de esta máquina</div>
-          <code class="user-select-all text-break">{{ thisMachineId }}</code>
+          <div class="d-flex gap-2 align-items-center">
+            <code v-if="!editingMachineId" class="user-select-all text-break">{{ thisMachineId }}</code>
+            <input 
+              v-else 
+              v-model="tempMachineId" 
+              type="text" 
+              class="form-control form-control-sm font-monospace"
+              placeholder="Pegar ID anterior aquí..."
+            />
+            
+            <button v-if="!editingMachineId" @click="startEditMachineId" class="btn btn-sm btn-outline-secondary py-0" title="Editar ID manualmente">
+              <i class="bi bi-pencil small"></i>
+            </button>
+            <div v-else class="d-flex gap-1">
+              <button @click="applyMachineId" class="btn btn-sm btn-success py-0" title="Guardar">
+                <i class="bi bi-check-lg"></i>
+              </button>
+              <button @click="editingMachineId = false" class="btn btn-sm btn-light py-0" title="Cancelar">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+          </div>
+          <div v-if="editingMachineId" class="form-text mt-1 text-danger small">
+            <i class="bi bi-exclamation-triangle"></i> Cambiar esto afectará la conexión con los certificados del servidor.
+          </div>
         </div>
         <span v-if="thisMachineCert" class="badge bg-success d-flex align-items-center gap-1 flex-shrink-0">
           <i class="bi bi-check-circle-fill"></i> Certificado registrado
@@ -439,7 +463,7 @@ import { useToastStore } from '@/stores/toastStore';
 import {
   setupQzSecurity, resetQzSecurity, listarImpresoras,
   savePrinterName, saveCutCmd, saveFeedLines, syncLocalStorage,
-  getMachineId,
+  getMachineId, saveMachineId,
   CUT_VARIANTS,
 } from '@/composables/usePrinterConfig';
 
@@ -622,7 +646,7 @@ const openImpresoraModal = (imp = null) => {
 const detectarImpresorasEnModal = async () => {
   detectando.value = true;
   try {
-    const machineId = getMachineId();
+    const machineId = thisMachineId.value;
     const certData  = await qzCertificadoService.getContent(machineId);
     resetQzSecurity();
     setupQzSecurity(certData.cert, certData.pk);
@@ -695,7 +719,9 @@ const handleDeleteImpresora = async () => {
 };
 
 // ──── Certificados QZ Tray ────────────────────────────────────
-const thisMachineId      = getMachineId();
+const thisMachineId      = ref(getMachineId());
+const tempMachineId      = ref('');
+const editingMachineId   = ref(false);
 const qzCerts            = ref([]);
 const loadingQzCerts     = ref(false);
 const isSavingQzCert     = ref(false);
@@ -703,6 +729,23 @@ const isDeletingQzCert   = ref(false);
 const qzCertToDelete     = ref(null);
 const showConfirmQzCertModal = ref(false);
 const thisMachineCert    = ref(null); // registro del cert de esta máquina, si existe
+
+const startEditMachineId = () => {
+  tempMachineId.value = thisMachineId.value;
+  editingMachineId.value = true;
+};
+
+const applyMachineId = () => {
+  if (tempMachineId.value.trim().length < 10) {
+    toast.showToast({ message: 'El ID es demasiado corto.', type: 'warning' });
+    return;
+  }
+  saveMachineId(tempMachineId.value);
+  thisMachineId.value = getMachineId();
+  editingMachineId.value = false;
+  fetchQzCerts();
+  toast.showToast({ message: 'ID actualizado. Los certificados se buscarán con este identificador.', type: 'info' });
+};
 
 const qzCertForm = ref({
   nombre_maquina: '',
@@ -716,7 +759,7 @@ const fetchQzCerts = async () => {
   loadingQzCerts.value = true;
   try {
     qzCerts.value     = await qzCertificadoService.getAll();
-    thisMachineCert.value = qzCerts.value.find(c => c.machine_id === thisMachineId) ?? null;
+    thisMachineCert.value = qzCerts.value.find(c => c.machine_id === thisMachineId.value) ?? null;
   } catch {
     toast.showToast({ message: 'Error al cargar los certificados QZ.', type: 'danger' });
   } finally {
@@ -741,14 +784,14 @@ const uploadQzCert = async () => {
   isSavingQzCert.value = true;
   try {
     await qzCertificadoService.upload(
-      thisMachineId,
+      thisMachineId.value,
       qzCertForm.value.nombre_maquina.trim(),
       qzCertForm.value.cert_file,
       qzCertForm.value.pk_file,
     );
     toast.showToast({ message: 'Certificados guardados correctamente.', type: 'success' });
     // Recargar seguridad QZ con los nuevos certs
-    const certData = await qzCertificadoService.getContent(thisMachineId);
+    const certData = await qzCertificadoService.getContent(thisMachineId.value);
     resetQzSecurity();
     setupQzSecurity(certData.cert, certData.pk);
     // Limpiar formulario y recargar lista

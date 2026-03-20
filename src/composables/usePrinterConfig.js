@@ -16,11 +16,35 @@ import { KJUR, hextob64 } from 'jsrsasign';
 const LS_MACHINE_ID = 'qz_machine_id';
 
 /**
+ * Persistencia híbrida para el Machine ID usando Cookies (10 años) y LocalStorage.
+ * Esto evita que se pierda al limpiar caché rápida o actualizar.
+ */
+function setMachineIdCookie(id) {
+  const d = new Date();
+  d.setTime(d.getTime() + (3650 * 24 * 60 * 60 * 1000)); // 10 años
+  const expires = "expires=" + d.toUTCString();
+  document.cookie = `${LS_MACHINE_ID}=${id};${expires};path=/;SameSite=Strict`;
+}
+
+function getMachineIdCookie() {
+  const name = LS_MACHINE_ID + "=";
+  const decodedCookie = decodeURIComponent(document.cookie);
+  const ca = decodedCookie.split(';');
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) === ' ') c = c.substring(1);
+    if (c.indexOf(name) === 0) return c.substring(name.length, c.length);
+  }
+  return null;
+}
+
+/**
  * Devuelve (o genera la primera vez) un UUID único para esta máquina/navegador.
- * Se persiste en localStorage para que sea siempre el mismo.
+ * Se persiste en localStorage y Cookies para máxima redundancia.
  */
 export function getMachineId() {
-  let id = localStorage.getItem(LS_MACHINE_ID);
+  let id = localStorage.getItem(LS_MACHINE_ID) || getMachineIdCookie();
+
   if (!id) {
     // Genera un UUID v4 compatible con todos los navegadores modernos
     id = crypto.randomUUID
@@ -29,9 +53,24 @@ export function getMachineId() {
           const r = (Math.random() * 16) | 0;
           return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
         });
-    localStorage.setItem(LS_MACHINE_ID, id);
   }
+
+  // Asegurar consistencia en ambos almacenamientos
+  localStorage.setItem(LS_MACHINE_ID, id);
+  setMachineIdCookie(id);
+
   return id;
+}
+
+/**
+ * Permite cambiar el ID manualmente (por si se quiere restaurar uno anterior).
+ */
+export function saveMachineId(newId) {
+  const id = newId.trim();
+  if (id) {
+    localStorage.setItem(LS_MACHINE_ID, id);
+    setMachineIdCookie(id);
+  }
 }
 
 // ── Claves de localStorage ───────────────────────────────────
