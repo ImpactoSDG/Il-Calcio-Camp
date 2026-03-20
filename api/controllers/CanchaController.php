@@ -46,10 +46,14 @@ class CanchaController extends BaseController
             if (empty($data['nombre'])) {
                 $this->respond(400, ['message' => 'Nombre requerido.']);
             }
+            if (empty($data['id_disciplina']) || (int)$data['id_disciplina'] <= 0) {
+                $this->respond(400, ['message' => 'Disciplina requerida.']);
+            }
 
             $nuevoId = $this->model->create(
                 trim((string)$data['nombre']),
                 isset($data['descripcion']) && $data['descripcion'] !== '' ? trim((string)$data['descripcion']) : null,
+                (int)$data['id_disciplina'],
                 isset($data['activo']) ? (bool)$data['activo'] : true
             );
 
@@ -68,14 +72,15 @@ class CanchaController extends BaseController
         try {
             $data = json_decode(file_get_contents('php://input'), true);
 
-            if (empty($data['id']) || empty($data['nombre']) || !isset($data['activo'])) {
-                $this->respond(400, ['message' => 'ID, nombre y estado activo requeridos.']);
+            if (empty($data['id']) || empty($data['nombre']) || empty($data['id_disciplina']) || !isset($data['activo'])) {
+                $this->respond(400, ['message' => 'ID, nombre, disciplina y estado activo requeridos.']);
             }
 
             if ($this->model->update(
                 (int)$data['id'],
                 trim((string)$data['nombre']),
                 isset($data['descripcion']) && $data['descripcion'] !== '' ? trim((string)$data['descripcion']) : null,
+                (int)$data['id_disciplina'],
                 (bool)$data['activo']
             )) {
                 $this->respond(200, ['message' => 'Cancha actualizada exitosamente.']);

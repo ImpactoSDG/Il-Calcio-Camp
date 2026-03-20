@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 class Torneo
 {
+    private const ESTADO_TORNEO_EN_CURSO_ID = 4;
     private PDO $conn;
     public string $table = 'torneo';
 
@@ -14,6 +15,8 @@ class Torneo
 
     public function getAll(): array
     {
+        $this->actualizarTorneosEnCursoSiCorresponde();
+
         $sql = "SELECT t.id, t.nombre, t.descripcion, t.id_disciplina, t.id_estado_torneo,
                        t.fecha_inicio, t.fecha_fin, t.fecha_fin_planificada, t.cupo_equipos,
                        t.valor_inscripcion, t.formato_manual, t.configuracion_json,
@@ -32,6 +35,8 @@ class Torneo
 
     public function getById(int $id): ?array
     {
+        $this->actualizarTorneosEnCursoSiCorresponde();
+
         $sql = "SELECT t.id, t.nombre, t.descripcion, t.id_disciplina, t.id_estado_torneo,
                        t.fecha_inicio, t.fecha_fin, t.fecha_fin_planificada, t.cupo_equipos,
                        t.valor_inscripcion, t.formato_manual, t.configuracion_json,
@@ -49,6 +54,28 @@ class Torneo
         $stmt->execute();
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         return $result ?: null;
+    }
+
+    private function actualizarTorneosEnCursoSiCorresponde(): void
+    {
+        $sql = "UPDATE torneo t
+                LEFT JOIN estado_torneo et ON et.id = t.id_estado_torneo
+                SET t.id_estado_torneo = :id_estado_en_curso
+                WHERE COALESCE(t.activo, 1) = 1
+                  AND COALESCE(t.id_estado_torneo, 0) <> :id_estado_en_curso
+                  AND UPPER(COALESCE(et.descripcion, '')) NOT IN ('FINALIZADO', 'FINALIZADA', 'CANCELADO', 'CANCELADA')
+                  AND EXISTS (
+                      SELECT 1
+                      FROM evento ev
+                      WHERE ev.id_torneo = t.id
+                        AND LOWER(ev.tipo_evento) = 'partido'
+                        AND ev.fecha_hora_inicio IS NOT NULL
+                        AND ev.fecha_hora_inicio <= NOW()
+                  )";
+
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':id_estado_en_curso', self::ESTADO_TORNEO_EN_CURSO_ID, PDO::PARAM_INT);
+        $stmt->execute();
     }
 
     public function getDashboardById(int $idTorneo): ?array

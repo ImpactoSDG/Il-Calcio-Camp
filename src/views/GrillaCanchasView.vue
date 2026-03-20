@@ -96,6 +96,46 @@
       <div v-else class="horarios-empty">No hay eventos en la fecha seleccionada.</div>
     </div>
 
+    <div class="cancha-filter-row">
+      <div class="cancha-filter-wrap" ref="canchaFilterAnchor">
+        <button
+          class="cancha-filter-btn"
+          type="button"
+          :aria-expanded="canchaFilterOpen ? 'true' : 'false'"
+          @click="toggleCanchaFilter"
+        >
+          <i class="bi bi-funnel"></i>
+          {{ canchaFilterLabel }}
+        </button>
+
+        <div v-if="canchaFilterOpen" class="cancha-filter-popover" @click.stop>
+          <div class="cancha-filter-popover-title">Mostrar canchas</div>
+
+          <label class="cancha-filter-item">
+            <input
+              type="checkbox"
+              :checked="isAllCanchasSelected"
+              @change="toggleAllCanchas"
+            />
+            <span>Todas</span>
+          </label>
+
+          <label
+            v-for="cancha in canchas"
+            :key="`filter-${cancha.id}`"
+            class="cancha-filter-item"
+          >
+            <input
+              type="checkbox"
+              :checked="selectedCanchasIds.includes(Number(cancha.id))"
+              @change="toggleCanchaSelection(Number(cancha.id))"
+            />
+            <span>{{ cancha.nombre }}</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Loading ────────────────────────────────────────── -->
     <div v-if="loading" class="gc-loading">
       <span class="spinner-border me-2"></span>Cargando…
@@ -104,7 +144,7 @@
     <!-- ── Cancha grid ────────────────────────────────────── -->
     <div v-else class="cancha-grid">
 
-      <div v-for="cancha in canchas" :key="cancha.id" class="cancha-panel">
+      <div v-for="cancha in canchasMostradas" :key="cancha.id" class="cancha-panel">
 
         <!-- Cancha title -->
         <div class="cancha-label">
@@ -260,6 +300,10 @@
         <i class="bi bi-exclamation-circle me-2"></i>No hay canchas configuradas.
       </div>
 
+      <div v-else-if="!canchasMostradas.length" class="gc-empty">
+        <i class="bi bi-funnel me-2"></i>No hay canchas visibles con el filtro actual.
+      </div>
+
     </div><!-- /cancha-grid -->
 
   </div><!-- /gc-page -->
@@ -286,6 +330,9 @@ const calendarOpen = ref(false)
 const calendarAnchor = ref(null)
 const calendarMonth = ref(startOfMonth(selectedDate.value))
 const fetchingIncidenciasIds = new Set()
+const canchaFilterOpen = ref(false)
+const canchaFilterAnchor = ref(null)
+const selectedCanchasIds = ref([])
 
 // ── Date helpers ───────────────────────────────────────────
 function todayDate() {
@@ -424,6 +471,39 @@ const horariosDisponibles = computed(() => {
   })
   return Array.from(seen).sort((a, b) => timeToMin(a) - timeToMin(b))
 })
+
+const isAllCanchasSelected = computed(() => selectedCanchasIds.value.length === 0)
+
+const canchaFilterLabel = computed(() => {
+  if (selectedCanchasIds.value.length === 0) return 'Canchas: todas'
+  return `Canchas: ${selectedCanchasIds.value.length}`
+})
+
+const canchasMostradas = computed(() => {
+  if (selectedCanchasIds.value.length === 0) return canchas.value
+  const selected = new Set(selectedCanchasIds.value.map(Number))
+  return canchas.value.filter((c) => selected.has(Number(c.id)))
+})
+
+function toggleCanchaFilter() {
+  canchaFilterOpen.value = !canchaFilterOpen.value
+}
+
+function toggleAllCanchas() {
+  selectedCanchasIds.value = []
+}
+
+function toggleCanchaSelection(idCancha) {
+  const id = Number(idCancha)
+  if (!id) return
+
+  const idx = selectedCanchasIds.value.findIndex((v) => Number(v) === id)
+  if (idx >= 0) {
+    selectedCanchasIds.value.splice(idx, 1)
+    return
+  }
+  selectedCanchasIds.value.push(id)
+}
 
 // ── Auto-select current time slot ─────────────────────────
 function currentSlot() {
@@ -612,6 +692,7 @@ onMounted(async () => {
     eventos.value  = evData      ?? []
     canchas.value  = (canchaData ?? []).filter(c => Number(c.activo) !== 0)
     equipos.value  = equipoData  ?? []
+    selectedCanchasIds.value = []
     horarioSel.value = currentSlot()
     await fetchIncidenciasForEventos(eventosFiltradosIds.value)
   } catch (err) {
@@ -622,11 +703,14 @@ onMounted(async () => {
 })
 
 const onOutsideClick = (event) => {
-  if (!calendarOpen.value) return
   const target = event?.target
-  if (!calendarAnchor.value || !target) return
-  if (!calendarAnchor.value.contains(target)) {
+
+  if (calendarOpen.value && calendarAnchor.value && target && !calendarAnchor.value.contains(target)) {
     calendarOpen.value = false
+  }
+
+  if (canchaFilterOpen.value && canchaFilterAnchor.value && target && !canchaFilterAnchor.value.contains(target)) {
+    canchaFilterOpen.value = false
   }
 }
 
@@ -1214,6 +1298,74 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   background: #f8f9fa;
   border: 1px dashed #dee2e6;
+}
+
+.cancha-filter-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cancha-filter-wrap {
+  position: relative;
+}
+
+.cancha-filter-btn {
+  border: 1px solid #d0d7de;
+  background: #fff;
+  border-radius: 999px;
+  padding: .3rem .7rem;
+  font-size: .8rem;
+  font-weight: 600;
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+
+.cancha-filter-btn:hover {
+  background: #f8fafc;
+  border-color: #b8c0cc;
+}
+
+.cancha-filter-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  max-height: 250px;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .14);
+  padding: .55rem;
+  z-index: 24;
+}
+
+.cancha-filter-popover-title {
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #64748b;
+  margin-bottom: .35rem;
+  font-weight: 700;
+}
+
+.cancha-filter-item {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  font-size: .85rem;
+  color: #1f2937;
+  padding: .3rem .2rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.cancha-filter-item:hover {
+  background: #f8fafc;
 }
 
 .horario-chip {

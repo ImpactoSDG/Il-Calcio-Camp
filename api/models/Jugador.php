@@ -6,8 +6,14 @@ class Jugador
 {
     private PDO $conn;
     public string $table = 'jugador';
-    private ?bool $hasCapitanColumnInRelacion = null;
-    private ?bool $hasCapitanColumnInHist = null;
+    private bool $capitanColumnRelacionResolved = false;
+    private bool $capitanColumnHistResolved = false;
+    private ?string $capitanColumnInRelacion = null;
+    private ?string $capitanColumnInHist = null;
+    private bool $arqueroColumnRelacionResolved = false;
+    private bool $arqueroColumnHistResolved = false;
+    private ?string $arqueroColumnInRelacion = null;
+    private ?string $arqueroColumnInHist = null;
 
     public function __construct(PDO $db)
     {
@@ -98,12 +104,16 @@ class Jugador
      */
     public function getByEquipo(int $idEquipo): array
     {
-        $hasCapitan = $this->hasCapitanColumnInRelacion();
-        $capitanSelect = $hasCapitan
-            ? ', COALESCE(je.capitan, 0) AS capitan'
+        $capitanColumn = $this->getCapitanColumnInRelacion();
+        $arqueroColumn = $this->getArqueroColumnInRelacion();
+        $capitanSelect = $capitanColumn
+            ? ", COALESCE(je.{$capitanColumn}, 0) AS capitan"
             : ', 0 AS capitan';
-        $orderBy = $hasCapitan
-            ? 'ORDER BY COALESCE(je.capitan, 0) DESC, j.apellido ASC, j.nombre ASC, j.id ASC'
+        $arqueroSelect = $arqueroColumn
+            ? ", COALESCE(je.{$arqueroColumn}, 0) AS arquero"
+            : ', 0 AS arquero';
+        $orderBy = $capitanColumn
+            ? "ORDER BY COALESCE(je.{$capitanColumn}, 0) DESC, j.apellido ASC, j.nombre ASC, j.id ASC"
             : 'ORDER BY j.apellido ASC, j.nombre ASC, j.id ASC';
 
         $sql = "SELECT j.id, j.nombre, j.apellido, j.dni, j.fecha_nac, j.fecha_alta, j.activo,
@@ -113,7 +123,8 @@ class Jugador
                        e.id_disciplina AS equipo_id_disciplina,
                        je.fecha_desde,
                        je.fecha_hasta
-                       {$capitanSelect}
+                      {$capitanSelect}
+                      {$arqueroSelect}
                 FROM {$this->table} j
                 INNER JOIN jugador_equipo je ON je.id_jugador = j.id AND je.fecha_hasta IS NULL
                 INNER JOIN equipo e ON je.id_equipo = e.id
@@ -129,7 +140,7 @@ class Jugador
     /**
      * Crea un nuevo jugador
      */
-    public function create(string $nombre, string $apellido, ?string $dni, ?string $fechaNac, ?string $fechaAlta, bool $activo = true, ?int $idEquipoActual = null, bool $capitan = false): int|false
+    public function create(string $nombre, string $apellido, ?string $dni, ?string $fechaNac, ?string $fechaAlta, bool $activo = true, ?int $idEquipoActual = null, bool $capitan = false, bool $arquero = false): int|false
     {
         try {
             $this->conn->beginTransaction();
@@ -152,7 +163,7 @@ class Jugador
             $idJugador = (int)$this->conn->lastInsertId();
 
             if ($idEquipoActual) {
-                $this->assignEquipo($idJugador, $idEquipoActual, $fechaAlta ?: date('Y-m-d'), 'ALTA', $capitan);
+                $this->assignEquipo($idJugador, $idEquipoActual, $fechaAlta ?: date('Y-m-d'), 'ALTA', $capitan, $arquero);
             }
 
             $this->conn->commit();
@@ -168,7 +179,7 @@ class Jugador
     /**
      * Actualiza un jugador
      */
-    public function update(int $id, string $nombre, string $apellido, ?string $dni, ?string $fechaNac, ?string $fechaAlta, bool $activo, ?int $idEquipoActual = null, bool $capitan = false): bool
+    public function update(int $id, string $nombre, string $apellido, ?string $dni, ?string $fechaNac, ?string $fechaAlta, bool $activo, ?int $idEquipoActual = null, bool $capitan = false, bool $arquero = false): bool
     {
         try {
             $this->conn->beginTransaction();
@@ -195,7 +206,7 @@ class Jugador
                 return false;
             }
 
-            $this->syncActiveEquipo($id, $idEquipoActual, $fechaAlta ?: date('Y-m-d'), $capitan);
+            $this->syncActiveEquipo($id, $idEquipoActual, $fechaAlta ?: date('Y-m-d'), $capitan, $arquero);
 
             $this->conn->commit();
             return true;
@@ -247,11 +258,14 @@ class Jugador
 
     private function getActiveRelation(int $idJugador): ?array
     {
-        $hasCapitan = $this->hasCapitanColumnInRelacion();
-        $capitanSelect = $hasCapitan ? ', COALESCE(capitan, 0) AS capitan' : ', 0 AS capitan';
+        $capitanColumn = $this->getCapitanColumnInRelacion();
+        $arqueroColumn = $this->getArqueroColumnInRelacion();
+        $capitanSelect = $capitanColumn ? ", COALESCE({$capitanColumn}, 0) AS capitan" : ', 0 AS capitan';
+        $arqueroSelect = $arqueroColumn ? ", COALESCE({$arqueroColumn}, 0) AS arquero" : ', 0 AS arquero';
 
         $sql = "SELECT id, id_jugador, id_equipo, fecha_desde, fecha_hasta
                    {$capitanSelect}
+                   {$arqueroSelect}
             FROM jugador_equipo
             WHERE id_jugador = :id_jugador AND fecha_hasta IS NULL
             ORDER BY id DESC
@@ -263,7 +277,7 @@ class Jugador
         return $result ?: null;
     }
 
-    private function syncActiveEquipo(int $idJugador, ?int $idEquipoActual, string $fechaReferencia, bool $capitan = false): void
+    private function syncActiveEquipo(int $idJugador, ?int $idEquipoActual, string $fechaReferencia, bool $capitan = false, bool $arquero = false): void
     {
         $actual = $this->getActiveRelation($idJugador);
 
@@ -275,7 +289,7 @@ class Jugador
         }
 
         if ($actual && (int)$actual['id_equipo'] === $idEquipoActual) {
-            $this->syncCaptainOnActiveRelation($actual, $capitan);
+            $this->syncRolesOnActiveRelation($actual, $capitan, $arquero);
             return;
         }
 
@@ -283,28 +297,41 @@ class Jugador
             $this->closeActiveRelation((int)$actual['id'], $idJugador, (int)$actual['id_equipo'], $fechaReferencia);
         }
 
-        $this->assignEquipo($idJugador, $idEquipoActual, $fechaReferencia, $actual ? 'ACTUALIZACION' : 'ALTA');
+        $this->assignEquipo($idJugador, $idEquipoActual, $fechaReferencia, $actual ? 'ACTUALIZACION' : 'ALTA', $capitan, $arquero);
     }
 
-    private function assignEquipo(int $idJugador, int $idEquipo, string $fechaDesde, string $accion = 'ALTA', bool $capitan = false): void
+    private function assignEquipo(int $idJugador, int $idEquipo, string $fechaDesde, string $accion = 'ALTA', bool $capitan = false, bool $arquero = false): void
     {
-        $hasCapitan = $this->hasCapitanColumnInRelacion();
-        $sql = $hasCapitan
-            ? "INSERT INTO jugador_equipo (id_jugador, id_equipo, fecha_desde, fecha_hasta, capitan)
-                VALUES (:id_jugador, :id_equipo, :fecha_desde, NULL, :capitan)"
-            : "INSERT INTO jugador_equipo (id_jugador, id_equipo, fecha_desde, fecha_hasta)
-                VALUES (:id_jugador, :id_equipo, :fecha_desde, NULL)";
+        $capitanColumn = $this->getCapitanColumnInRelacion();
+        $arqueroColumn = $this->getArqueroColumnInRelacion();
+
+        $columns = ['id_jugador', 'id_equipo', 'fecha_desde', 'fecha_hasta'];
+        $values = [':id_jugador', ':id_equipo', ':fecha_desde', 'NULL'];
+
+        if ($capitanColumn) {
+            $columns[] = $capitanColumn;
+            $values[] = ':capitan';
+        }
+        if ($arqueroColumn) {
+            $columns[] = $arqueroColumn;
+            $values[] = ':arquero';
+        }
+
+        $sql = 'INSERT INTO jugador_equipo (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $values) . ')';
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id_jugador', $idJugador, PDO::PARAM_INT);
         $stmt->bindValue(':id_equipo', $idEquipo, PDO::PARAM_INT);
         $stmt->bindValue(':fecha_desde', $fechaDesde);
-        if ($hasCapitan) {
+        if ($capitanColumn) {
             $stmt->bindValue(':capitan', $capitan ? 1 : 0, PDO::PARAM_INT);
+        }
+        if ($arqueroColumn) {
+            $stmt->bindValue(':arquero', $arquero ? 1 : 0, PDO::PARAM_INT);
         }
         $stmt->execute();
 
         $idJugadorEquipo = (int)$this->conn->lastInsertId();
-        $this->insertRelationHistory($idJugadorEquipo, $idJugador, $idEquipo, $fechaDesde, null, $accion, $capitan);
+        $this->insertRelationHistory($idJugadorEquipo, $idJugador, $idEquipo, $fechaDesde, null, $accion, $capitan, $arquero);
     }
 
     private function closeActiveRelation(int $idJugadorEquipo, int $idJugador, int $idEquipo, string $fechaHasta): void
@@ -326,26 +353,41 @@ class Jugador
             $actual['fecha_desde'] ?? null,
             $fechaHasta,
             'BAJA',
-            isset($actual['capitan']) ? (bool)$actual['capitan'] : false
+            isset($actual['capitan']) ? (bool)$actual['capitan'] : false,
+            isset($actual['arquero']) ? (bool)$actual['arquero'] : false
         );
     }
 
-    private function syncCaptainOnActiveRelation(array $actual, bool $capitan): void
+    private function syncRolesOnActiveRelation(array $actual, bool $capitan, bool $arquero): void
     {
-        if (!$this->hasCapitanColumnInRelacion()) {
+        $capitanColumn = $this->getCapitanColumnInRelacion();
+        $arqueroColumn = $this->getArqueroColumnInRelacion();
+        if (!$capitanColumn && !$arqueroColumn) {
             return;
         }
 
         $currentCaptain = isset($actual['capitan']) ? (bool)$actual['capitan'] : false;
-        if ($currentCaptain === $capitan) {
+        $currentArquero = isset($actual['arquero']) ? (bool)$actual['arquero'] : false;
+        if ($currentCaptain === $capitan && $currentArquero === $arquero) {
             return;
         }
 
-        $sql = "UPDATE jugador_equipo
-                SET capitan = :capitan
-                WHERE id = :id";
+        $sets = [];
+        if ($capitanColumn) {
+            $sets[] = "{$capitanColumn} = :capitan";
+        }
+        if ($arqueroColumn) {
+            $sets[] = "{$arqueroColumn} = :arquero";
+        }
+
+        $sql = 'UPDATE jugador_equipo SET ' . implode(', ', $sets) . ' WHERE id = :id';
         $stmt = $this->conn->prepare($sql);
-        $stmt->bindValue(':capitan', $capitan ? 1 : 0, PDO::PARAM_INT);
+        if ($capitanColumn) {
+            $stmt->bindValue(':capitan', $capitan ? 1 : 0, PDO::PARAM_INT);
+        }
+        if ($arqueroColumn) {
+            $stmt->bindValue(':arquero', $arquero ? 1 : 0, PDO::PARAM_INT);
+        }
         $stmt->bindValue(':id', (int)$actual['id'], PDO::PARAM_INT);
         $stmt->execute();
 
@@ -355,19 +397,30 @@ class Jugador
             (int)$actual['id_equipo'],
             $actual['fecha_desde'] ?? null,
             $actual['fecha_hasta'] ?? null,
-            'ACTUALIZACION_CAPITAN',
-            $capitan
+            'ACTUALIZACION_ROLES',
+            $capitan,
+            $arquero
         );
     }
 
-    private function insertRelationHistory(int $idJugadorEquipo, int $idJugador, int $idEquipo, ?string $fechaDesde, ?string $fechaHasta, string $accion, bool $capitan = false): void
+    private function insertRelationHistory(int $idJugadorEquipo, int $idJugador, int $idEquipo, ?string $fechaDesde, ?string $fechaHasta, string $accion, bool $capitan = false, bool $arquero = false): void
     {
-        $hasCapitan = $this->hasCapitanColumnInHist();
-        $sql = $hasCapitan
-            ? "INSERT INTO jugador_equipo_hist (id_jugador_equipo, id_jugador, id_equipo, fecha_desde, fecha_hasta, fecha_cambio, accion, capitan)
-                VALUES (:id_jugador_equipo, :id_jugador, :id_equipo, :fecha_desde, :fecha_hasta, NOW(), :accion, :capitan)"
-            : "INSERT INTO jugador_equipo_hist (id_jugador_equipo, id_jugador, id_equipo, fecha_desde, fecha_hasta, fecha_cambio, accion)
-                VALUES (:id_jugador_equipo, :id_jugador, :id_equipo, :fecha_desde, :fecha_hasta, NOW(), :accion)";
+        $capitanColumn = $this->getCapitanColumnInHist();
+        $arqueroColumn = $this->getArqueroColumnInHist();
+
+        $columns = ['id_jugador_equipo', 'id_jugador', 'id_equipo', 'fecha_desde', 'fecha_hasta', 'fecha_cambio', 'accion'];
+        $values = [':id_jugador_equipo', ':id_jugador', ':id_equipo', ':fecha_desde', ':fecha_hasta', 'NOW()', ':accion'];
+
+        if ($capitanColumn) {
+            $columns[] = $capitanColumn;
+            $values[] = ':capitan';
+        }
+        if ($arqueroColumn) {
+            $columns[] = $arqueroColumn;
+            $values[] = ':arquero';
+        }
+
+        $sql = 'INSERT INTO jugador_equipo_hist (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $values) . ')';
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id_jugador_equipo', $idJugadorEquipo, PDO::PARAM_INT);
         $stmt->bindValue(':id_jugador', $idJugador, PDO::PARAM_INT);
@@ -375,19 +428,25 @@ class Jugador
         $stmt->bindValue(':fecha_desde', $fechaDesde);
         $stmt->bindValue(':fecha_hasta', $fechaHasta);
         $stmt->bindValue(':accion', $accion);
-        if ($hasCapitan) {
+        if ($capitanColumn) {
             $stmt->bindValue(':capitan', $capitan ? 1 : 0, PDO::PARAM_INT);
+        }
+        if ($arqueroColumn) {
+            $stmt->bindValue(':arquero', $arquero ? 1 : 0, PDO::PARAM_INT);
         }
         $stmt->execute();
     }
 
     private function getRelationById(int $idJugadorEquipo): ?array
     {
-        $hasCapitan = $this->hasCapitanColumnInRelacion();
-        $capitanSelect = $hasCapitan ? ', COALESCE(capitan, 0) AS capitan' : ', 0 AS capitan';
+        $capitanColumn = $this->getCapitanColumnInRelacion();
+        $arqueroColumn = $this->getArqueroColumnInRelacion();
+        $capitanSelect = $capitanColumn ? ", COALESCE({$capitanColumn}, 0) AS capitan" : ', 0 AS capitan';
+        $arqueroSelect = $arqueroColumn ? ", COALESCE({$arqueroColumn}, 0) AS arquero" : ', 0 AS arquero';
 
         $sql = "SELECT id, id_jugador, id_equipo, fecha_desde, fecha_hasta
                        {$capitanSelect}
+                       {$arqueroSelect}
                 FROM jugador_equipo
                 WHERE id = :id
                 LIMIT 1";
@@ -400,33 +459,101 @@ class Jugador
 
     private function hasCapitanColumnInRelacion(): bool
     {
-        if ($this->hasCapitanColumnInRelacion !== null) {
-            return $this->hasCapitanColumnInRelacion;
-        }
-
-        try {
-            $stmt = $this->conn->query("SHOW COLUMNS FROM jugador_equipo LIKE 'capitan'");
-            $this->hasCapitanColumnInRelacion = $stmt !== false && (bool)$stmt->fetch(PDO::FETCH_ASSOC);
-        } catch (Throwable) {
-            $this->hasCapitanColumnInRelacion = false;
-        }
-
-        return $this->hasCapitanColumnInRelacion;
+        return $this->getCapitanColumnInRelacion() !== null;
     }
 
     private function hasCapitanColumnInHist(): bool
     {
-        if ($this->hasCapitanColumnInHist !== null) {
-            return $this->hasCapitanColumnInHist;
+        return $this->getCapitanColumnInHist() !== null;
+    }
+
+    private function hasArqueroColumnInRelacion(): bool
+    {
+        return $this->getArqueroColumnInRelacion() !== null;
+    }
+
+    private function hasArqueroColumnInHist(): bool
+    {
+        return $this->getArqueroColumnInHist() !== null;
+    }
+
+    private function getCapitanColumnInRelacion(): ?string
+    {
+        if ($this->capitanColumnRelacionResolved) {
+            return $this->capitanColumnInRelacion;
         }
 
+        $this->capitanColumnRelacionResolved = true;
+        $this->capitanColumnInRelacion = $this->resolveCaptainColumnName('jugador_equipo');
+
+        return $this->capitanColumnInRelacion;
+    }
+
+    private function getCapitanColumnInHist(): ?string
+    {
+        if ($this->capitanColumnHistResolved) {
+            return $this->capitanColumnInHist;
+        }
+
+        $this->capitanColumnHistResolved = true;
+        $this->capitanColumnInHist = $this->resolveCaptainColumnName('jugador_equipo_hist');
+
+        return $this->capitanColumnInHist;
+    }
+
+    private function getArqueroColumnInRelacion(): ?string
+    {
+        if ($this->arqueroColumnRelacionResolved) {
+            return $this->arqueroColumnInRelacion;
+        }
+
+        $this->arqueroColumnRelacionResolved = true;
+        $this->arqueroColumnInRelacion = $this->resolveArqueroColumnName('jugador_equipo');
+
+        return $this->arqueroColumnInRelacion;
+    }
+
+    private function getArqueroColumnInHist(): ?string
+    {
+        if ($this->arqueroColumnHistResolved) {
+            return $this->arqueroColumnInHist;
+        }
+
+        $this->arqueroColumnHistResolved = true;
+        $this->arqueroColumnInHist = $this->resolveArqueroColumnName('jugador_equipo_hist');
+
+        return $this->arqueroColumnInHist;
+    }
+
+    private function resolveCaptainColumnName(string $tableName): ?string
+    {
         try {
-            $stmt = $this->conn->query("SHOW COLUMNS FROM jugador_equipo_hist LIKE 'capitan'");
-            $this->hasCapitanColumnInHist = $stmt !== false && (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+            foreach (['capitan', 'es_capitan'] as $candidate) {
+                $stmt = $this->conn->query("SHOW COLUMNS FROM {$tableName} LIKE '{$candidate}'");
+                if ($stmt !== false && (bool)$stmt->fetch(PDO::FETCH_ASSOC)) {
+                    return $candidate;
+                }
+            }
         } catch (Throwable) {
-            $this->hasCapitanColumnInHist = false;
+            return null;
         }
 
-        return $this->hasCapitanColumnInHist;
+        return null;
+    }
+
+    private function resolveArqueroColumnName(string $tableName): ?string
+    {
+        try {
+            foreach (['arquero', 'es_arquero'] as $candidate) {
+                $stmt = $this->conn->query("SHOW COLUMNS FROM {$tableName} LIKE '{$candidate}'");
+                if ($stmt !== false && (bool)$stmt->fetch(PDO::FETCH_ASSOC)) {
+                    return $candidate;
+                }
+            }
+        } catch (Throwable) {
+            return null;
+        }
+
+        return null;
     }
 }

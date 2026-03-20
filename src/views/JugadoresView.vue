@@ -36,8 +36,7 @@
           />
           <tbody class="bg-white">
             <tr v-for="item in jugadoresFiltrados" :key="item.id">
-              <td class="ps-4 text-muted fw-bold">{{ item.id }}</td>
-              <td class="fw-medium text-dark">{{ item.apellido }}, {{ item.nombre }}</td>
+              <td class="ps-4 fw-medium text-dark">{{ item.apellido }}, {{ item.nombre }}</td>
               <td class="text-muted">{{ item.dni || '-' }}</td>
               <td class="text-muted">{{ item.equipo_nombre || '-' }}</td>
               <td class="text-muted">{{ formatDate(item.fecha_nac) }}</td>
@@ -57,7 +56,7 @@
               </td>
             </tr>
             <tr v-if="jugadoresFiltrados.length === 0 && !loading">
-              <td colspan="8" class="text-center py-5 text-muted">
+              <td colspan="7" class="text-center py-5 text-muted">
                 No hay jugadores que coincidan con la búsqueda.
               </td>
             </tr>
@@ -158,8 +157,7 @@ const toast = useToastStore();
 const { sortKey, sortDir, handleSort, sortItems } = useSorting();
 
 const columns = [
-  { key: 'id',         label: 'ID',                 sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 80px' },
-  { key: 'apellido',   label: 'Jugador',            sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'apellido',   label: 'Jugador',            sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'dni',        label: 'DNI',                sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'equipo_nombre', label: 'Equipo',          sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'fecha_nac',  label: 'Fecha Nac.',         sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
@@ -179,8 +177,7 @@ const jugadoresFiltrados = computed(() => {
       item.nombre?.toLowerCase().includes(query) ||
       item.apellido?.toLowerCase().includes(query) ||
       item.dni?.toLowerCase().includes(query) ||
-      item.equipo_nombre?.toLowerCase().includes(query) ||
-      String(item.id).includes(query)
+      item.equipo_nombre?.toLowerCase().includes(query)
     );
   }
   return sortItems(items);

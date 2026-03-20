@@ -21,6 +21,12 @@
 - `equipo.id_disciplina` referencia a `disciplina.id`.
 - Definir mas adelante si esta relacion debe ser obligatoria con `not null`.
 
+## Disciplina / Cancha
+
+- `cancha.id_disciplina` referencia a `disciplina.id`.
+- La relacion es obligatoria: una cancha corresponde a una sola disciplina.
+- Una disciplina puede tener muchas canchas.
+
 ## Pendientes
 
 - [ ] Validar si un jugador puede tener dos equipos dentro de la misma disciplina.

@@ -36,8 +36,7 @@
           />
           <tbody class="bg-white">
             <tr v-for="item in arbitrosFiltrados" :key="item.id">
-              <td class="ps-4 text-muted fw-bold">{{ item.id }}</td>
-              <td class="fw-medium text-dark">{{ item.apellido }}, {{ item.nombre }}</td>
+              <td class="ps-4 fw-medium text-dark">{{ item.apellido }}, {{ item.nombre }}</td>
               <td class="text-muted">{{ item.dni || '-' }}</td>
               <td class="text-muted">{{ item.telefono || '-' }}</td>
               <td class="text-muted">{{ item.email || '-' }}</td>
@@ -56,7 +55,7 @@
               </td>
             </tr>
             <tr v-if="arbitrosFiltrados.length === 0 && !loading">
-              <td colspan="7" class="text-center py-5 text-muted">
+              <td colspan="6" class="text-center py-5 text-muted">
                 No hay arbitros que coincidan con la búsqueda.
               </td>
             </tr>
@@ -146,8 +145,7 @@ const toast = useToastStore();
 const { sortKey, sortDir, handleSort, sortItems } = useSorting();
 
 const columns = [
-  { key: 'id',       label: 'ID',        sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 80px' },
-  { key: 'apellido', label: 'Arbitro',   sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'apellido', label: 'Arbitro',   sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'dni',      label: 'DNI',       sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'telefono', label: 'Telefono',  sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'email',    label: 'Email',     sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
@@ -185,8 +183,7 @@ const arbitrosFiltrados = computed(() => {
       item.apellido?.toLowerCase().includes(query) ||
       item.dni?.toLowerCase().includes(query) ||
       item.telefono?.toLowerCase().includes(query) ||
-      item.email?.toLowerCase().includes(query) ||
-      String(item.id).includes(query)
+      item.email?.toLowerCase().includes(query)
     );
   }
   return sortItems(items);

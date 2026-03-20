@@ -8,6 +8,8 @@ class PlanTorneoController extends BaseController
 {
     private const ESTADO_EVENTO_PROGRAMACION_PENDIENTE_ID = 1;
     private const ESTADO_EVENTO_PROGRAMADO_ID = 2;
+    private const ESTADO_TORNEO_EN_CURSO_ID = 4;
+    private ?array $eventoPagoColumns = null;
 
     public function simular(): void
     {
@@ -262,6 +264,8 @@ class PlanTorneoController extends BaseController
                 $this->respond(400, ['message' => 'id_torneo es obligatorio.']);
             }
 
+            $this->actualizarTorneoEnCursoSiCorresponde($idTorneo);
+
             $sqlTorneo = "SELECT t.id, t.nombre, t.descripcion, t.id_disciplina, t.id_estado_torneo,
                                  t.fecha_inicio, t.fecha_fin, t.cupo_equipos, t.valor_inscripcion,
                                  t.formato_manual, d.nombre AS disciplina_nombre, et.descripcion AS estado_nombre
@@ -312,9 +316,9 @@ class PlanTorneoController extends BaseController
             $stmt->execute();
             $asignaciones = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            $sqlInscriptos = "SELECT et.id, et.id_equipo, e.nombre AS equipo_nombre, e.escudo,
-                                     et.id_estado_inscripcion, ei.descripcion AS estado_inscripcion,
-                                     et.fecha_inscripcion, et.fecha_pago, et.comprobante_pago, et.observacion,
+                        $sqlInscriptos = "SELECT et.id, et.id_equipo, e.nombre AS equipo_nombre, e.escudo,
+                                                                         et.id_estado_inscripcion, ei.descripcion AS estado_inscripcion,
+                                                                         et.fecha_inscripcion,
                                      MAX(CASE WHEN gte.id IS NULL THEN 0 ELSE 1 END) AS asignado
                               FROM equipo_torneo et
                               INNER JOIN equipo e ON e.id = et.id_equipo
@@ -323,7 +327,7 @@ class PlanTorneoController extends BaseController
                               WHERE et.id_torneo = :id_torneo
                               GROUP BY et.id, et.id_equipo, e.nombre, e.escudo,
                                        et.id_estado_inscripcion, ei.descripcion,
-                                       et.fecha_inscripcion, et.fecha_pago, et.comprobante_pago, et.observacion
+                                                                             et.fecha_inscripcion
                               ORDER BY e.nombre ASC";
             $stmt = $this->db->prepare($sqlInscriptos);
             $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
@@ -332,13 +336,8 @@ class PlanTorneoController extends BaseController
             $estadosInscripcion = $this->getEstadosInscripcionCatalogo();
 
             $inscripcionesTotal = count($inscriptos);
-            $inscripcionesPagas = 0;
             $inscripcionesAsignadas = 0;
             foreach ($inscriptos as $item) {
-                $estado = strtoupper((string)($item['estado_inscripcion'] ?? ''));
-                if (!empty($item['fecha_pago']) || $estado === 'INSCRIPTA') {
-                    $inscripcionesPagas++;
-                }
                 if ((int)($item['asignado'] ?? 0) === 1) {
                     $inscripcionesAsignadas++;
                 }
@@ -357,6 +356,7 @@ class PlanTorneoController extends BaseController
             $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
             $stmt->execute();
             $eventos = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['eventos_zona' => 0, 'eventos_eliminacion' => 0, 'total' => 0];
+            $eventosPartido = $this->getEventosPartido($idTorneo, false, 'todas');
 
             $this->respond(200, [
                 'torneo' => $torneo,
@@ -364,11 +364,10 @@ class PlanTorneoController extends BaseController
                 'grupos' => $grupos,
                 'asignaciones' => $asignaciones,
                 'inscriptos' => $inscriptos,
+                'eventos_partido' => $eventosPartido,
                 'estados_inscripcion' => $estadosInscripcion,
                 'inscripciones' => [
                     'total' => $inscripcionesTotal,
-                    'pagas' => $inscripcionesPagas,
-                    'pendientes' => max(0, $inscripcionesTotal - $inscripcionesPagas),
                     'asignadas' => $inscripcionesAsignadas,
                 ],
                 'eventos' => [
@@ -528,7 +527,10 @@ class PlanTorneoController extends BaseController
     public function eliminarAsignaciones(): void
     {
         try {
-            $body = $this->getBody();
+            $body = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($body)) {
+                $this->respond(400, ['message' => 'Datos inválidos para eliminar asignaciones.']);
+            }
             $idTorneo = $this->nullableInt($body['id_torneo'] ?? null);
             if ($idTorneo === null) {
                 $this->respond(400, ['message' => 'id_torneo es obligatorio.']);
@@ -552,6 +554,156 @@ class PlanTorneoController extends BaseController
             $this->respond(200, ['message' => 'Asignaciones eliminadas correctamente.']);
         } catch (Throwable $e) {
             $this->handleError($e, 'Error al eliminar asignaciones del torneo');
+        }
+    }
+
+    public function asignarEquiposCruces(): void
+    {
+        try {
+            $body = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($body)) {
+                $this->respond(400, ['message' => 'Datos inválidos para asignar cruces.']);
+            }
+            $idTorneo = $this->nullableInt($body['id_torneo'] ?? null);
+            if ($idTorneo === null) {
+                $this->respond(400, ['message' => 'id_torneo es obligatorio.']);
+            }
+
+            if (!$this->torneoExiste($idTorneo)) {
+                $this->respond(404, ['message' => 'Torneo no encontrado.']);
+            }
+
+            if (!$this->existeConfirmadaVigente($idTorneo)) {
+                $this->respond(409, ['message' => 'El torneo no tiene una planificación confirmada vigente.']);
+            }
+
+            $hayFaseDeZonas = !empty($this->getGruposFaseZonas($idTorneo));
+            if ($hayFaseDeZonas && !$this->isFaseZonasCerrada($idTorneo)) {
+                $this->respond(422, ['message' => 'No se pueden asignar cruces hasta finalizar todos los partidos de zonas.']);
+            }
+
+            $this->db->beginTransaction();
+
+            if ($hayFaseDeZonas) {
+                $map = $this->buildStandingsMap($idTorneo);
+                if (empty($map)) {
+                    $this->respond(422, ['message' => 'No hay tabla de posiciones disponible para asignar cruces por zonas.']);
+                }
+                $seedList = $this->buildSeedList($map);
+                $actualizados = $this->actualizarCrucesConContexto($idTorneo, $map, $seedList, true);
+                $modo = 'zonas_por_puntaje';
+            } else {
+                $seedList = $this->buildRandomSeedListFromInscriptos($idTorneo);
+                if (empty($seedList)) {
+                    $this->respond(422, ['message' => 'No hay equipos inscriptos para asignar cruces.']);
+                }
+                $actualizados = $this->actualizarCrucesConContexto($idTorneo, [], $seedList, true);
+                $modo = 'aleatorio';
+            }
+
+            $this->db->commit();
+
+            $this->respond(200, [
+                'message' => 'Cruces asignados correctamente.',
+                'modo' => $modo,
+                'eventos_cruce_actualizados' => $actualizados,
+            ]);
+        } catch (Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            $this->handleError($e, 'Error al asignar equipos en cruces');
+        }
+    }
+
+    public function actualizarAsignacionCruce(): void
+    {
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($data)) {
+                $this->respond(400, ['message' => 'Datos inválidos para actualizar asignación de cruce.']);
+            }
+
+            $idTorneo = $this->nullableInt($data['id_torneo'] ?? null);
+            $idEvento = $this->nullableInt($data['id_evento'] ?? null);
+            $idEquipoLocal = $this->nullableInt($data['id_equipo_local'] ?? null);
+            $idEquipoVisitante = $this->nullableInt($data['id_equipo_visitante'] ?? null);
+
+            if ($idTorneo === null || $idEvento === null) {
+                $this->respond(400, ['message' => 'id_torneo e id_evento son obligatorios.']);
+            }
+
+            if (!$this->torneoExiste($idTorneo)) {
+                $this->respond(404, ['message' => 'Torneo no encontrado.']);
+            }
+
+            $stmtEventoCruce = $this->db->prepare(
+                "SELECT ev.id
+                 FROM evento ev
+                 INNER JOIN cruce_torneo c ON c.id_evento = ev.id
+                 INNER JOIN fase_torneo f ON f.id = c.id_fase_torneo
+                 WHERE ev.id = :id_evento
+                   AND ev.id_torneo = :id_torneo
+                   AND f.id_torneo = :id_torneo
+                 LIMIT 1"
+            );
+            $stmtEventoCruce->bindValue(':id_evento', $idEvento, PDO::PARAM_INT);
+            $stmtEventoCruce->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmtEventoCruce->execute();
+            if (!$stmtEventoCruce->fetch(PDO::FETCH_ASSOC)) {
+                $this->respond(404, ['message' => 'El partido indicado no pertenece a un cruce del torneo.']);
+            }
+
+            if ($idEquipoLocal !== null && $idEquipoVisitante !== null && $idEquipoLocal === $idEquipoVisitante) {
+                $this->respond(422, ['message' => 'El equipo local y visitante no pueden ser el mismo.']);
+            }
+
+            $idsValidar = [];
+            if ($idEquipoLocal !== null) {
+                $idsValidar[] = $idEquipoLocal;
+            }
+            if ($idEquipoVisitante !== null) {
+                $idsValidar[] = $idEquipoVisitante;
+            }
+
+            if (!empty($idsValidar)) {
+                $idsValidar = array_values(array_unique(array_map('intval', $idsValidar)));
+                $placeholders = implode(',', array_fill(0, count($idsValidar), '?'));
+                $sql = "SELECT id_equipo
+                        FROM equipo_torneo
+                        WHERE id_torneo = ?
+                          AND id_equipo IN ($placeholders)";
+                $stmt = $this->db->prepare($sql);
+                $stmt->bindValue(1, $idTorneo, PDO::PARAM_INT);
+                foreach ($idsValidar as $index => $idEquipo) {
+                    $stmt->bindValue($index + 2, $idEquipo, PDO::PARAM_INT);
+                }
+                $stmt->execute();
+                $idsEncontrados = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+                if (count($idsEncontrados) !== count($idsValidar)) {
+                    $this->respond(422, ['message' => 'Solo se pueden asignar equipos inscriptos en el torneo.']);
+                }
+            }
+
+            $stmtUpdate = $this->db->prepare(
+                'UPDATE evento
+                 SET id_equipo_local = :id_equipo_local,
+                     id_equipo_visitante = :id_equipo_visitante
+                 WHERE id = :id_evento
+                   AND id_torneo = :id_torneo'
+            );
+            $stmtUpdate->bindValue(':id_equipo_local', $idEquipoLocal, $idEquipoLocal === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+            $stmtUpdate->bindValue(':id_equipo_visitante', $idEquipoVisitante, $idEquipoVisitante === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+            $stmtUpdate->bindValue(':id_evento', $idEvento, PDO::PARAM_INT);
+            $stmtUpdate->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmtUpdate->execute();
+
+            $this->respond(200, [
+                'message' => 'Asignación manual del cruce actualizada correctamente.',
+                'id_evento' => $idEvento,
+            ]);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al actualizar asignación manual de cruce');
         }
     }
 
@@ -646,7 +798,6 @@ class PlanTorneoController extends BaseController
             }
 
             $idsEquipos = [];
-            $payloadMap = [];
             foreach ($inscripciones as $item) {
                 $idEquipo = (int)($item['id_equipo'] ?? 0);
                 if ($idEquipo <= 0) {
@@ -657,13 +808,6 @@ class PlanTorneoController extends BaseController
                 }
 
                 $idsEquipos[] = $idEquipo;
-                $payloadMap[$idEquipo] = [
-                    'pagada' => (bool)($item['pagada'] ?? false),
-                    'fecha_pago' => isset($item['fecha_pago']) ? trim((string)$item['fecha_pago']) : null,
-                    'id_estado_inscripcion' => isset($item['id_estado_inscripcion']) ? $this->nullableInt($item['id_estado_inscripcion']) : null,
-                    'comprobante_pago' => isset($item['comprobante_pago']) ? trim((string)$item['comprobante_pago']) : null,
-                    'observacion' => isset($item['observacion']) ? trim((string)$item['observacion']) : null,
-                ];
             }
 
             $equiposActivos = $this->getEquiposActivosMap($idsEquipos);
@@ -673,37 +817,34 @@ class PlanTorneoController extends BaseController
 
             $yaInscriptos = $this->getEquipoTorneoMapByEquipos($idTorneo, $idsEquipos);
 
-            $idEstadoPendiente = $this->resolveEstadoInscripcionByDescripcion(['PENDIENTE', 'PENDIENTE_PAGO']);
-            $idEstadoPaga = $this->resolveEstadoInscripcionByDescripcion(['INSCRIPTA', 'PAGO_EN_REVISION', 'PAGADA']);
-            $estadosValidos = $this->getEstadosInscripcionCatalogo();
-            $estadoIdsValidos = [];
-            foreach ($estadosValidos as $estado) {
-                $estadoIdsValidos[(int)$estado['id']] = true;
+            $cupoObjetivo = $this->getCupoObjetivoTorneo($idTorneo);
+            if ($cupoObjetivo > 0) {
+                $inscriptosActuales = $this->getTotalInscriptosTorneo($idTorneo);
+                $nuevasInscripciones = 0;
+                foreach ($idsEquipos as $idEquipo) {
+                    if (!isset($yaInscriptos[$idEquipo])) {
+                        $nuevasInscripciones++;
+                    }
+                }
+
+                if (($inscriptosActuales + $nuevasInscripciones) > $cupoObjetivo) {
+                    $disponibles = max(0, $cupoObjetivo - $inscriptosActuales);
+                    $this->respond(422, [
+                        'message' => 'No se pueden registrar más inscripciones: el cupo del torneo está completo.',
+                        'cupo_equipos' => $cupoObjetivo,
+                        'inscriptos_actuales' => $inscriptosActuales,
+                        'vacantes_disponibles' => $disponibles,
+                    ]);
+                }
             }
+
+            $idEstadoInscripta = $this->resolveEstadoInscripcionByDescripcion(['INSCRIPTA', 'PENDIENTE', 'PENDIENTE_PAGO']);
 
             $this->db->beginTransaction();
             $creadas = 0;
             $actualizadas = 0;
 
             foreach ($idsEquipos as $idEquipo) {
-                $pagada = $payloadMap[$idEquipo]['pagada'];
-                $fechaPago = $payloadMap[$idEquipo]['fecha_pago'];
-                $comprobantePago = $payloadMap[$idEquipo]['comprobante_pago'];
-                $observacion = $payloadMap[$idEquipo]['observacion'];
-                $idEstadoPayload = $payloadMap[$idEquipo]['id_estado_inscripcion'];
-                if ($pagada && empty($fechaPago)) {
-                    $fechaPago = date('Y-m-d');
-                }
-
-                if ($idEstadoPayload !== null) {
-                    if (!isset($estadoIdsValidos[$idEstadoPayload])) {
-                        $this->respond(422, ['message' => 'Se detectó un estado de inscripción inválido.']);
-                    }
-                    $idEstado = $idEstadoPayload;
-                } else {
-                    $idEstado = $pagada ? $idEstadoPaga : $idEstadoPendiente;
-                }
-
                 if (isset($yaInscriptos[$idEquipo])) {
                     $sql = "UPDATE equipo_torneo
                             SET id_estado_inscripcion = :id_estado_inscripcion,
@@ -712,27 +853,15 @@ class PlanTorneoController extends BaseController
                                 observacion = :observacion
                             WHERE id = :id";
                     $stmt = $this->db->prepare($sql);
-                    $stmt->bindValue(':id_estado_inscripcion', $idEstado, PDO::PARAM_INT);
-                    if ($fechaPago) {
-                        $stmt->bindValue(':fecha_pago', $fechaPago);
-                    } else {
-                        $stmt->bindValue(':fecha_pago', null, PDO::PARAM_NULL);
-                    }
-                    if (!empty($comprobantePago)) {
-                        $stmt->bindValue(':comprobante_pago', $comprobantePago);
-                    } else {
-                        $stmt->bindValue(':comprobante_pago', null, PDO::PARAM_NULL);
-                    }
-                    if (!empty($observacion)) {
-                        $stmt->bindValue(':observacion', $observacion);
-                    } else {
-                        $stmt->bindValue(':observacion', null, PDO::PARAM_NULL);
-                    }
+                    $stmt->bindValue(':id_estado_inscripcion', $idEstadoInscripta, PDO::PARAM_INT);
+                    $stmt->bindValue(':fecha_pago', null, PDO::PARAM_NULL);
+                    $stmt->bindValue(':comprobante_pago', null, PDO::PARAM_NULL);
+                    $stmt->bindValue(':observacion', null, PDO::PARAM_NULL);
                     $stmt->bindValue(':id', (int)$yaInscriptos[$idEquipo], PDO::PARAM_INT);
                     $stmt->execute();
                     $actualizadas++;
                 } else {
-                    $this->insertEquipoTorneo($idTorneo, $idEquipo, $idEstado, $fechaPago, $comprobantePago, $observacion);
+                    $this->insertEquipoTorneo($idTorneo, $idEquipo, $idEstadoInscripta, null, null, null);
                     $creadas++;
                 }
             }
@@ -1074,21 +1203,86 @@ class PlanTorneoController extends BaseController
             }
             $stmtUpdate->execute();
 
-            $eventosCruceActualizados = 0;
-            if ($faseProgramar === 'eliminacion' || $faseProgramar === 'todas' || $faseProgramar === 'seleccionados') {
-                // Recalcula cruces para reflejar correctamente si ya hay clasificados.
-                // Si zonas no estan cerradas, los cruces por seed/posicion de grupo quedan en NULL.
-                $eventosCruceActualizados = $this->actualizarEventosCruceConAsignacion($idTorneo);
-            }
-
             $this->respond(200, [
                 'message' => 'Programación deshecha correctamente.',
                 'revertidos' => (int)$stmtUpdate->rowCount(),
                 'fase_programar' => $faseProgramar,
-                'eventos_cruce_actualizados' => $eventosCruceActualizados,
+                'eventos_cruce_actualizados' => 0,
             ]);
         } catch (Throwable $e) {
             $this->handleError($e, 'Error al deshacer la programación de partidos');
+        }
+    }
+
+    public function actualizarPagoEventoEquipo(): void
+    {
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($data)) {
+                $this->respond(400, ['message' => 'Datos inválidos para actualizar pago por partido.']);
+            }
+
+            $idTorneo = $this->nullableInt($data['id_torneo'] ?? null);
+            $idEvento = $this->nullableInt($data['id_evento'] ?? null);
+            $lado = strtolower(trim((string)($data['lado'] ?? '')));
+            $pagoRealizado = (bool)($data['pago_realizado'] ?? false);
+            $urlComprobantePago = isset($data['url_comprobante_pago'])
+                ? trim((string)$data['url_comprobante_pago'])
+                : null;
+
+            if ($idTorneo === null || $idEvento === null || ($lado !== 'local' && $lado !== 'visitante')) {
+                $this->respond(400, ['message' => 'id_torneo, id_evento y lado (local/visitante) son obligatorios.']);
+            }
+
+            if (!$this->torneoExiste($idTorneo)) {
+                $this->respond(404, ['message' => 'Torneo no encontrado.']);
+            }
+
+            $evento = $this->getEventoPartidoById($idTorneo, $idEvento);
+            if (!$evento) {
+                $this->respond(404, ['message' => 'Partido no encontrado para el torneo indicado.']);
+            }
+
+            $columns = $this->getEventoPagoColumnMap();
+            if (!$columns['all_present']) {
+                $this->respond(422, ['message' => 'Faltan columnas de pago por partido en evento. Ejecuta la migración correspondiente.']);
+            }
+
+            $colPago = $lado === 'local' ? 'pago_local_realizado' : 'pago_visitante_realizado';
+            $colComprobante = $lado === 'local' ? 'url_comprobante_pago_local' : 'url_comprobante_pago_visitante';
+
+            if (!$pagoRealizado) {
+                $urlComprobantePago = null;
+            } elseif ($urlComprobantePago !== null && $urlComprobantePago !== '' && strlen($urlComprobantePago) > 255) {
+                $this->respond(422, ['message' => 'La URL del comprobante no puede superar 255 caracteres.']);
+            }
+
+            $sql = "UPDATE evento
+                    SET {$colPago} = :pago_realizado,
+                        {$colComprobante} = :url_comprobante_pago
+                    WHERE id = :id_evento
+                      AND id_torneo = :id_torneo
+                      AND LOWER(tipo_evento) = 'partido'";
+            $stmt = $this->db->prepare($sql);
+            $stmt->bindValue(':pago_realizado', $pagoRealizado ? 1 : 0, PDO::PARAM_INT);
+            if ($urlComprobantePago !== null && $urlComprobantePago !== '') {
+                $stmt->bindValue(':url_comprobante_pago', $urlComprobantePago);
+            } else {
+                $stmt->bindValue(':url_comprobante_pago', null, PDO::PARAM_NULL);
+            }
+            $stmt->bindValue(':id_evento', $idEvento, PDO::PARAM_INT);
+            $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $this->respond(200, [
+                'message' => 'Pago por partido actualizado correctamente.',
+                'id_evento' => $idEvento,
+                'lado' => $lado,
+                'pago_realizado' => $pagoRealizado ? 1 : 0,
+                'url_comprobante_pago' => $urlComprobantePago,
+            ]);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al actualizar pago por equipo en partido');
         }
     }
 
@@ -1347,12 +1541,33 @@ class PlanTorneoController extends BaseController
 
     private function getEventosPartido(int $idTorneo, bool $soloPendientes = false, string $faseProgramar = 'todas'): array
     {
+        $eventoPagoColumnMap = $this->getEventoPagoColumnMap();
+        $pagoLocalSelect = $eventoPagoColumnMap['pago_local']
+            ? 'COALESCE(ev.pago_local_realizado, 0) AS pago_local_realizado'
+            : '0 AS pago_local_realizado';
+        $urlLocalSelect = $eventoPagoColumnMap['url_local']
+            ? 'ev.url_comprobante_pago_local AS url_comprobante_pago_local'
+            : 'NULL AS url_comprobante_pago_local';
+        $pagoVisitanteSelect = $eventoPagoColumnMap['pago_visitante']
+            ? 'COALESCE(ev.pago_visitante_realizado, 0) AS pago_visitante_realizado'
+            : '0 AS pago_visitante_realizado';
+        $urlVisitanteSelect = $eventoPagoColumnMap['url_visitante']
+            ? 'ev.url_comprobante_pago_visitante AS url_comprobante_pago_visitante'
+            : 'NULL AS url_comprobante_pago_visitante';
+
         $sql = "SELECT ev.id, ev.titulo, ev.numero_fecha, ev.fecha_hora_inicio, ev.fecha_hora_fin,
                    ev.id_estado_evento,
                        ev.id_cancha, ev.id_arbitro,
                        ev.id_equipo_local, ev.id_equipo_visitante,
+                       ev.resultado_local, ev.resultado_visitante,
+                       {$pagoLocalSelect},
+                       {$urlLocalSelect},
+                       {$pagoVisitanteSelect},
+                       {$urlVisitanteSelect},
                        el.nombre AS equipo_local_nombre,
+                       el.escudo AS equipo_local_escudo,
                        evt.nombre AS equipo_visitante_nombre,
+                       evt.escudo AS equipo_visitante_escudo,
                    ee.descripcion AS estado_evento_descripcion,
                        c.nombre AS cancha_nombre,
                        CONCAT(COALESCE(a.apellido, ''), ' ', COALESCE(a.nombre, '')) AS arbitro_nombre_completo
@@ -1380,6 +1595,34 @@ class PlanTorneoController extends BaseController
         $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    private function getEventoPagoColumnMap(): array
+    {
+        if ($this->eventoPagoColumns !== null) {
+            return $this->eventoPagoColumns;
+        }
+
+        $map = [
+            'pago_local' => $this->tableHasColumn('evento', 'pago_local_realizado'),
+            'url_local' => $this->tableHasColumn('evento', 'url_comprobante_pago_local'),
+            'pago_visitante' => $this->tableHasColumn('evento', 'pago_visitante_realizado'),
+            'url_visitante' => $this->tableHasColumn('evento', 'url_comprobante_pago_visitante'),
+        ];
+        $map['all_present'] = $map['pago_local'] && $map['url_local'] && $map['pago_visitante'] && $map['url_visitante'];
+
+        $this->eventoPagoColumns = $map;
+        return $this->eventoPagoColumns;
+    }
+
+    private function tableHasColumn(string $table, string $column): bool
+    {
+        try {
+            $stmt = $this->db->query("SHOW COLUMNS FROM {$table} LIKE '{$column}'");
+            return $stmt !== false && (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     private function normalizeFaseProgramar(mixed $value): string
@@ -1802,6 +2045,35 @@ class PlanTorneoController extends BaseController
         return $map;
     }
 
+    private function getTotalInscriptosTorneo(int $idTorneo): int
+    {
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM equipo_torneo WHERE id_torneo = :id_torneo');
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->execute();
+        return (int)$stmt->fetchColumn();
+    }
+
+    private function getCupoObjetivoTorneo(int $idTorneo): int
+    {
+        $stmt = $this->db->prepare('SELECT cupo_equipos FROM torneo WHERE id = :id_torneo LIMIT 1');
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->execute();
+        $cupo = (int)($stmt->fetchColumn() ?: 0);
+        if ($cupo > 0) {
+            return $cupo;
+        }
+
+        $stmt = $this->db->prepare("SELECT COALESCE(SUM(g.cantidad_equipos_objetivo), 0)
+                                   FROM grupo_torneo g
+                                   INNER JOIN fase_torneo f ON f.id = g.id_fase_torneo
+                                   WHERE f.id_torneo = :id_torneo
+                                     AND UPPER(f.tipo_fase) = 'FASE_DE_GRUPOS'");
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return (int)($stmt->fetchColumn() ?: 0);
+    }
+
     private function insertGrupoTorneoEquipo(int $idGrupo, int $idEquipoTorneo, int $posicion): void
     {
         $sql = "INSERT INTO grupo_torneo_equipo (id_grupo_torneo, id_equipo_torneo, posicion_inicial)
@@ -1904,6 +2176,11 @@ class PlanTorneoController extends BaseController
 
         $seedList = $this->buildSeedList($map);
 
+        return $this->actualizarCrucesConContexto($idTorneo, $map, $seedList, $zonasCerradas);
+    }
+
+    private function actualizarCrucesConContexto(int $idTorneo, array $map, array $seedList, bool $zonasCerradas): int
+    {
         $sql = "SELECT c.id, c.id_evento,
                        c.origen_local_tipo, c.origen_local_valor,
                        c.origen_visitante_tipo, c.origen_visitante_valor
@@ -2110,6 +2387,21 @@ class PlanTorneoController extends BaseController
         return $seeds;
     }
 
+    private function buildRandomSeedListFromInscriptos(int $idTorneo): array
+    {
+        $stmt = $this->db->prepare('SELECT id_equipo FROM equipo_torneo WHERE id_torneo = :id_torneo ORDER BY id ASC');
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->execute();
+        $seedList = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+
+        for ($i = count($seedList) - 1; $i > 0; $i--) {
+            $j = random_int(0, $i);
+            [$seedList[$i], $seedList[$j]] = [$seedList[$j], $seedList[$i]];
+        }
+
+        return $seedList;
+    }
+
     private function resolveOrigenEquipoId(string $tipo, string $valor, array $map, array $seedList, bool $zonasCerradas): ?int
     {
         if (!$zonasCerradas && ($tipo === 'POSICION_GRUPO' || $tipo === 'SEED_DIRECTO')) {
@@ -2188,6 +2480,30 @@ class PlanTorneoController extends BaseController
         $stmt->bindValue(':id', $idTorneo, PDO::PARAM_INT);
         $stmt->execute();
         return (bool)$stmt->fetchColumn();
+    }
+
+    private function actualizarTorneoEnCursoSiCorresponde(int $idTorneo): void
+    {
+        $sql = "UPDATE torneo t
+                LEFT JOIN estado_torneo et ON et.id = t.id_estado_torneo
+                SET t.id_estado_torneo = :id_estado_en_curso
+                WHERE t.id = :id_torneo
+                  AND COALESCE(t.activo, 1) = 1
+                  AND COALESCE(t.id_estado_torneo, 0) <> :id_estado_en_curso
+                  AND UPPER(COALESCE(et.descripcion, '')) NOT IN ('FINALIZADO', 'FINALIZADA', 'CANCELADO', 'CANCELADA')
+                  AND EXISTS (
+                      SELECT 1
+                      FROM evento ev
+                      WHERE ev.id_torneo = t.id
+                        AND LOWER(ev.tipo_evento) = 'partido'
+                        AND ev.fecha_hora_inicio IS NOT NULL
+                        AND ev.fecha_hora_inicio <= NOW()
+                  )";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':id_estado_en_curso', self::ESTADO_TORNEO_EN_CURSO_ID, PDO::PARAM_INT);
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->execute();
     }
 
     private function crearTorneoDesdePlanificacion(array $torneoNuevo, array $payload): int

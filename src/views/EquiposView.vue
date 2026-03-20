@@ -70,7 +70,7 @@
     <!-- Modal Formulario -->
     <Teleport to="body">
     <div v-if="showFormModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
-      <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-dialog modal-dialog-centered" :class="isEditing ? 'modal-xl' : 'modal-lg'">
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">
@@ -126,6 +126,7 @@
                         <th class="ps-3">Nombre</th>
                         <th>Apellido</th>
                         <th class="text-center" style="width: 120px">Capitán</th>
+                        <th class="text-center" style="width: 120px">Arquero</th>
                         <th class="text-end pe-3" style="width: 100px">Quitar</th>
                       </tr>
                     </thead>
@@ -147,6 +148,14 @@
                             @change="setEditCapitan(idx)"
                           />
                         </td>
+                        <td class="text-center">
+                          <input
+                            v-model="jugador.arquero"
+                            class="form-check-input"
+                            type="checkbox"
+                            :id="`edit-arquero-${idx}`"
+                          />
+                        </td>
                         <td class="text-end pe-3">
                           <button type="button" class="btn btn-sm btn-link link-danger" @click="removeEditJugadorRow(idx)">
                             <i class="bi bi-trash3"></i>
@@ -154,12 +163,12 @@
                         </td>
                       </tr>
                       <tr v-if="editRoster.length === 0">
-                        <td colspan="4" class="text-center py-3 text-muted">Este equipo no tiene jugadores cargados.</td>
+                        <td colspan="5" class="text-center py-3 text-muted">Este equipo no tiene jugadores cargados.</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
-                <div class="form-text mt-2">Podés agregar jugadores nuevos, quitar jugadores actuales y cambiar el capitán del equipo.</div>
+                <div class="form-text mt-2">Podés agregar jugadores nuevos, quitar jugadores actuales, cambiar el capitán y marcar arqueros.</div>
               </template>
             </div>
             <div class="modal-footer">
@@ -220,8 +229,9 @@
                     <thead class="table-light">
                       <tr>
                         <th class="ps-3" style="width: 65%">Nombre completo del jugador</th>
-                        <th class="text-center" style="width: 20%">Capitán</th>
-                        <th class="text-end pe-3" style="width: 15%">Acción</th>
+                        <th class="text-center" style="width: 12%">Capitán</th>
+                        <th class="text-center" style="width: 12%">Arquero</th>
+                        <th class="text-end pe-3" style="width: 11%">Acción</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -245,6 +255,14 @@
                             @change="setBulkCapitan(idx)"
                           />
                         </td>
+                        <td class="text-center">
+                          <input
+                            v-model="jugador.arquero"
+                            class="form-check-input"
+                            type="checkbox"
+                            :id="`arquero-${idx}`"
+                          />
+                        </td>
                         <td class="text-end pe-3">
                           <button
                             type="button"
@@ -259,7 +277,7 @@
                     </tbody>
                   </table>
                 </div>
-                <div class="form-text mt-2">Marcá un capitán con el selector circular. Si no marcás ninguno, se cargan todos como integrantes.</div>
+                <div class="form-text mt-2">Marcá un capitán con el selector circular y los arqueros con checkbox.</div>
               </div>
               <div class="modal-footer">
                 <button @click="showBulkModal = false" type="button" class="btn btn-light px-4">Cancelar</button>
@@ -307,19 +325,29 @@
                   <thead class="table-light">
                     <tr>
                       <th class="ps-3">Nombre</th>
-                      <th class="text-center" style="width: 180px">Rol</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr v-for="integrante in integrantesEquipo" :key="integrante.id_cliente_equipo">
-                      <td class="ps-3">{{ integrante.cliente_nombre }}</td>
-                      <td class="text-center">
-                        <span v-if="integrante.capitan" class="badge bg-warning-subtle text-warning-emphasis rounded-pill px-3">Capitán</span>
-                        <span v-else class="badge bg-light text-secondary rounded-pill px-3">Jugador</span>
+                      <td class="ps-3">
+                        <div class="d-flex align-items-center justify-content-between gap-3">
+                          <span>{{ integrante.cliente_nombre }}</span>
+                          <div class="d-inline-flex gap-2 align-items-center">
+                          <span v-if="integrante.capitan" class="badge bg-warning-subtle text-warning-emphasis rounded-pill px-3 role-badge">
+                            <img src="/simbolos/capitan.png" alt="capitán" class="role-badge-icon" />
+                            <span>Capitán</span>
+                          </span>
+                          <span v-if="integrante.arquero" class="badge bg-info-subtle text-info-emphasis rounded-pill px-3 role-badge">
+                            <img src="/simbolos/guantes.png" alt="guantes" class="role-badge-icon" />
+                            <span>Arquero</span>
+                          </span>
+                          <span v-if="!integrante.capitan && !integrante.arquero" class="badge bg-light text-secondary rounded-pill px-3">Jugador</span>
+                          </div>
+                        </div>
                       </td>
                     </tr>
                     <tr v-if="integrantesEquipo.length === 0">
-                      <td colspan="2" class="text-center py-4 text-muted">Este equipo no tiene integrantes asociados.</td>
+                      <td colspan="1" class="text-center py-4 text-muted">Este equipo no tiene integrantes asociados.</td>
                     </tr>
                   </tbody>
                 </table>
@@ -394,10 +422,20 @@ const emptyBulkForm = () => ({
   disciplina: '',
   escudo: null,
   escudoFile: null,
-  jugadores: [{ nombre_completo: '', capitan: false }],
+  jugadores: [{ nombre_completo: '', capitan: false, arquero: false }],
 });
 
 const bulkForm = ref(emptyBulkForm());
+
+const toBoolFlag = (value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === '1' || normalized === 'true' || normalized === 't' || normalized === 'si' || normalized === 's';
+  }
+  return false;
+};
 
 const fetchData = async () => {
   loading.value = true;
@@ -433,8 +471,9 @@ const createRosterRow = (jugador = {}) => ({
   dni: jugador.dni ?? null,
   fecha_nac: jugador.fecha_nac ?? null,
   fecha_alta: jugador.fecha_alta ?? null,
-  activo: jugador.activo !== undefined ? Boolean(Number(jugador.activo)) : true,
-  capitan: Boolean(Number(jugador.capitan)),
+  activo: jugador.activo !== undefined ? toBoolFlag(jugador.activo) : true,
+  capitan: toBoolFlag(jugador.capitan),
+  arquero: toBoolFlag(jugador.arquero),
 });
 
 const loadEquipoRoster = async (idEquipo) => {
@@ -448,8 +487,9 @@ const loadEquipoRoster = async (idEquipo) => {
       dni: jugador.dni ?? null,
       fecha_nac: jugador.fecha_nac ?? null,
       fecha_alta: jugador.fecha_alta ?? null,
-      activo: Boolean(Number(jugador.activo)),
-      capitan: Boolean(Number(jugador.capitan)),
+      activo: toBoolFlag(jugador.activo),
+      capitan: toBoolFlag(jugador.capitan),
+      arquero: toBoolFlag(jugador.arquero),
     }));
     editRoster.value = originalRoster.value.map(jugador => createRosterRow(jugador));
   } catch {
@@ -496,6 +536,7 @@ const hasRosterChanges = () => {
     fecha_alta: jugador.fecha_alta || null,
     activo: Boolean(jugador.activo),
     capitan: Boolean(jugador.capitan),
+    arquero: Boolean(jugador.arquero),
   }));
 
   const original = originalRoster.value.map(jugador => ({
@@ -507,6 +548,7 @@ const hasRosterChanges = () => {
     fecha_alta: jugador.fecha_alta || null,
     activo: Boolean(jugador.activo),
     capitan: Boolean(jugador.capitan),
+    arquero: Boolean(jugador.arquero),
   }));
 
   return JSON.stringify(current) !== JSON.stringify(original);
@@ -539,6 +581,7 @@ const syncRosterChanges = async (idEquipo) => {
         activo: original?.activo ?? true,
         id_equipo_actual: idEquipo,
         capitan: Boolean(jugador.capitan),
+        arquero: Boolean(jugador.arquero),
       });
     } else {
       await datosMaestrosService.crearJugador({
@@ -550,6 +593,7 @@ const syncRosterChanges = async (idEquipo) => {
         activo: true,
         id_equipo_actual: idEquipo,
         capitan: Boolean(jugador.capitan),
+        arquero: Boolean(jugador.arquero),
       });
     }
   }
@@ -566,6 +610,7 @@ const syncRosterChanges = async (idEquipo) => {
         activo: jugadorOriginal.activo ?? true,
         id_equipo_actual: null,
         capitan: false,
+        arquero: false,
       });
     }
   }
@@ -582,7 +627,7 @@ const onBulkEscudoFileChange = (event) => {
 };
 
 const addBulkJugadorRow = () => {
-  bulkForm.value.jugadores.push({ nombre_completo: '', capitan: false });
+  bulkForm.value.jugadores.push({ nombre_completo: '', capitan: false, arquero: false });
 };
 
 const removeBulkJugadorRow = (index) => {
@@ -757,6 +802,7 @@ const saveBulkTeamWithPlayers = async () => {
         activo: true,
         id_equipo_actual: idEquipo,
         capitan: Boolean(jugador.capitan),
+        arquero: Boolean(jugador.arquero),
       });
     }
 
@@ -788,8 +834,9 @@ const openDetalleEquipo = async (equipo) => {
         cliente_nombre: [item.apellido, item.nombre].filter(Boolean).join(', ') || item.nombre || '-',
         id_cliente_equipo: item.id_jugador_equipo || item.id,
         capitan: Boolean(Number(item.capitan)),
+        arquero: Boolean(Number(item.arquero)),
       }))
-      .sort((a, b) => Number(b.capitan) - Number(a.capitan));
+      .sort((a, b) => Number(b.capitan) - Number(a.capitan) || Number(b.arquero) - Number(a.arquero));
   } catch {
     toast.showToast({ message: 'No se pudo cargar el detalle del equipo.', type: 'danger' });
   } finally {
@@ -854,5 +901,17 @@ onMounted(fetchData);
 
 .row-clickable:hover td {
   background-color: #f8fafc;
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.role-badge-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
 }
 </style>
