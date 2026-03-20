@@ -223,6 +223,10 @@
                         <i class="bi bi-eye fs-6"></i>
                         <span class="small fw-bold">Ver</span>
                       </button>
+                      <button @click.stop="openVentaModal(venta)" class="btn btn-sm btn-outline-primary-modern d-inline-flex align-items-center gap-1 px-2 py-1 ms-1" title="Editar venta">
+                        <i class="bi bi-pencil fs-6"></i>
+                        <span class="small fw-bold">Editar</span>
+                      </button>
                       <button @click.stop="prepareDeleteVenta(venta.id)" class="btn btn-link link-danger p-1 ms-1" title="Eliminar">
                         <i class="bi bi-trash3 fs-5"></i>
                       </button>
@@ -284,6 +288,7 @@
       :articulos="articulosDeVenta"
       :api-base-url="apiBaseUrl"
       @imprimir="reimprimirTicket"
+      @editar="editarVentaDesdeDetalle"
     />
 
     <!-- Contenedor de Ticket para Impresión -->
@@ -798,6 +803,11 @@ const imprimirTicketDirecto = async (idVenta) => {
 
 const reimprimirTicket = async (idVenta) => {
   await imprimirTicketDirecto(idVenta);
+};
+
+const editarVentaDesdeDetalle = (venta) => {
+  showDetallesModal.value = false;
+  openVentaModal(venta);
 };
 
 const prepareDeleteVenta = (id) => {

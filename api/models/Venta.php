@@ -206,41 +206,44 @@ class Venta
                 $stmtAV->execute();
                 $idArticuloVenta = (int)$this->conn->lastInsertId();
 
-                // b. Lógica de Descuento de Stock (FIFO)
+                // b. Lógica de Descuento de Stock (FIFO) — permite stock negativo
                 $lotes = $articuloModel->getLotesDisponibles((int)$art['id_articulo']);
                 $cantidadPendiente = (float)($art['cantidad'] ?? 0);
 
-                // Obtener nombre del artículo para mensajes de error si está disponible en $art
-                $nombreArticulo = $art['nombre'] ?? ("ID " . $art['id_articulo']);
-
-                // Si no hay stock disponible (stock = 0), no debe poder agregarse a la venta.
-                if (empty($lotes) || array_sum(array_column($lotes, 'disponible')) <= 0) {
-                    throw new Exception("El artículo \"$nombreArticulo\" no tiene stock disponible.");
-                }
-
-                // Verificar stock total antes de empezar
-                $stockTotal = array_sum(array_column($lotes, 'disponible'));
-                if ($stockTotal < $cantidadPendiente) {
-                    throw new Exception("Cantidad mayor al stock disponible para \"$nombreArticulo\". Disponible: $stockTotal, Requerido: $cantidadPendiente");
-                }
-
+                // c. Distribuir contra lotes disponibles (FIFO)
                 foreach ($lotes as $lote) {
                     if ($cantidadPendiente <= 0) break;
 
                     $disponibleEnLote = (float)$lote['disponible'];
                     $aDescontar = min($cantidadPendiente, $disponibleEnLote);
 
-                    // c. Crear relación articulo_venta_ingreso_articulo
-                    // El id_articulo_venta_ingreso_articulo es AUTO_INCREMENT e INT
                     $sqlAVIA = "INSERT INTO articulo_venta_ingreso_articulo (articulo_venta_id_articulo_venta, ingreso_articulo_id, cantidad) 
                                VALUES (:id_av, :id_ingreso, :cant)";
                     $stmtAVIA = $this->conn->prepare($sqlAVIA);
                     $stmtAVIA->bindValue(':id_av', $idArticuloVenta, PDO::PARAM_INT);
                     $stmtAVIA->bindValue(':id_ingreso', $lote['id'], PDO::PARAM_INT);
-                    $stmtAVIA->bindValue(':cant', (float)$aDescontar); 
+                    $stmtAVIA->bindValue(':cant', (float)$aDescontar);
                     $stmtAVIA->execute();
 
                     $cantidadPendiente -= $aDescontar;
+                }
+
+                // d. Si aún queda cantidad (sin stock suficiente), registrar contra el último lote
+                //    o crear un ingreso de ajuste — el stock resultará negativo.
+                if ($cantidadPendiente > 0) {
+                    $idArticuloInt = (int)$art['id_articulo'];
+                    $loteFallback = $articuloModel->getUltimoLote($idArticuloInt);
+                    $idLoteFallback = $loteFallback
+                        ? $loteFallback['id']
+                        : $articuloModel->crearIngresoAjuste($idArticuloInt);
+
+                    $sqlAVIA = "INSERT INTO articulo_venta_ingreso_articulo (articulo_venta_id_articulo_venta, ingreso_articulo_id, cantidad) 
+                               VALUES (:id_av, :id_ingreso, :cant)";
+                    $stmtAVIA = $this->conn->prepare($sqlAVIA);
+                    $stmtAVIA->bindValue(':id_av', $idArticuloVenta, PDO::PARAM_INT);
+                    $stmtAVIA->bindValue(':id_ingreso', $idLoteFallback, PDO::PARAM_INT);
+                    $stmtAVIA->bindValue(':cant', (float)$cantidadPendiente);
+                    $stmtAVIA->execute();
                 }
             }
 
@@ -406,24 +409,11 @@ class Venta
                 $stmtAV->execute();
                 $idArticuloVenta = (int)$this->conn->lastInsertId();
 
-                // Lógica de Descuento de Stock (FIFO) similar a la de creación
+                // Lógica de Descuento de Stock (FIFO) — permite stock negativo
                 $lotes = $articuloModel->getLotesDisponibles((int)$art['id_articulo']);
                 $cantidadPendiente = (float)($art['cantidad'] ?? 0);
 
-                // Obtener nombre del artículo para mensajes de error si está disponible en $art
-                $nombreArticulo = $art['nombre'] ?? ("ID " . $art['id_articulo']);
-
-                // Si no hay stock disponible (stock = 0), no debe poder agregarse a la venta.
-                if (empty($lotes) || array_sum(array_column($lotes, 'disponible')) <= 0) {
-                    throw new Exception("El artículo \"$nombreArticulo\" no tiene stock disponible.");
-                }
-
-                // Verificar stock total antes de empezar
-                $stockTotal = array_sum(array_column($lotes, 'disponible'));
-                if ($stockTotal < $cantidadPendiente) {
-                    throw new Exception("Cantidad mayor al stock disponible para \"$nombreArticulo\". Disponible: $stockTotal, Requerido: $cantidadPendiente");
-                }
-
+                // Distribuir contra lotes disponibles (FIFO)
                 foreach ($lotes as $lote) {
                     if ($cantidadPendiente <= 0) break;
 
@@ -435,10 +425,28 @@ class Venta
                     $stmtAVIA = $this->conn->prepare($sqlAVIA);
                     $stmtAVIA->bindValue(':id_av', $idArticuloVenta, PDO::PARAM_INT);
                     $stmtAVIA->bindValue(':id_ingreso', $lote['id'], PDO::PARAM_INT);
-                    $stmtAVIA->bindValue(':cant', (float)$aDescontar); 
+                    $stmtAVIA->bindValue(':cant', (float)$aDescontar);
                     $stmtAVIA->execute();
 
                     $cantidadPendiente -= $aDescontar;
+                }
+
+                // Si aún queda cantidad (sin stock suficiente), registrar contra el último lote
+                // o crear un ingreso de ajuste — el stock resultará negativo.
+                if ($cantidadPendiente > 0) {
+                    $idArticuloInt = (int)$art['id_articulo'];
+                    $loteFallback = $articuloModel->getUltimoLote($idArticuloInt);
+                    $idLoteFallback = $loteFallback
+                        ? $loteFallback['id']
+                        : $articuloModel->crearIngresoAjuste($idArticuloInt);
+
+                    $sqlAVIA = "INSERT INTO articulo_venta_ingreso_articulo (articulo_venta_id_articulo_venta, ingreso_articulo_id, cantidad) 
+                               VALUES (:id_av, :id_ingreso, :cant)";
+                    $stmtAVIA = $this->conn->prepare($sqlAVIA);
+                    $stmtAVIA->bindValue(':id_av', $idArticuloVenta, PDO::PARAM_INT);
+                    $stmtAVIA->bindValue(':id_ingreso', $idLoteFallback, PDO::PARAM_INT);
+                    $stmtAVIA->bindValue(':cant', (float)$cantidadPendiente);
+                    $stmtAVIA->execute();
                 }
             }
 

@@ -92,11 +92,11 @@
                     <input v-model.trim="form.direccion" type="text" class="form-control" placeholder="Ej: Av. Colón 1234" />
                   </div>
                   <div class="col-12" v-if="isEditing">
-                    <div class="form-check form-switch ps-4">
-                      <input v-model="form.activo" class="form-check-input" type="checkbox" role="switch" id="chkActivoProveedor" />
-                      <label class="form-check-label fw-semibold ms-2" for="chkActivoProveedor">
+                    <div class="form-check form-switch d-flex align-items-center justify-content-end ps-0">
+                      <label class="form-check-label fw-semibold me-3" for="chkActivoProveedor" style="cursor: pointer;">
                         {{ form.activo ? 'Activo' : 'Inactivo' }}
                       </label>
+                      <input v-model="form.activo" class="form-check-input ms-0" type="checkbox" role="switch" id="chkActivoProveedor" style="cursor: pointer; width: 2.5em; height: 1.25em;" />
                     </div>
                   </div>
                 </div>

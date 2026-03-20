@@ -117,6 +117,10 @@
             <i class="bi bi-printer"></i>
             {{ isPrinting ? 'Enviando...' : 'Reimprimir' }}
           </button>
+          <button @click="emit('editar', venta)" class="btn btn-outline-warning d-flex align-items-center gap-2 px-4 shadow-sm">
+            <i class="bi bi-pencil-square"></i>
+            Editar
+          </button>
           <button type="button" class="btn btn-secondary px-4" @click="close">Cerrar</button>
         </div>
       </div>
@@ -135,7 +139,7 @@ const props = defineProps({
   apiBaseUrl: String
 });
 
-const emit = defineEmits(['update:modelValue', 'imprimir']);
+const emit = defineEmits(['update:modelValue', 'imprimir', 'editar']);
 
 const isPrinting = ref(false);
 
