@@ -282,62 +282,76 @@
 
     <!-- ============ MODAL DETALLE (solo lectura) ============ -->
     <Teleport to="body">
-      <div v-if="showDetalleModal && pedidoDetalle" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);">
+      <div v-if="showDetalleModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);">
         <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
           <div class="modal-content">
             <div class="modal-header">
               <h5 class="modal-title">
                 <i class="bi bi-file-earmark-text me-2"></i>
-                Pedido #{{ pedidoDetalle.id_pedido_proveedor }}
-                <span class="badge ms-2" :class="estadoBadge(pedidoDetalle.estado)">{{ pedidoDetalle.estado }}</span>
+                <template v-if="pedidoDetalle">
+                  Pedido #{{ pedidoDetalle.id_pedido_proveedor }}
+                  <span class="badge ms-2" :class="estadoBadge(pedidoDetalle.estado)">{{ pedidoDetalle.estado }}</span>
+                </template>
+                <template v-else>
+                  Cargando detalle...
+                </template>
               </h5>
               <button type="button" class="btn-close" @click="showDetalleModal = false"></button>
             </div>
-            <div class="modal-body">
-              <div class="row mb-3 g-2">
-                <div class="col-6">
-                  <small class="text-muted d-block">Proveedor</small>
-                  <strong>{{ pedidoDetalle.proveedor_fantasia || pedidoDetalle.proveedor_nombre }} {{ pedidoDetalle.proveedor_apellido || '' }}</strong>
+            <div class="modal-body position-relative" style="min-height: 200px;">
+              <div v-if="loadingDetalle" class="loading-overlay-local d-flex flex-column align-items-center justify-content-center border-0 rounded-bottom">
+                <div class="spinner-border text-primary-custom" role="status" style="width: 2.5rem; height: 2.5rem;">
+                  <span class="visually-hidden">Cargando...</span>
                 </div>
-                <div class="col-3">
-                  <small class="text-muted d-block">Fecha pedido</small>
-                  <strong>{{ formatDate(pedidoDetalle.fecha_pedido) }}</strong>
-                </div>
-                <div class="col-3">
-                  <small class="text-muted d-block">Fecha entrega</small>
-                  <strong>{{ pedidoDetalle.fecha_entrega ? formatDate(pedidoDetalle.fecha_entrega) : '—' }}</strong>
-                </div>
-                <div class="col-12" v-if="pedidoDetalle.observaciones">
-                  <small class="text-muted d-block">Observaciones</small>
-                  <span>{{ pedidoDetalle.observaciones }}</span>
-                </div>
+                <div class="mt-2 text-muted small fw-medium">Obteniendo información...</div>
               </div>
-              <table class="table table-sm table-bordered align-middle">
-                <thead class="table-light">
-                  <tr>
-                    <th>Artículo</th>
-                    <th class="text-center">Cantidad</th>
-                    <th class="text-end">Precio Unit.</th>
-                    <th class="text-end">Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="it in pedidoDetalle.items" :key="it.id">
-                    <td>{{ it.articulo_nombre }}</td>
-                    <td class="text-center">{{ it.cantidad }}</td>
-                    <td class="text-end">{{ formatMonto(it.precio_unitario_estimado) }}</td>
-                    <td class="text-end fw-semibold">{{ formatMonto(it.cantidad * it.precio_unitario_estimado) }}</td>
-                  </tr>
-                </tbody>
-                <tfoot class="table-light">
-                  <tr>
-                    <td colspan="3" class="text-end fw-bold">Total estimado:</td>
-                    <td class="text-end fw-bold">
-                      {{ formatMonto(pedidoDetalle.items.reduce((acc, it) => acc + (it.cantidad * (it.precio_unitario_estimado || 0)), 0)) }}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+
+              <template v-if="pedidoDetalle">
+                <div class="row mb-3 g-2">
+                  <div class="col-6">
+                    <small class="text-muted d-block">Proveedor</small>
+                    <strong>{{ pedidoDetalle.proveedor_fantasia || pedidoDetalle.proveedor_nombre }} {{ pedidoDetalle.proveedor_apellido || '' }}</strong>
+                  </div>
+                  <div class="col-3">
+                    <small class="text-muted d-block">Fecha pedido</small>
+                    <strong>{{ formatDate(pedidoDetalle.fecha_pedido) }}</strong>
+                  </div>
+                  <div class="col-3">
+                    <small class="text-muted d-block">Fecha entrega</small>
+                    <strong>{{ pedidoDetalle.fecha_entrega ? formatDate(pedidoDetalle.fecha_entrega) : '—' }}</strong>
+                  </div>
+                  <div class="col-12" v-if="pedidoDetalle.observaciones">
+                    <small class="text-muted d-block">Observaciones</small>
+                    <span>{{ pedidoDetalle.observaciones }}</span>
+                  </div>
+                </div>
+                <table class="table table-sm table-bordered align-middle">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Artículo</th>
+                      <th class="text-center">Cantidad</th>
+                      <th class="text-end">Precio Unit.</th>
+                      <th class="text-end">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="it in pedidoDetalle.items" :key="it.id">
+                      <td>{{ it.articulo_nombre }}</td>
+                      <td class="text-center">{{ it.cantidad }}</td>
+                      <td class="text-end">{{ formatMonto(it.precio_unitario_estimado) }}</td>
+                      <td class="text-end fw-semibold">{{ formatMonto(it.cantidad * it.precio_unitario_estimado) }}</td>
+                    </tr>
+                  </tbody>
+                  <tfoot class="table-light">
+                    <tr>
+                      <td colspan="3" class="text-end fw-bold">Total estimado:</td>
+                      <td class="text-end fw-bold">
+                        {{ formatMonto(pedidoDetalle.items.reduce((acc, it) => acc + (it.cantidad * (it.precio_unitario_estimado || 0)), 0)) }}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </template>
             </div>
             <div class="modal-footer">
               <button @click="showDetalleModal = false" class="btn btn-light px-4">Cerrar</button>
@@ -433,6 +447,7 @@ const showDetalleModal = ref(false);
 const showRecibirModal = ref(false);
 const showCancelarModal = ref(false);
 const showDeleteModal = ref(false);
+const loadingDetalle = ref(false);
 const isEditing = ref(false);
 const isSaving = ref(false);
 const isChangingState = ref(false);
@@ -507,6 +522,15 @@ const estadoSelectClass = (estado) => ({
   'bg-success-subtle text-success border-success': estado === 'recibido',
   'bg-secondary-subtle text-secondary border-secondary': estado === 'cancelado',
 });
+
+const estadoBadge = (estado) => {
+  switch (estado) {
+    case 'pendiente': return 'bg-warning-subtle text-warning border-warning';
+    case 'recibido': return 'bg-success-subtle text-success border-success';
+    case 'cancelado': return 'bg-secondary-subtle text-secondary border-secondary';
+    default: return 'bg-light text-dark';
+  }
+};
 
 const handleEstadoChangeInTable = (item, nuevoEstado) => {
   if (nuevoEstado === 'recibido') {
@@ -660,11 +684,16 @@ const save = async () => {
 };
 
 const verDetalle = async (item) => {
+  showDetalleModal.value = true;
+  loadingDetalle.value = true;
+  pedidoDetalle.value = null; // Reset anterior
   try {
     pedidoDetalle.value = await proveedoresService.getPedidoById(item.id_pedido_proveedor);
-    showDetalleModal.value = true;
   } catch {
     toast.showToast({ message: 'Error al cargar el detalle del pedido.', type: 'danger' });
+    showDetalleModal.value = false;
+  } finally {
+    loadingDetalle.value = false;
   }
 };
 

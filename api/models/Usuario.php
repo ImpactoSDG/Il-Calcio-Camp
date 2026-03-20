@@ -84,17 +84,34 @@ class Usuario
                     m.categoria,
                     m.icon,
                     m.bg,
-                    COALESCE(um.favorito, 0) as favorito
+                    COALESCE(um.favorito, 0) as favorito,
+                    um.orden_usuario
                 FROM usuario_modulo um
                 INNER JOIN modulo m ON m.id = um.id_modulo
                 WHERE um.id_usuario = :id
-                ORDER BY m.categoria, m.orden_visualizacion ASC";
+                ORDER BY m.categoria, COALESCE(um.orden_usuario, m.orden_visualizacion) ASC";
 
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id', $idUsuario, PDO::PARAM_INT);
         $stmt->execute();
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function updateOrdenModulos(int $idUsuario, array $ordenes): bool
+    {
+        $sql = "UPDATE usuario_modulo SET orden_usuario = :orden WHERE id_usuario = :idu AND id_modulo = :idm";
+        $stmt = $this->conn->prepare($sql);
+
+        foreach ($ordenes as $item) {
+            $stmt->bindValue(':orden', (int)$item['orden'], PDO::PARAM_INT);
+            $stmt->bindValue(':idu', $idUsuario, PDO::PARAM_INT);
+            $stmt->bindValue(':idm', (int)$item['id_modulo'], PDO::PARAM_INT);
+            if (!$stmt->execute()) {
+                return false;
+            }
+        }
+        return true;
     }
 
 

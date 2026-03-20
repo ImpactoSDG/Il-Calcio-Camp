@@ -453,7 +453,7 @@
     <ConfirmModal
       v-model="showDeleteModal"
       title="Eliminar Artículo"
-      message="¿Estás seguro de eliminar este artículo? Esta acción no se puede deshacer."
+      message="¿Estás seguro de eliminar este artículo? Será retirado del sistema y no aparecerá en ningún listado. Las ventas históricas no se verán afectadas."
       confirm-button-text="Eliminar"
       variant="danger"
       :is-loading="isDeleting"
@@ -778,7 +778,7 @@ const confirmDelete = async () => {
   isDeleting.value = true;
   try {
     await articulosService.eliminarArticulo(idToDelete.value);
-    toast.showToast({ message: 'Artículo eliminado.', type: 'success' });
+    toast.showToast({ message: 'Artículo eliminado del sistema.', type: 'success' });
     showDeleteModal.value = false;
     fetchData();
   } catch {

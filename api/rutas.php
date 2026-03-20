@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/controllers/RegistroPublicoController.php';
 require_once __DIR__ . '/controllers/AuthController.php';
 require_once __DIR__ . '/controllers/UsuarioController.php';
 require_once __DIR__ . '/controllers/PermisoController.php';
@@ -86,6 +87,7 @@ $proveedorController           = new ProveedorController($db);
 $pedidoProveedorController = new PedidoProveedorController($db);
 $pagoProveedorController = new PagoProveedorController($db);
 $simboloDiaController = new SimboloDiaController();
+$registroPublicoController = new RegistroPublicoController($db);
 
 function verifyAuth(): array {
     $headers = getallheaders();
@@ -161,6 +163,16 @@ switch ($resource) {
             http_response_code(405);
         }
         break;
+
+    // Registro público de equipos (sin autenticación)
+    case 'registro-equipo':
+        if ($method === 'POST') {
+            $registroPublicoController->registrar();
+        } else {
+            http_response_code(405);
+        }
+        break;
+
     case 'roles':
         if ($method === 'GET') {
             $auth->getRoles();
@@ -229,6 +241,13 @@ switch ($resource) {
             http_response_code(405);
         }
         break;
+    case 'reorder-modulos':
+        verifyAuth();
+        if ($method === 'POST') {
+            $usuarioController->reorderModulos();
+        } else {
+            http_response_code(405);
+        }
         break;
     case 'configuraciones':
         verifyAuth();
@@ -348,6 +367,10 @@ switch ($resource) {
         }
         if ($method === 'POST' && $id === 'baja-logica') {
             $equipoController->bajaLogica();
+            break;
+        }
+        if ($method === 'POST' && $id === 'confirmar') {
+            $equipoController->confirmarEquipo();
             break;
         }
         switch ($method) {

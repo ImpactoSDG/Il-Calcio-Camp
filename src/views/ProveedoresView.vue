@@ -29,7 +29,7 @@
             @sort="handleSort"
           />
           <tbody class="bg-white">
-            <tr v-for="item in sortedProveedores" :key="item.id_proveedor">
+            <tr v-for="item in sortedProveedores" :key="item.id_proveedor" :class="{ 'inactive-row': !Number(item.activo) }">
               <td class="ps-4 fw-medium text-dark">{{ item.nombre }} {{ item.apellido }}</td>
               <td class="text-muted">{{ item.nombre_fantasia || '—' }}</td>
               <td class="text-muted">{{ item.telefono || '—' }}</td>
@@ -40,11 +40,8 @@
                 </span>
               </td>
               <td class="pe-4 text-end">
-                <button @click="openModal(item)" class="btn btn-link link-secondary p-1 me-2" title="Editar">
+                <button @click="openModal(item)" class="btn btn-link link-secondary p-1" title="Editar">
                   <i class="bi bi-pencil-square fs-4"></i>
-                </button>
-                <button @click="prepareDelete(item.id_proveedor)" class="btn btn-link link-danger p-1" title="Desactivar">
-                  <i class="bi bi-trash3 fs-4"></i>
                 </button>
               </td>
             </tr>
@@ -146,7 +143,20 @@ const columns = [
 ];
 
 const proveedores = ref([]);
-const sortedProveedores = computed(() => sortItems(proveedores.value));
+const sortedProveedores = computed(() => {
+  // Primero ordenamos los activos (activo = 1) al principio
+  const baseSorted = [...proveedores.value].sort((a, b) => {
+    const activoA = Number(a.activo);
+    const activoB = Number(b.activo);
+    if (activoA !== activoB) {
+      return activoB - activoA; // 1 (activo) viene antes que 0 (inactivo)
+    }
+    return 0;
+  });
+  
+  // Luego aplicamos el ordenamiento del hook useSorting si corresponde
+  return sortItems(baseSorted);
+});
 const loading = ref(false);
 const showFormModal = ref(false);
 const showDeleteModal = ref(false);
@@ -241,5 +251,15 @@ onMounted(fetchData);
   inset: 0;
   background: rgba(255, 255, 255, 0.85);
   z-index: 10;
+}
+
+.inactive-row {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+  opacity: 0.6;
+}
+
+.inactive-row:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+  opacity: 0.8;
 }
 </style>

@@ -22,6 +22,7 @@ class Articulo
                        ca.descripcion AS categoria_descripcion
                 FROM {$this->table} a
                 LEFT JOIN categoria_articulo ca ON a.id_categoria_articulo = ca.id
+                WHERE a.activo = 1
                 ORDER BY a.nombre ASC";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
@@ -235,11 +236,12 @@ class Articulo
     }
 
     /**
-     * Elimina un artículo
+     * Borrado lógico: desactiva el artículo en lugar de eliminarlo físicamente.
+     * Preserva integridad referencial con ventas, ingresos, etc.
      */
     public function delete(int $id): bool
     {
-        $sql = "DELETE FROM {$this->table} WHERE id = :id";
+        $sql = "UPDATE {$this->table} SET activo = 0 WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         return $stmt->execute();

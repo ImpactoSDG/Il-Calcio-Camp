@@ -7,6 +7,10 @@
           <i class="bi bi-arrow-left"></i>
         </button>
         <h1 class="h5 fw-bold mb-0 text-secondary">EQUIPOS</h1>
+        <!-- Badge de pendientes -->
+        <span v-if="equiposPendientes.length > 0" class="badge bg-warning text-dark ms-2 rounded-pill">
+          {{ equiposPendientes.length }} pendiente{{ equiposPendientes.length > 1 ? 's' : '' }}
+        </span>
       </div>
       <div class="d-flex gap-2">
         <button @click="openBulkModal()" class="btn btn-outline-primary d-flex align-items-center">
@@ -18,7 +22,33 @@
       </div>
     </div>
 
-    <div class="card shadow-sm border-0 rounded-lg overflow-hidden position-relative" :style="{ minHeight: loading ? '300px' : 'auto' }">
+    <!-- Pestañas: Confirmados / Pendientes -->
+    <ul class="nav nav-tabs mb-3 border-bottom-0">
+      <li class="nav-item">
+        <button
+          class="nav-link"
+          :class="{ active: tabActiva === 'confirmados' }"
+          @click="tabActiva = 'confirmados'"
+        >
+          <i class="bi bi-check2-circle me-1"></i> Confirmados
+        </button>
+      </li>
+      <li class="nav-item">
+        <button
+          class="nav-link d-flex align-items-center gap-2"
+          :class="{ active: tabActiva === 'pendientes' }"
+          @click="tabActiva = 'pendientes'"
+        >
+          <i class="bi bi-hourglass-split me-1"></i> Pendientes de aprobación
+          <span v-if="equiposPendientes.length > 0" class="badge bg-warning text-dark rounded-pill">
+            {{ equiposPendientes.length }}
+          </span>
+        </button>
+      </li>
+    </ul>
+
+    <!-- Tabla equipos CONFIRMADOS -->
+    <div v-show="tabActiva === 'confirmados'" class="card shadow-sm border-0 rounded-lg overflow-hidden position-relative" :style="{ minHeight: loading ? '300px' : 'auto' }">
       <div v-if="loading" class="loading-overlay-local d-flex flex-column align-items-center justify-content-center">
         <div class="spinner-border text-primary-custom" role="status" style="width: 3rem; height: 3rem;">
           <span class="visually-hidden">Cargando...</span>
@@ -60,6 +90,70 @@
             <tr v-if="sortedEquipos.length === 0 && !loading">
               <td colspan="5" class="text-center py-5 text-muted">
                 No hay equipos registrados.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tabla equipos PENDIENTES -->
+    <div v-show="tabActiva === 'pendientes'" class="card shadow-sm border-0 rounded-lg overflow-hidden position-relative" :style="{ minHeight: loadingPendientes ? '200px' : 'auto' }">
+      <div v-if="loadingPendientes" class="loading-overlay-local d-flex flex-column align-items-center justify-content-center">
+        <div class="spinner-border text-primary-custom" role="status" style="width: 3rem; height: 3rem;">
+          <span class="visually-hidden">Cargando...</span>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-4 py-3" style="width: 70px"></th>
+              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary">Nombre</th>
+              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary">Disciplina</th>
+              <th class="py-3 text-uppercase fs-xs fw-bold text-secondary text-center" style="width: 120px">Jugadores</th>
+              <th class="pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white">
+            <tr v-for="item in equiposPendientes" :key="item.id">
+              <td class="ps-4 text-center">
+                <img v-if="item.escudo" :src="resolveEscudoUrl(item.escudo)" alt="escudo" class="escudo-thumb" />
+                <span v-else class="text-muted">-</span>
+              </td>
+              <td class="fw-medium text-dark">{{ item.nombre }}</td>
+              <td class="text-muted">
+                <span class="badge bg-secondary-subtle text-secondary rounded-pill px-3">{{ item.disciplina }}</span>
+              </td>
+              <td class="text-center">
+                <button
+                  class="btn btn-sm btn-link link-secondary p-0"
+                  @click="openDetalleEquipo(item)"
+                  title="Ver integrantes"
+                >
+                  <i class="bi bi-people me-1"></i> Ver
+                </button>
+              </td>
+              <td class="pe-4 text-end">
+                <button
+                  class="btn btn-sm btn-success me-2"
+                  @click="prepareConfirmar(item)"
+                  :disabled="idConfirmando === item.id"
+                  title="Confirmar equipo"
+                >
+                  <span v-if="idConfirmando === item.id" class="spinner-border spinner-border-sm me-1"></span>
+                  <i v-else class="bi bi-check-lg me-1"></i>
+                  Confirmar
+                </button>
+                <button @click.stop="prepareDelete(item.id)" class="btn btn-sm btn-link link-danger p-1" title="Rechazar">
+                  <i class="bi bi-trash3 fs-5"></i>
+                </button>
+              </td>
+            </tr>
+            <tr v-if="equiposPendientes.length === 0 && !loadingPendientes">
+              <td colspan="5" class="text-center py-5 text-muted">
+                <i class="bi bi-check2-all fs-3 d-block mb-2 text-success"></i>
+                No hay equipos pendientes de aprobación.
               </td>
             </tr>
           </tbody>
@@ -370,6 +464,15 @@
       :is-loading="isDeleting"
       @confirm="confirmDelete"
     />
+
+    <ConfirmModal
+      v-model="showConfirmarModal"
+      title="Confirmar Equipo"
+      :message="`¿Confirmás la aprobación del equipo '${equipoAConfirmar?.nombre}'? Una vez confirmado será visible en todo el sistema.`"
+      confirm-button-text="Confirmar"
+      variant="success"
+      @confirm="doConfirmarEquipo"
+    />
   </div>
 </template>
 
@@ -384,6 +487,9 @@ const toast = useToastStore();
 
 const { sortKey, sortDir, handleSort, sortItems } = useSorting()
 
+// Pestaña activa: 'confirmados' | 'pendientes'
+const tabActiva = ref('confirmados');
+
 const columns = [
   { key: 'escudo',     label: '',           sortable: false, thClass: 'ps-4 py-3', thStyle: 'width: 70px' },
   { key: 'nombre',     label: 'Nombre',     sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
@@ -393,8 +499,11 @@ const columns = [
 ]
 
 const equipos = ref([]);
+const equiposPendientes = ref([]);
+const loadingPendientes = ref(false);
+const idConfirmando = ref(null);
 
-const equiposActivos = computed(() => equipos.value.filter(item => Number(item.activo) !== 0))
+const equiposActivos = computed(() => equipos.value.filter(item => Number(item.activo) !== 0 && Number(item.confirmar) === 1))
 const sortedEquipos = computed(() => sortItems(equiposActivos.value))
 const loading = ref(false);
 const showFormModal = ref(false);
@@ -445,6 +554,43 @@ const fetchData = async () => {
     toast.showToast({ message: 'Error al cargar los equipos.', type: 'danger' });
   } finally {
     loading.value = false;
+  }
+};
+
+const fetchPendientes = async () => {
+  loadingPendientes.value = true;
+  try {
+    equiposPendientes.value = await datosMaestrosService.getEquiposPendientes();
+  } catch {
+    toast.showToast({ message: 'Error al cargar equipos pendientes.', type: 'danger' });
+  } finally {
+    loadingPendientes.value = false;
+  }
+};
+
+// Confirmar equipo
+const showConfirmarModal = ref(false);
+const equipoAConfirmar = ref(null);
+
+const prepareConfirmar = (equipo) => {
+  equipoAConfirmar.value = equipo;
+  showConfirmarModal.value = true;
+};
+
+const doConfirmarEquipo = async () => {
+  if (!equipoAConfirmar.value) return;
+  idConfirmando.value = equipoAConfirmar.value.id;
+  showConfirmarModal.value = false;
+  try {
+    await datosMaestrosService.confirmarEquipo(equipoAConfirmar.value.id);
+    toast.showToast({ message: `Equipo "${equipoAConfirmar.value.nombre}" confirmado correctamente.`, type: 'success' });
+    await Promise.all([fetchData(), fetchPendientes()]);
+  } catch (err) {
+    const msg = err?.response?.data?.message || 'Error al confirmar el equipo.';
+    toast.showToast({ message: msg, type: 'danger' });
+  } finally {
+    idConfirmando.value = null;
+    equipoAConfirmar.value = null;
   }
 };
 
@@ -861,6 +1007,7 @@ const confirmDelete = async () => {
     toast.showToast({ message: mensaje, type: 'success' });
     showDeleteModal.value = false;
     fetchData();
+    fetchPendientes();
   } catch (err) {
     const msg = err?.response?.data?.message || 'No se pudo dar de baja el equipo. Intentá nuevamente.';
     toast.showToast({ message: msg, type: 'danger' });
@@ -869,7 +1016,10 @@ const confirmDelete = async () => {
   }
 };
 
-onMounted(fetchData);
+onMounted(() => {
+  fetchData();
+  fetchPendientes();
+});
 </script>
 
 <style scoped>

@@ -160,4 +160,19 @@ class UsuarioController extends BaseController
         $modulos = $this->usuarioModel->getModulos((int)$id);
         $this->respond(200, ['modulos' => $modulos]);
     }
+
+    public function reorderModulos(): void
+    {
+        $data = json_decode(file_get_contents("php://input"), true);
+
+        if (!isset($data['id_usuario']) || empty($data['ordenes']) || !is_array($data['ordenes'])) {
+            $this->respond(400, ['message' => 'Datos incompletos para reordenar.']);
+        }
+
+        if ($this->usuarioModel->updateOrdenModulos((int)$data['id_usuario'], $data['ordenes'])) {
+            $this->respond(200, ['message' => 'Orden actualizado correctamente.']);
+        } else {
+            $this->respond(500, ['message' => 'Error al guardar el orden.']);
+        }
+    }
 }

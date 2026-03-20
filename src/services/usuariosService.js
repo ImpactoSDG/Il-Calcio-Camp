@@ -45,6 +45,11 @@ const usuariosService = {
   toggleFavorito: async (id_usuario, id_modulo, estado) => {
     const response = await api.post('/toggle-favorito', { id_usuario, id_modulo, estado });
     return response.data;
+  },
+
+  reorderModulos: async (id_usuario, ordenes) => {
+    const response = await api.post('/reorder-modulos', { id_usuario, ordenes });
+    return response.data;
   }
 };
 

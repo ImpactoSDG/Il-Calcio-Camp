@@ -42,6 +42,8 @@ const datosMaestrosService = {
 
   // --- Equipos (/equipos) ---
   getEquipos: () => api.get('/equipos').then(r => r.data),
+  getEquiposPendientes: () => api.get('/equipos?pendientes=1').then(r => r.data),
+  confirmarEquipo: (id) => api.post('/equipos/confirmar', { id }).then(r => r.data),
   subirEscudoEquipo: (formData) => api.post('/equipos/subir-escudo', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then(r => r.data),
