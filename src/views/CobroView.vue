@@ -243,6 +243,7 @@ import { ref, computed, onMounted } from 'vue';
 import cobrosService from '@/services/cobrosService';
 import datosMaestrosService from '@/services/datosMaestrosService';
 import { useToastStore } from '@/stores/toastStore';
+import { formatMoney } from '@/utils/formatters';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
 import FuzzySearch from '@/components/FuzzySearch.vue';
 
@@ -369,8 +370,8 @@ const formatFecha = (fecha) => {
 };
 
 const formatMonto = (value) => {
-  if (value === null || value === undefined) return '0,00';
-  return Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (value === null || value === undefined) return '0';
+  return formatMoney(value);
 };
 
 const totalSeccion = (lista) => lista.reduce((acc, c) => acc + Number(c.monto_total || 0), 0);

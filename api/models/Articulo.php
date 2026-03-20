@@ -22,6 +22,7 @@ class Articulo
                        ca.descripcion AS categoria_descripcion
                 FROM {$this->table} a
                 LEFT JOIN categoria_articulo ca ON a.id_categoria_articulo = ca.id
+                WHERE a.activo = 1
                 ORDER BY a.nombre ASC";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
@@ -82,6 +83,39 @@ class Articulo
         $stmt->bindValue(':id_articulo', $idArticulo, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Obtiene el ingreso_articulo más reciente del artículo (sin importar stock disponible).
+     * Se usa como fallback para registrar ventas cuando no hay lotes con stock positivo.
+     */
+    public function getUltimoLote(int $idArticulo): ?array
+    {
+        $sql = "SELECT ia.id FROM ingreso_articulo ia
+                LEFT JOIN pedido_proveedor pp ON ia.id_pedido_proveedor = pp.id_pedido_proveedor
+                WHERE ia.id_articulo = :id_articulo
+                  AND (ia.id_pedido_proveedor IS NULL OR pp.estado = 'recibido')
+                ORDER BY ia.id DESC
+                LIMIT 1";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':id_articulo', $idArticulo, PDO::PARAM_INT);
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
+    /**
+     * Crea un ingreso de ajuste con cantidad=0 para artículos sin ningún lote previo.
+     * Permite registrar ventas con stock negativo aunque nunca haya habido un ingreso.
+     */
+    public function crearIngresoAjuste(int $idArticulo): int
+    {
+        $sql = "INSERT INTO ingreso_articulo (id_articulo, fecha_ingreso, cantidad, precio_unitario, total, es_ajuste, es_perecedero)
+                VALUES (:id_articulo, CURDATE(), 0, 0, 0, 1, 0)";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':id_articulo', $idArticulo, PDO::PARAM_INT);
+        $stmt->execute();
+        return (int)$this->conn->lastInsertId();
     }
 
     /**
@@ -202,11 +236,12 @@ class Articulo
     }
 
     /**
-     * Elimina un artículo
+     * Borrado lógico: desactiva el artículo en lugar de eliminarlo físicamente.
+     * Preserva integridad referencial con ventas, ingresos, etc.
      */
     public function delete(int $id): bool
     {
-        $sql = "DELETE FROM {$this->table} WHERE id = :id";
+        $sql = "UPDATE {$this->table} SET activo = 0 WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         return $stmt->execute();

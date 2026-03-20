@@ -9,10 +9,30 @@
         </button>
         <h1 class="h5 fw-bold mb-0 text-secondary">VENTAS</h1>
       </div>
+
       <div class="d-flex align-items-center gap-2">
         <span class="text-muted small d-none d-md-inline">Presioná <kbd>N</kbd> para nueva venta</span>
         <button @click="openVentaModal()" class="btn-primary-modern d-flex align-items-center">
           <i class="bi bi-plus-circle-fill fs-6 me-2"></i> Nueva Venta
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Alerta Ventas Olvidadas ──────────────────────────────── -->
+    <div v-if="ventasAbiertasAntiguas.length > 0" class="alert-ventas-viejas mb-4 animate-fade-in shadow-sm">
+      <div class="d-flex align-items-center gap-3">
+        <div class="alert-icon-box">
+          <i class="bi bi-clock-history fs-3"></i>
+        </div>
+        <div>
+          <h6 class="fw-bold mb-1 text-danger">⚠️ Ventas olvidadas de días anteriores</h6>
+          <p class="mb-0 small text-muted">
+            Hay {{ ventasAbiertasAntiguas.length }} venta(s) que quedaron abiertas desde antes de hoy. 
+            Por favor, revisalas y cerralas o eliminalas para mantener la caja al día.
+          </p>
+        </div>
+        <button @click="showModalOlvidadas = true" class="btn btn-sm btn-outline-danger ms-auto d-none d-md-block px-3 fw-bold rounded-pill">
+          Ver todas
         </button>
       </div>
     </div>
@@ -83,7 +103,7 @@
                 </div>
                 <div class="d-flex flex-wrap gap-2 align-items-center mt-1">
                   <span v-if="venta.total_venta" class="fw-bold text-success me-2">
-                    ${{ Number(venta.total_venta).toFixed(2) }}
+                    ${{ formatMoney(venta.total_venta) }}
                   </span>
                   <span v-if="venta.equipo_nombre" class="badge-equipo">
                     <i class="bi bi-person-workspace me-1"></i>{{ venta.equipo_nombre }}
@@ -138,8 +158,8 @@
                   </td>
                   <td class="fw-medium small">{{ av.articulo_nombre }}</td>
                   <td class="text-end small">{{ av.cantidad }}</td>
-                  <td class="text-end small text-muted">${{ Number(av.precio_unitario).toFixed(2) }}</td>
-                  <td class="text-end small fw-semibold">${{ Number(av.total).toFixed(2) }}</td>
+                  <td class="text-end small text-muted">${{ formatMoney(av.precio_unitario) }}</td>
+                  <td class="text-end small fw-semibold">${{ formatMoney(av.total) }}</td>
                   <td class="text-end">
                     <button @click="prepareDeleteArticuloVenta(av.id_articulo_venta)" class="btn btn-link link-danger p-0">
                       <i class="bi bi-x-circle"></i>
@@ -198,10 +218,12 @@
               <tbody class="bg-white">
                 <template v-for="venta in ventasCerradas" :key="venta.id">
                   <tr :class="{ 'table-active': ventaExpandida === venta.id }" class="cursor-pointer" @click="abrirDetalleVenta(venta)">
-                    <td class="ps-4 text-muted fw-bold small py-1 d-flex align-items-center gap-1">
-                      {{ venta.id }}
-                      <span v-if="venta.simbolo" class="text-secondary opacity-50">
-                        - {{ (venta.simbolo || '').replace('.png', '') }}
+                    <td class="ps-4 text-muted fw-bold small py-1">
+                      <span class="d-flex align-items-center gap-1">
+                        {{ venta.id }}
+                        <span v-if="venta.simbolo" class="text-secondary opacity-50">
+                          - {{ (venta.simbolo || '').replace('.png', '') }}
+                        </span>
                       </span>
                     </td>
                     <td class="text-muted small py-1">{{ formatFecha(venta.fecha) }}</td>
@@ -216,12 +238,16 @@
                       <span v-else class="text-muted">—</span>
                     </td>
                     <td class="text-end fw-bold text-dark small py-1">
-                      ${{ venta.total_venta }}
+                      ${{ formatMoney(venta.total_venta) }}
                     </td>
                     <td class="pe-4 text-end py-1">
                       <button @click.stop="abrirDetalleVenta(venta)" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 px-2 py-1" title="Ver detalle">
                         <i class="bi bi-eye fs-6"></i>
                         <span class="small fw-bold">Ver</span>
+                      </button>
+                      <button @click.stop="openVentaModal(venta)" class="btn btn-sm btn-outline-primary-modern d-inline-flex align-items-center gap-1 px-2 py-1 ms-1" title="Editar venta">
+                        <i class="bi bi-pencil fs-6"></i>
+                        <span class="small fw-bold">Editar</span>
                       </button>
                       <button @click.stop="prepareDeleteVenta(venta.id)" class="btn btn-link link-danger p-1 ms-1" title="Eliminar">
                         <i class="bi bi-trash3 fs-5"></i>
@@ -284,6 +310,7 @@
       :articulos="articulosDeVenta"
       :api-base-url="apiBaseUrl"
       @imprimir="reimprimirTicket"
+      @editar="editarVentaDesdeDetalle"
     />
 
     <!-- Contenedor de Ticket para Impresión -->
@@ -314,7 +341,7 @@
           <tr v-for="item in articulosDeVentaParaImprimir" :key="item.id_articulo_venta">
             <td>{{ item.cantidad }}</td>
             <td>{{ item.articulo_nombre }}</td>
-            <td class="text-end">${{ Number(item.total).toFixed(2) }}</td>
+            <td class="text-end">${{ formatMoney(item.total) }}</td>
           </tr>
         </tbody>
       </table>
@@ -334,12 +361,70 @@
       </div>
     </div>
 
+    <!-- ── Modal Ventas Olvidadas ──────────────────────────────── -->
+    <Teleport to="body">
+      <div v-if="showModalOlvidadas" class="modal-backdrop-custom" @click.self="showModalOlvidadas = false">
+        <div class="modal-olvidadas">
+          <div class="modal-olvidadas__header">
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-clock-history fs-5 text-warning"></i>
+              <h5 class="fw-bold mb-0">Ventas olvidadas de días anteriores</h5>
+            </div>
+            <button @click="showModalOlvidadas = false" class="btn btn-sm btn-outline-secondary rounded-circle">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+          <div class="modal-olvidadas__body">
+            <p class="text-muted small mb-3">
+              Estas ventas quedaron abiertas antes de hoy. Hacé clic en una para abrirla.
+            </p>
+            <div class="table-responsive">
+              <table class="table table-hover table-sm align-middle">
+                <thead class="table-warning">
+                  <tr>
+                    <th class="text-center">#</th>
+                    <th>Fecha</th>
+                    <th>Cliente / Equipo</th>
+                    <th>Descripción</th>
+                    <th class="text-end">Total</th>
+                    <th class="text-center">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="v in ventasAbiertasAntiguas" :key="v.id">
+                    <td class="text-center fw-bold text-muted small">{{ v.id }}</td>
+                    <td class="text-danger fw-semibold small">{{ formatFecha(v.fecha) }}</td>
+                    <td class="small">
+                      <span v-if="v.cliente_nombre">{{ v.cliente_nombre }}</span>
+                      <span v-else-if="v.equipo_nombre">{{ v.equipo_nombre }}</span>
+                      <span v-else class="text-muted">Sin asignar</span>
+                    </td>
+                    <td class="small text-muted">{{ v.descripcion_cliente || '—' }}</td>
+                    <td class="text-end fw-semibold small">${{ formatMoney(v.total_venta) }}</td>
+                    <td class="text-center">
+                      <button
+                        @click="showModalOlvidadas = false; openVentaModal(v)"
+                        class="btn btn-sm btn-primary-modern px-2 py-1"
+                        title="Abrir venta"
+                      >
+                        <i class="bi bi-pencil-fill"></i>
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
-import { setupQzSecurity, ensureQzConnected, imprimirTicketEscPos, QZ_CERT, QZ_PK, syncLocalStorage } from '@/composables/usePrinterConfig';
+import { setupQzSecurity, ensureQzConnected, imprimirTicketEscPos, getMachineId, syncLocalStorage } from '@/composables/usePrinterConfig';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import FuzzySearch from '@/components/FuzzySearch.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
@@ -351,21 +436,31 @@ import articulosService from '@/services/articulosService';
 import datosMaestrosService from '@/services/datosMaestrosService';
 import configuracionService from '@/services/configuracionService';
 import impresoraTiqueteraService from '@/services/impresoraTiqueteraService';
+import qzCertificadoService from '@/services/qzCertificadoService';
 import { useToastStore } from '@/stores/toastStore';
+import { formatMoney } from '@/utils/formatters';
 
 const toast = useToastStore();
 const { sortKey, sortDir, handleSort, sortItems } = useSorting('id', 'desc');
 
 const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost/Il-Calcio-Camp/api';
 
-// Inicializar seguridad de QZ Tray (una única vez para toda la app)
-setupQzSecurity(QZ_CERT, QZ_PK);
+// Inicializar seguridad de QZ Tray con los certificados de esta máquina
+const initQzSecurity = async () => {
+  try {
+    const machineId = getMachineId();
+    const certData  = await qzCertificadoService.getContent(machineId);
+    setupQzSecurity(certData.cert, certData.pk);
+  } catch {
+    console.warn('QZ Tray: no se encontraron certificados para esta máquina. Configurarlos en Ajustes.');
+  }
+};
 
 // Estados para impresión (solo para ticket HTML visible en pantalla, si aplica)
 const ventaParaImprimir = ref(null);
 const articulosDeVentaParaImprimir = ref([]);
 const totalVentaParaImprimir = computed(() =>
-  articulosDeVentaParaImprimir.value.reduce((acc, av) => acc + Number(av.total || 0), 0).toFixed(2)
+  formatMoney(articulosDeVentaParaImprimir.value.reduce((acc, av) => acc + Number(av.total || 0), 0))
 );
 
 const ID_ESTADO_ABIERTA = computed(() =>
@@ -429,8 +524,9 @@ const articulosDeVenta  = ref([]);
 const loadingDetalle    = ref(false);
 const totalesVenta      = ref({});
 
-const showVentaModal    = ref(false);
-const showDetallesModal = ref(false);
+const showVentaModal      = ref(false);
+const showDetallesModal   = ref(false);
+const showModalOlvidadas  = ref(false);
 const ventaSeleccionada = ref(null);
 const isEditing         = ref(false);
 const isSaving          = ref(false);
@@ -456,6 +552,8 @@ const handleQuickClientCreated = (cliente) => {
   tempQuickClient.value = cliente;
   // Agregarlo a la lista local para que aparezca en el select del modal
   clientes.value.push(cliente);
+  // Sincronizar el formulario del modal con el nuevo cliente
+  ventaForm.value.id_cliente = cliente.id;
 };
 
 const handleQuickTeamAssign = async ({ id_cliente, id_equipo }) => {
@@ -504,7 +602,7 @@ const isDeletingAv         = ref(false);
 const idAvToDelete         = ref(null);
 
 const totalDetalleVenta = computed(() =>
-  articulosDeVenta.value.reduce((acc, av) => acc + Number(av.total || 0), 0).toFixed(2)
+  formatMoney(articulosDeVenta.value.reduce((acc, av) => acc + Number(av.total || 0), 0))
 );
 
 const ventasFiltradas = computed(() => {
@@ -557,11 +655,35 @@ const ventasCerradas = computed(() =>
   ventasFiltradas.value.filter(v => Number(v.id_estado_venta) === Number(ID_ESTADO_CERRADA.value))
 );
 
+const ventasAbiertasAntiguas = computed(() =>
+  ventas.value
+    .filter(v => v.id_estado_venta && Number(v.id_estado_venta) === Number(ID_ESTADO_ABIERTA.value))
+    .filter(v => esVentaAntigua(v.fecha))
+);
+
 const formatFecha = (fecha) => {
   if (!fecha) return '—';
   const part = String(fecha).split('T')[0];
   const [y, m, d] = part.split('-');
   return `${d}/${m}/${y}`;
+};
+
+/**
+ * Determina si una venta abierta es de ayer o anterior (Argentina Time)
+ */
+const esVentaAntigua = (fechaVenta) => {
+  if (!fechaVenta) return false;
+  
+  // Obtener fecha actual en Argentina
+  const ahoraArg = new Date(new Date().toLocaleString("en-US", {timeZone: "America/Argentina/Buenos_Aires"}));
+  ahoraArg.setHours(0, 0, 0, 0);
+  
+  // Obtener fecha de la venta (el API manda YYYY-MM-DD)
+  const [y, m, d] = fechaVenta.split('T')[0].split('-').map(Number);
+  const fechaV = new Date(y, m - 1, d);
+  fechaV.setHours(0, 0, 0, 0);
+  
+  return fechaV < ahoraArg;
 };
 
 const fetchData = async () => {
@@ -683,11 +805,11 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito }) => {
         const respNuevo = await clientesService.crearCliente({
           nombre_cliente: tempQuickClient.value.nombre_cliente,
           id_condicion_iva_receptor: 1, // Consumidor Final por defecto
-          id_provinica: null,
+          id_provinica: 1,
           condicion_iva: 'Consumidor Final',
           direccion: '',
           localidad: '',
-          telefono: '',
+          telefono: tempQuickClient.value.telefono || '',
           email: ''
         });
         
@@ -788,6 +910,11 @@ const reimprimirTicket = async (idVenta) => {
   await imprimirTicketDirecto(idVenta);
 };
 
+const editarVentaDesdeDetalle = (venta) => {
+  showDetallesModal.value = false;
+  openVentaModal(venta);
+};
+
 const prepareDeleteVenta = (id) => {
   idVentaToDelete.value = id;
   showDeleteVentaModal.value = true;
@@ -869,7 +996,8 @@ const onKeydown = (e) => {
 onMounted(async () => {
   fetchData();
   window.addEventListener('keydown', onKeydown);
-  // Pre-conectar a QZ Tray en segundo plano (silencioso)
+  // Cargar certificados QZ Tray para esta máquina y luego pre-conectar
+  await initQzSecurity();
   ensureQzConnected().catch(() => console.warn('QZ Tray no disponible al inicio.'));
   
   // Asegurar que la impresora default esté sincronizada en localStorage
@@ -1051,6 +1179,28 @@ onUnmounted(() => {
   border: 1px solid #bae6fd;
 }
 
+/* ── Alerta Ventas Viejas ── */
+.alert-ventas-viejas {
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  border-left: 5px solid #f59e0b;
+  border-radius: 12px;
+  padding: 0.75rem 1.25rem;
+}
+
+.alert-icon-box {
+  width: 42px;
+  height: 42px;
+  background: #f59e0b;
+  color: white;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 6px -1px rgba(245, 158, 11, 0.3);
+}
+
 .btn-success-modern {
   background-color: #198754;
   border: none;
@@ -1202,5 +1352,44 @@ onUnmounted(() => {
   .ticket-impresion {
     display: none;
   }
+}
+
+/* ── Modal Ventas Olvidadas ─────────────────────────────── */
+.modal-backdrop-custom {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modal-olvidadas {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 760px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.modal-olvidadas__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fffbeb;
+}
+
+.modal-olvidadas__body {
+  padding: 1.25rem 1.5rem;
+  overflow-y: auto;
+  flex: 1;
 }
 </style>

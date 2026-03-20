@@ -207,7 +207,7 @@ class ArticuloController extends BaseController
             if (!$id) $this->respond(400, ['message' => 'ID requerido.']);
 
             if ($this->model->delete((int)$id)) {
-                $this->respond(200, ['message' => 'Artículo eliminado exitosamente.']);
+                $this->respond(200, ['message' => 'Artículo eliminado del sistema.']);
             } else {
                 $this->respond(500, ['message' => 'Error al eliminar artículo.']);
             }

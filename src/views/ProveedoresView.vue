@@ -29,9 +29,8 @@
             @sort="handleSort"
           />
           <tbody class="bg-white">
-            <tr v-for="item in sortedProveedores" :key="item.id_proveedor">
-              <td class="ps-4 text-muted fw-bold">{{ item.id_proveedor }}</td>
-              <td class="fw-medium text-dark">{{ item.nombre }} {{ item.apellido }}</td>
+            <tr v-for="item in sortedProveedores" :key="item.id_proveedor" :class="{ 'inactive-row': !Number(item.activo) }">
+              <td class="ps-4 fw-medium text-dark">{{ item.nombre }} {{ item.apellido }}</td>
               <td class="text-muted">{{ item.nombre_fantasia || '—' }}</td>
               <td class="text-muted">{{ item.telefono || '—' }}</td>
               <td class="text-muted">{{ item.direccion || '—' }}</td>
@@ -41,11 +40,8 @@
                 </span>
               </td>
               <td class="pe-4 text-end">
-                <button @click="openModal(item)" class="btn btn-link link-secondary p-1 me-2" title="Editar">
+                <button @click="openModal(item)" class="btn btn-link link-secondary p-1" title="Editar">
                   <i class="bi bi-pencil-square fs-4"></i>
-                </button>
-                <button @click="prepareDelete(item.id_proveedor)" class="btn btn-link link-danger p-1" title="Desactivar">
-                  <i class="bi bi-trash3 fs-4"></i>
                 </button>
               </td>
             </tr>
@@ -93,11 +89,11 @@
                     <input v-model.trim="form.direccion" type="text" class="form-control" placeholder="Ej: Av. Colón 1234" />
                   </div>
                   <div class="col-12" v-if="isEditing">
-                    <div class="form-check form-switch ps-4">
-                      <input v-model="form.activo" class="form-check-input" type="checkbox" role="switch" id="chkActivoProveedor" />
-                      <label class="form-check-label fw-semibold ms-2" for="chkActivoProveedor">
+                    <div class="form-check form-switch d-flex align-items-center justify-content-end ps-0">
+                      <label class="form-check-label fw-semibold me-3" for="chkActivoProveedor" style="cursor: pointer;">
                         {{ form.activo ? 'Activo' : 'Inactivo' }}
                       </label>
+                      <input v-model="form.activo" class="form-check-input ms-0" type="checkbox" role="switch" id="chkActivoProveedor" style="cursor: pointer; width: 2.5em; height: 1.25em;" />
                     </div>
                   </div>
                 </div>
@@ -138,8 +134,7 @@ const toast = useToastStore();
 const { sortKey, sortDir, handleSort, sortItems } = useSorting();
 
 const columns = [
-  { key: 'id_proveedor',    label: 'ID',             sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary', thStyle: 'width: 70px' },
-  { key: 'nombre',          label: 'Nombre',          sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'nombre',          label: 'Nombre',          sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'nombre_fantasia', label: 'Nombre Fantasía', sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'telefono',        label: 'Teléfono',        sortable: false, thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'direccion',       label: 'Dirección',       sortable: false, thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
@@ -148,7 +143,20 @@ const columns = [
 ];
 
 const proveedores = ref([]);
-const sortedProveedores = computed(() => sortItems(proveedores.value));
+const sortedProveedores = computed(() => {
+  // Primero ordenamos los activos (activo = 1) al principio
+  const baseSorted = [...proveedores.value].sort((a, b) => {
+    const activoA = Number(a.activo);
+    const activoB = Number(b.activo);
+    if (activoA !== activoB) {
+      return activoB - activoA; // 1 (activo) viene antes que 0 (inactivo)
+    }
+    return 0;
+  });
+  
+  // Luego aplicamos el ordenamiento del hook useSorting si corresponde
+  return sortItems(baseSorted);
+});
 const loading = ref(false);
 const showFormModal = ref(false);
 const showDeleteModal = ref(false);
@@ -243,5 +251,15 @@ onMounted(fetchData);
   inset: 0;
   background: rgba(255, 255, 255, 0.85);
   z-index: 10;
+}
+
+.inactive-row {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+  opacity: 0.6;
+}
+
+.inactive-row:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+  opacity: 0.8;
 }
 </style>

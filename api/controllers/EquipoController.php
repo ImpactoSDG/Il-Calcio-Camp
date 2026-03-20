@@ -106,22 +106,25 @@ class EquipoController extends BaseController
     }
 
     /**
-     * Obtiene todos los equipos o solo los activos, o filtra por disciplina
+     * Obtiene todos los equipos o solo los activos, o filtra por disciplina/pendientes
      */
     public function getAll(): void
     {
         try {
-            $activos = $_GET['activos'] ?? null;
+            $activos  = $_GET['activos']    ?? null;
             $disciplina = $_GET['disciplina'] ?? null;
-            
-            if ($disciplina) {
+            $pendientes = $_GET['pendientes'] ?? null;
+
+            if ($pendientes === '1' || $pendientes === 'true') {
+                $result = $this->model->getPendientesConfirmacion();
+            } elseif ($disciplina) {
                 $result = $this->model->getByDisciplina($disciplina);
             } elseif ($activos === '1' || $activos === 'true') {
                 $result = $this->model->getActivos();
             } else {
                 $result = $this->model->getAll();
             }
-            
+
             $this->respond(200, $result);
         } catch (Throwable $e) {
             $this->handleError($e, 'Error al obtener equipos');
@@ -161,8 +164,10 @@ class EquipoController extends BaseController
             if ($escudo === '') {
                 $escudo = null;
             }
+            // confirmar: 1 por defecto al crear desde el panel admin
+            $confirmar = isset($data['confirmar']) ? (int)$data['confirmar'] : 1;
 
-            $id = $this->model->create($data['nombre'], $data['disciplina'], (bool)$activo, $escudo);
+            $id = $this->model->create($data['nombre'], $data['disciplina'], (bool)$activo, $escudo, $confirmar);
             if ($id) {
                 $this->respond(201, ['message' => 'Equipo creado exitosamente.', 'id' => $id]);
             } else {
@@ -313,6 +318,38 @@ class EquipoController extends BaseController
         }
 
         return $baseDir . '/uploads/escudos/' . $fileName;
+    }
+
+    /**
+     * Confirma un equipo pendiente de aprobación
+     */
+    public function confirmarEquipo(): void
+    {
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+            $id = $data['id'] ?? null;
+
+            if (!$id) {
+                $this->respond(400, ['message' => 'ID requerido.']);
+            }
+
+            $equipo = $this->model->getById((int)$id);
+            if (!$equipo) {
+                $this->respond(404, ['message' => 'Equipo no encontrado.']);
+            }
+
+            if ((int)$equipo['confirmar'] === 1) {
+                $this->respond(200, ['message' => 'El equipo ya estaba confirmado.']);
+            }
+
+            if ($this->model->confirmar((int)$id)) {
+                $this->respond(200, ['message' => 'Equipo confirmado exitosamente.']);
+            } else {
+                $this->respond(500, ['message' => 'Error al confirmar el equipo.']);
+            }
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al confirmar equipo');
+        }
     }
 
     /**

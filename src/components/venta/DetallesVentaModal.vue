@@ -10,14 +10,7 @@
             </div>
             <div>
               <h5 class="modal-title fw-bold text-dark mb-0 d-flex align-items-center gap-2">
-                Detalle de Venta #{{ venta?.id }}
-                <img
-                  v-if="venta?.simbolo"
-                  :src="`/simbolos/${venta.simbolo}`"
-                  :alt="venta.simbolo"
-                  :title="venta.simbolo.replace('.png', '')"
-                  style="width:20px;height:20px;object-fit:contain;image-rendering:crisp-edges;"
-                />
+                Detalle de Venta #{{ venta?.id }}-{{ venta?.simbolo }}
               </h5>
               <p class="text-muted small mb-0">{{ formatFecha(venta?.fecha) }}</p>
             </div>
@@ -88,8 +81,8 @@
                     </td>
                     <td class="py-2 border-0 fw-medium small">{{ item.articulo_nombre }}</td>
                     <td class="py-2 border-0 text-end small">{{ item.cantidad }}</td>
-                    <td class="py-2 border-0 text-end small text-muted">${{ Number(item.precio_unitario).toFixed(2) }}</td>
-                    <td class="pe-3 py-2 border-0 text-end small fw-bold text-dark">${{ Number(item.total).toFixed(2) }}</td>
+                    <td class="py-2 border-0 text-end small text-muted">${{ formatMoney(item.precio_unitario) }}</td>
+                    <td class="pe-3 py-2 border-0 text-end small fw-bold text-dark">${{ formatMoney(item.total) }}</td>
                   </tr>
                   <tr v-if="articulos.length === 0">
                     <td colspan="5" class="text-center text-muted py-4 small">Esta venta no tiene artículos registrados.</td>
@@ -117,6 +110,10 @@
             <i class="bi bi-printer"></i>
             {{ isPrinting ? 'Enviando...' : 'Reimprimir' }}
           </button>
+          <button @click="emit('editar', venta)" class="btn btn-outline-warning d-flex align-items-center gap-2 px-4 shadow-sm">
+            <i class="bi bi-pencil-square"></i>
+            Editar
+          </button>
           <button type="button" class="btn btn-secondary px-4" @click="close">Cerrar</button>
         </div>
       </div>
@@ -126,6 +123,7 @@
 
 <script setup>
 import { computed, ref } from 'vue';
+import { formatMoney } from '@/utils/formatters';
 
 const props = defineProps({
   modelValue: Boolean,
@@ -134,7 +132,7 @@ const props = defineProps({
   apiBaseUrl: String
 });
 
-const emit = defineEmits(['update:modelValue', 'imprimir']);
+const emit = defineEmits(['update:modelValue', 'imprimir', 'editar']);
 
 const isPrinting = ref(false);
 
@@ -150,7 +148,7 @@ const formatFecha = (fecha) => {
 };
 
 const totalVenta = computed(() => {
-  return props.articulos.reduce((acc, av) => acc + Number(av.total || 0), 0).toFixed(2);
+  return formatMoney(props.articulos.reduce((acc, av) => acc + Number(av.total || 0), 0));
 });
 
 const imprimirTicket = async () => {

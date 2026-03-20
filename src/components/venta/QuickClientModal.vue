@@ -23,6 +23,18 @@
               class="form-control border-2 py-2 px-3 rounded-3" 
               placeholder="Ej: Juan Pérez"
               @input="onInputNombre"
+              @keydown.enter.prevent="nextInput"
+            />
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold text-secondary small mb-1">Teléfono (Opcional)</label>
+            <input 
+              ref="phoneInputRef"
+              v-model="telefono" 
+              type="text" 
+              class="form-control border-2 py-2 px-3 rounded-3" 
+              placeholder="Ej: 351-1234567"
               @keydown.enter.prevent="confirmarAccion"
             />
           </div>
@@ -90,12 +102,15 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'confirm']);
 
 const nombre = ref('');
+const telefono = ref('');
 const nameInputRef = ref(null);
+const phoneInputRef = ref(null);
 const duplicados = ref([]);
 
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
     nombre.value = '';
+    telefono.value = '';
     duplicados.value = [];
     nextTick(() => {
       nameInputRef.value?.focus();
@@ -130,9 +145,16 @@ const crearNuevo = () => {
   emit('confirm', { 
     id: 'temp-' + Date.now(), 
     nombre_cliente: nombre.value.trim(), 
+    telefono: telefono.value.trim(),
     isNew: true 
   });
   close();
+};
+
+const nextInput = () => {
+  if (nombre.value.trim()) {
+    phoneInputRef.value?.focus();
+  }
 };
 
 const crearNuevoDeTodosModos = () => {

@@ -46,6 +46,21 @@ export const useUserStore = defineStore('user', {
       } catch (e) {
         console.error("Error toggling favorite", e);
       }
+    },
+
+    async saveOrdenModulos(ordenes) {
+      if (!this.user?.id) return;
+      try {
+        await usuariosService.reorderModulos(this.user.id, ordenes);
+        // Reflejar el nuevo orden localmente en el store
+        ordenes.forEach(({ id_modulo, orden }) => {
+          const modulo = this.user.modulos.find(m => m.id == id_modulo);
+          if (modulo) modulo.orden_usuario = orden;
+        });
+      } catch (e) {
+        console.error("Error saving module order", e);
+        throw e;
+      }
     }
   },
 

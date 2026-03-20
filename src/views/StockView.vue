@@ -134,7 +134,7 @@
           <tbody class="bg-white">
             <tr
               v-for="item in stockFiltrado"
-              :key="item.es_lote ? `ing-${item.id_lote}` : `art-${item.id}`"
+              :key="`art-${item.id}`"
               :class="{ 'table-danger-soft': Number(item.stock_actual) <= 0 }"
             >
               <!-- Imagen -->
@@ -158,31 +158,22 @@
                 {{ item.cod_barra || '—' }}
               </td>
 
-              <!-- Info de Lote -->
+              <!-- Fecha Último Ingreso -->
               <td>
-                <div v-if="item.es_lote">
-                  <div class="small fw-semibold text-secondary">Lote: #{{ item.id_lote }}</div>
-                  <div class="text-muted" style="font-size:0.75rem">Ingreso: {{ formatFecha(item.fecha_ingreso_lote) }}</div>
+                <div v-if="item.fecha_ultimo_ingreso" class="text-muted small">
+                  {{ formatFecha(item.fecha_ultimo_ingreso) }}
                 </div>
                 <span v-else class="text-muted small">Sin ingresos</span>
-              </td>
-
-              <!-- Cantidad Original Ingreso -->
-              <td class="text-center">
-                <span v-if="item.es_lote" class="text-muted fw-medium" style="font-size:0.85rem">
-                  {{ item.cantidad_original }}
-                </span>
-                <span v-else class="text-muted">—</span>
               </td>
 
               <!-- Stock actual -->
               <td class="text-center">
                 <div class="d-flex flex-column align-items-center gap-1">
-                  <span class="fw-bold fs-5 lh-1" :class="stockColorClass(item.cantidad_lote, item.ROP)">
-                    {{ Number(item.cantidad_lote) }}
+                  <span class="fw-bold fs-5 lh-1" :class="stockColorClass(item.stock_actual, item.ROP)">
+                    {{ Number(item.stock_actual) }}
                   </span>
-                  <span class="badge rounded-pill px-2" style="font-size:0.68rem" :class="stockBadgeClass(item.cantidad_lote, item.ROP)">
-                    {{ stockLabel(item.cantidad_lote, item.ROP) }}
+                  <span class="badge rounded-pill px-2" style="font-size:0.68rem" :class="stockBadgeClass(item.stock_actual, item.ROP)">
+                    {{ stockLabel(item.stock_actual, item.ROP) }}
                   </span>
                 </div>
               </td>
@@ -201,7 +192,7 @@
 
               <!-- Precio -->
               <td class="text-end fw-semibold text-dark">
-                {{ item.precio_actual != null ? `$${Number(item.precio_actual).toFixed(2)}` : '—' }}
+                {{ item.precio_actual != null ? `$${formatMoney(item.precio_actual)}` : '—' }}
               </td>
 
               <!-- Acciones -->
@@ -228,7 +219,7 @@
           Mostrando <strong>{{ stockFiltrado.length }}</strong> registros de ingresos/productos
         </span>
         <span class="text-muted small">
-          Cantidad total en estos lotes: <strong class="text-dark">{{ stockTotal }}</strong> unidades
+          Cantidad total en estos productos: <strong class="text-dark">{{ stockTotal }}</strong> unidades
         </span>
       </div>
     </div>
@@ -273,7 +264,7 @@
                 <div class="detalle-metric-card">
                   <div class="detalle-metric-card__label">Precio venta</div>
                   <div class="detalle-metric-card__value" style="font-size:1.25rem">
-                    {{ detalleItem.precio_actual != null ? `$${Number(detalleItem.precio_actual).toFixed(2)}` : '—' }}
+                    {{ detalleItem.precio_actual != null ? `$${formatMoney(detalleItem.precio_actual)}` : '—' }}
                   </div>
                 </div>
               </div>
@@ -281,7 +272,7 @@
                 <div class="detalle-metric-card">
                   <div class="detalle-metric-card__label">Costo</div>
                   <div class="detalle-metric-card__value" style="font-size:1.25rem">
-                    {{ detalleItem.costo_actual != null ? `$${Number(detalleItem.costo_actual).toFixed(2)}` : '—' }}
+                    {{ detalleItem.costo_actual != null ? `$${formatMoney(detalleItem.costo_actual)}` : '—' }}
                   </div>
                 </div>
               </div>
@@ -387,6 +378,7 @@ import FuzzySearch from '@/components/FuzzySearch.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
 import articulosService from '@/services/articulosService';
 import { useToastStore } from '@/stores/toastStore';
+import { formatMoney } from '@/utils/formatters';
 
 const toast = useToastStore();
 const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost/Il-Calcio-Camp/api';
@@ -400,8 +392,7 @@ const columns = [
   { key: 'imagen',              label: '',                  sortable: false, thClass: 'ps-4 py-3', thStyle: 'width: 50px' },
   { key: 'nombre',              label: 'Producto',          sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
   { key: 'cod_barra',           label: 'Cód. Barra',        sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
-  { key: 'id_lote',             label: 'Lote',              sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
-  { key: 'cantidad_original',   label: 'Ingreso',          sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width:120px' },
+  { key: 'fecha_ultimo_ingreso',label: 'Último Ingreso',    sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary',      thStyle: 'width:150px' },
   { key: 'stock_actual',        label: 'Disponible',        sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width:140px' },
   { key: 'vencimiento_proximo', label: 'Vencimiento',       sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width:175px' },
   { key: 'precio_actual',       label: 'Precio',            sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-end',   thStyle: 'width:110px' },
@@ -504,48 +495,50 @@ const categorias = computed(() =>
   [...new Set(articulos.value.map(a => a.categoria_descripcion).filter(Boolean))].sort()
 );
 
-/** Artículos enriquecidos y desagrupados por ingresos para mostrar trazabilidad de vencimientos */
+/** Artículos enriquecidos agrupados por producto consolidando sus lotes */
 const articulosEnriquecidos = computed(() => {
-  const result = [];
-  
-  articulos.value.forEach(art => {
+  return articulos.value.map(art => {
     const ingresosArt = ingresos.value.filter(i => Number(i.id_articulo) === Number(art.id));
+    
+    // Calcular stock total sumando los disponibles de cada lote
+    // Si queremos permitir ver stock negativo (por descuadres), no usamos Math.max(0, ...)
+    const stockTotalLotes = ingresosArt.reduce((acc, ing) => {
+      const disponible = Number(ing.cantidad ?? 0) - Number(ing.cantidad_vendida ?? 0);
+      return acc + disponible;
+    }, 0);
 
-    if (ingresosArt.length === 0) {
-      // Si no tiene ingresos registrados, mostrar al menos el registro base
-      result.push({
-        ...art,
-        stock_actual: Number(art.stock_actual ?? 0),
-        vencimiento_proximo: null,
-        fecha_ingreso_lote: null,
-        cantidad_lote: Number(art.stock_actual ?? 0),
-        cantidad_original: Number(art.stock_actual ?? 0),
-        cantidad_vendida: 0,
-        es_lote: false
-      });
-    } else {
-      // Desagrupar por cada ingreso
-      ingresosArt.forEach(ing => {
-        const cantOriginal = Number(ing.cantidad ?? 0);
-        const cantVendida = Number(ing.cantidad_vendida ?? 0);
-        const stockDisponibleLote = Math.max(0, cantOriginal - cantVendida);
-
-        result.push({
-          ...art,
-          stock_actual: Number(art.stock_actual ?? 0), // Stock total del producto informado por API
-          vencimiento_proximo: ing.vencimiento ? String(ing.vencimiento).split('T')[0] : null,
-          fecha_ingreso_lote: ing.fecha_ingreso ? String(ing.fecha_ingreso).split('T')[0] : null,
-          cantidad_lote: stockDisponibleLote,
-          cantidad_original: cantOriginal,
-          cantidad_vendida: cantVendida,
-          es_lote: true,
-          id_lote: ing.id
-        });
-      });
+    // Encontrar el vencimiento más próximo entre los lotes con stock positivo
+    const hoy = todayStr();
+    const lotesConStock = ingresosArt.filter(i => (Number(i.cantidad) - Number(i.cantidad_vendida)) > 0);
+    
+    let vencimientoProximo = null;
+    if (lotesConStock.length > 0) {
+      const vencimientos = lotesConStock
+        .map(i => i.vencimiento ? String(i.vencimiento).split('T')[0] : null)
+        .filter(Boolean)
+        .sort();
+      if (vencimientos.length > 0) vencimientoProximo = vencimientos[0];
     }
-  });
 
-  return result;
+    // Encontrar la fecha del último ingreso
+    let fechaUltimoIngreso = null;
+    if (ingresosArt.length > 0) {
+      const fechas = ingresosArt
+        .map(i => i.fecha_ingreso ? String(i.fecha_ingreso).split('T')[0] : null)
+        .filter(Boolean)
+        .sort((a, b) => b.localeCompare(a));
+      if (fechas.length > 0) fechaUltimoIngreso = fechas[0];
+    }
+
+    return {
+      ...art,
+      stock_actual: stockTotalLotes, // Usamos la suma de los lotes como stock actual
+      vencimiento_proximo: vencimientoProximo,
+      fecha_ultimo_ingreso: fechaUltimoIngreso,
+      cantidad_lote: stockTotalLotes, // Para compatibilidad con helpers existentes si es necesario
+      es_lote: false
+    };
+  });
 });
 
 /** Estadísticas para las tarjetas de resumen */
@@ -556,12 +549,12 @@ const stats = computed(() => {
     sinStock: articulosEnriquecidos.value.filter(a => a.stock_actual <= 0).length,
     stockBajo: articulosEnriquecidos.value.filter(a => a.stock_actual > 0 && a.stock_actual <= (a.ROP || 1)).length,
     porVencer: articulosEnriquecidos.value.filter(a => {
-      if (!a.vencimiento_proximo || a.cantidad_lote <= 0) return false;
+      if (!a.vencimiento_proximo || a.stock_actual <= 0) return false;
       const diff = Math.ceil((new Date(a.vencimiento_proximo) - new Date(hoy)) / 86_400_000);
       return diff >= 0 && diff <= DIAS_ALERTA_VENCIMIENTO;
     }).length,
     vencidos: articulosEnriquecidos.value.filter(a => {
-      if (!a.vencimiento_proximo || a.cantidad_lote <= 0) return false;
+      if (!a.vencimiento_proximo || a.stock_actual <= 0) return false;
       return a.vencimiento_proximo < hoy;
     }).length,
   };
@@ -596,11 +589,11 @@ const stockFiltrado = computed(() => {
         case 'sin_stock':   return s <= 0;
         case 'stock_bajo':  return s > 0 && s <= r;
         case 'por_vencer': {
-          if (!venc || a.cantidad_lote <= 0) return false;
+          if (!venc || s <= 0) return false;
           const diff = Math.ceil((new Date(venc) - new Date(hoy)) / 86_400_000);
           return diff >= 0 && diff <= DIAS_ALERTA_VENCIMIENTO;
         }
-        case 'vencido': return venc ? venc < hoy : false;
+        case 'vencido': return venc && s > 0 ? venc < hoy : false;
         case 'ok': {
           if (s <= r) return false;
           if (!venc) return true;
@@ -615,7 +608,7 @@ const stockFiltrado = computed(() => {
   // Aplicar lógica FEFO por defecto si no hay ordenamiento manual activo
   // O si el usuario pide explícitamente ordenar por vencimiento
   if (sortKey.value === 'nombre' && sortDir.value === 'asc') {
-    // Si es el orden por defecto, priorizamos FEFO: Vencimiento ASC, luego Fecha Ingreso ASC
+    // Si es el orden por defecto, priorizamos FEFO: Vencimiento ASC, luego Nombre ASC
     items.sort((a, b) => {
       // 1. Tratar nulos en vencimiento (mandar al final)
       if (a.vencimiento_proximo && !b.vencimiento_proximo) return -1;
@@ -625,13 +618,7 @@ const stockFiltrado = computed(() => {
         if (diff !== 0) return diff;
       }
       
-      // 2. Criterio secundario: Fecha de ingreso
-      if (a.fecha_ingreso_lote && b.fecha_ingreso_lote) {
-        const diffIng = a.fecha_ingreso_lote.localeCompare(b.fecha_ingreso_lote);
-        if (diffIng !== 0) return diffIng;
-      }
-
-      // 3. Criterio terciario: Nombre
+      // 2. Criterio secundario: Nombre
       return (a.nombre || '').localeCompare(b.nombre || '');
     });
     return items;
@@ -652,7 +639,7 @@ const lotesDelDetalle = computed(() => {
     .filter(i => Number(i.id_articulo) === Number(detalleItem.value.id))
     .map(lote => ({
       ...lote,
-      cantidad_disponible: Math.max(0, Number(lote.cantidad ?? 0) - Number(lote.cantidad_vendida ?? 0))
+      cantidad_disponible: Number(lote.cantidad ?? 0) - Number(lote.cantidad_vendida ?? 0)
     }))
     .sort((a, b) => String(b.fecha_ingreso).localeCompare(String(a.fecha_ingreso)));
 });
@@ -662,7 +649,7 @@ const totalIngresadoDetalle = computed(() =>
 );
 
 const totalDisponibleDetalle = computed(() =>
-  lotesDelDetalle.value.reduce((acc, l) => acc + Number(l.cantidad_disponible ?? 0), 0)
+  lotesDelDetalle.value.reduce((acc, l) => acc + (Number(l.cantidad ?? 0) - Number(l.cantidad_vendida ?? 0)), 0)
 );
 
 // ─── Acciones ────────────────────────────────────────────────────────────────

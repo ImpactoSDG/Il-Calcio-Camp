@@ -43,8 +43,7 @@
         <table class="table table-hover align-middle mb-0">
           <thead class="bg-light text-secondary text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;">
             <tr>
-              <th class="ps-4 py-3">ID</th>
-              <th class="py-3">Fecha</th>
+              <th class="ps-4 py-3">Fecha</th>
               <th class="py-3">Producto(s) Ajustado(s)</th>
               <th class="py-3">Motivo / Notas</th>
               <th class="text-end pe-4 py-3">Acciones</th>
@@ -65,8 +64,7 @@
               </td>
             </tr>
             <tr v-for="ajuste in ajustesFiltrados" :key="ajuste.id" class="animate-row-in border-bottom bg-white">
-              <td class="ps-4 fw-bold text-primary">#{{ ajuste.id }}</td>
-              <td class="text-dark fw-medium">{{ formatFecha(ajuste.fecha) }}</td>
+              <td class="ps-4 text-dark fw-medium">{{ formatFecha(ajuste.fecha) }}</td>
               <td>
                 <div class="d-flex flex-column gap-1">
                   <div v-for="art in parseArticulos(ajuste.articulos_list)" :key="art.nombre" class="d-flex align-items-center gap-2">

@@ -9,6 +9,7 @@ import PermisosView from '@/views/PermisosView.vue'
 import GestionUsuariosView from '@/views/GestionUsuariosView.vue'
 import ConfiguracionesView from '@/views/ConfiguracionesView.vue'
 import SubmenuView from '@/views/SubmenuView.vue'
+import RegistroPublicoView from '@/views/RegistroPublicoView.vue'
 
 // --- Vistas de ArtÃ­culos y Stock ---
 import CategoriasArticuloView from '@/views/CategoriasArticuloView.vue'
@@ -46,7 +47,7 @@ const router = createRouter({
     { 
       path: '/', 
       name: 'home',
-      redirect: '/login' 
+      component: RegistroPublicoView
     },
     { 
       path: '/login', 

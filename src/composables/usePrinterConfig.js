@@ -1,69 +1,38 @@
 /**
  * Composable: usePrinterConfig
- * 
+ *
  * Centraliza la configuración y el uso de QZ Tray + ESC/POS.
  * El nombre de la impresora y el comando de corte se leen desde localStorage
  * para que cada instalación pueda adaptarse sin tocar el código.
+ *
+ * Los certificados de QZ Tray se cargan dinámicamente desde la API
+ * según el machine_id (UUID único por navegador/máquina).
  */
 
 import * as qz from 'qz-tray';
 import { KJUR, hextob64 } from 'jsrsasign';
 
-// ── Certificado y clave privada de QZ Tray (Demo cert) ──────
-// Centralizado aquí para no repetirlos en cada componente.
-export const QZ_CERT = `-----BEGIN CERTIFICATE-----
-MIIECzCCAvOgAwIBAgIGAZzT1LtVMA0GCSqGSIb3DQEBCwUAMIGiMQswCQYDVQQG
-EwJVUzELMAkGA1UECAwCTlkxEjAQBgNVBAcMCUNhbmFzdG90YTEbMBkGA1UECgwS
-UVogSW5kdXN0cmllcywgTExDMRswGQYDVQQLDBJRWiBJbmR1c3RyaWVzLCBMTEMx
-HDAaBgkqhkiG9w0BCQEWDXN1cHBvcnRAcXouaW8xGjAYBgNVBAMMEVFaIFRyYXkg
-RGVtbyBDZXJ0MB4XDTI2MDMwODE4MjEwMFoXDTQ2MDMwODE4MjEwMFowgaIxCzAJ
-BgNVBAYTAlVTMQswCQYDVQQIDAJOWTESMBAGA1UEBwwJQ2FuYXN0b3RhMRswGQYD
-VQQKDBJRWiBJbmR1c3RyaWVzLCBMTEMxGzAZBgNVBAsMElFaIEluZHVzdHJpZXMs
-IExMQzEcMBoGCSqGSIb3DQEJARYNc3VwcG9ydEBxei5pbzEaMBgGA1UEAwwRUVog
-VHJheSBEZW1vIENlcnQwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC7
-BPga2LBxlozHJJ4cXUMYnoP4K2GT9+5yk1GVp+T59GtS8wN32i1TSh1XBzPtJi2i
-18AKrGpcuLXPlGo4qtdeXn4goXVd70d1Y7Q/mgyFFVi0G+uYvEyXaMbbAUBHV6i0
-JJ/2Os5zbPUbEla1vPEv0J4iPxMYvn2iDpneycX6VKlrPXQNwGcVTtsG0xF9JI/u
-A5lxrhqeIYdl6kQ7sTzyCNBdpJLcoCn7RL0K4ntc8aQ4aM+2Ob6IyFDzt83orOdQ
-e945BX9/2NbOPhts67fRgf2H4BgIe9xagc0nguR82wrCcqt2RASziQ19C2FozIrF
-XAeB8R/4LKHkD+qzmFbvAgMBAAGjRTBDMBIGA1UdEwEB/wQIMAYBAf8CAQEwDgYD
-VR0PAQH/BAQDAgEGMB0GA1UdDgQWBBT9y3FGXDjXVpdzoIEQZM3xLotUyDANBgkq
-hkiG9w0BAQsFAAOCAQEAHelzhR5AFTYfGxklytf3MqbsM04ZkMn1cie6c0iWGwBG
-DJUQy+7pYEjAUMYZdSQhVmcceH/Ab/d/1tKtW8HvzBQvKe6gtD+DhLd7YZtPVQbz
-dsOTutGGhDrg2CM0mAfs2gA0ZNT66k1INPUJLuShRwMO9CqrMLh/Ykr+2c/XGW4i
-JKYUCwdpBYTqgPS5gstawIgeBWQ+qx/Pjy8NjJUv9CxZcplTjwTDPjtrR2kOghPO
-HdCX9yx+nFOCRx9TVHZ3XuBZJuD/I5/z4zBfsYAYeuJYrt41AoOX4AJ4+HutQN4Y
-0msH99Pi4m5ZdGFToZ5kayfCSsxwdUqFHzPrv0Z1XQ==
------END CERTIFICATE-----`;
+// ── Clave de localStorage para el identificador de máquina ──
+const LS_MACHINE_ID = 'qz_machine_id';
 
-export const QZ_PK = `-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7BPga2LBxlozH
-JJ4cXUMYnoP4K2GT9+5yk1GVp+T59GtS8wN32i1TSh1XBzPtJi2i18AKrGpcuLXP
-lGo4qtdeXn4goXVd70d1Y7Q/mgyFFVi0G+uYvEyXaMbbAUBHV6i0JJ/2Os5zbPUb
-Ela1vPEv0J4iPxMYvn2iDpneycX6VKlrPXQNwGcVTtsG0xF9JI/uA5lxrhqeIYdl
-6kQ7sTzyCNBdpJLcoCn7RL0K4ntc8aQ4aM+2Ob6IyFDzt83orOdQe945BX9/2NbO
-Phts67fRgf2H4BgIe9xagc0nguR82wrCcqt2RASziQ19C2FozIrFXAeB8R/4LKHk
-D+qzmFbvAgMBAAECggEAJCMcK9fWFETCdBKDyLhOqDmtB22ef8CHHzWPLKtSB+hu
-OouBjo2md3MZQ0E9i+P2KoKk9YsGTF9WpkMn2UZNskrw9S4tpxZ+yNSYtjd2ltqe
-lsLUXeF4rUMONbBCsuZhz1lKXYJUdSJHJFGBVsGpGxOlErn8XyojzYYjvlRfwHR5
-7TeaVg3gOS1r8GVCGPFE7bi0kBDxKRVSN0VqsS0togRaotcD1zf7l5t8hkYx5kHv
-3WGUbDrivz4EfSx9Qj7r9+Vhdfa10aXuqokMAHXVf5QsxNxXX5vdPENMF7ofJy5u
-A59DmDMoG8cOkE+m6KDrxvlG7G/fZ/f836pVOiMVHQKBgQDdWrsBsKn/NioPOVFz
-LgquGQ4zdD2tFLwKI1Ioz5Z3XRKXTpmcj2wJEFDYYMWltttqATpMcrj2RYbZCaWc
-IYNoONLQ4pRNvbMZHWmsbNsoR9uVNZ+8QtnTWA+b9c0t2yFPjZDn174m7UZ2CR8C
-bMcTXlcfgSwKl7N633nxVFSfAwKBgQDYSn9ShVpIt+cBPHnLjCJ3XeBB2/jg4uQk
-2wRXkmU/9ors9Aq3Q8GkN1XvpXqUr91HE4rxPYNUdIafCaiKAQ5NWw1TA4jccP87
-6t/ijWe9wJUV+O/OBXgM8vM9wfa/1XScOaMU03E1uUIW5P6r+tzGPDYp4Zn/Rjm4
-F4ik5E6epQKBgEZ/5Dm4k5wmGyU4Iznk+x/R+RToO9CJXw53i25WF10y9n3cWc5k
-W4tTd/xCbhDGeYF8nJ3GmCRPppAvo2BjyB+EoZhH4eYUuhsQpBx3myFsKYKPTq2+
-OPQ4AtiwY8XsGeLlerZsnzJ0tdFYPFkgXhNMI8Fz+ZvyDwbecE8thboTAoGBAIVt
-Z6ATjb+gW0xC72um9jgm3EokliK9NTqbNdGECRvtToSgg9/MV6+jR0tADR+eYeYP
-4z2w0cyO2eFQRv1ja1xDGDQm0Q4UUw+2dAjBbMb8/7t/RwgUDZwHYBCwEDUFTBt3
-3ufhDEy1DVUsTQLxDbLowA0UFDkLLF4pfm0iPnHVAoGAdoKELYjpDNE1rpr8BNIf
-6q1qCr50tvNkyEXwIsqsq0/B6v7RZqyzApJx+sI2CNI1LYvxwn3wiX2ORB3W8dYF
-mwJgd8gI0eI4m12TFHzyQfASJuIW8/OaS59UmSOlF2anow4u3RDQeZHGWf3HFq0f
-CQpbR8VVgM0tLd17KTfWkKQ=
------END PRIVATE KEY-----`;
+/**
+ * Devuelve (o genera la primera vez) un UUID único para esta máquina/navegador.
+ * Se persiste en localStorage para que sea siempre el mismo.
+ */
+export function getMachineId() {
+  let id = localStorage.getItem(LS_MACHINE_ID);
+  if (!id) {
+    // Genera un UUID v4 compatible con todos los navegadores modernos
+    id = crypto.randomUUID
+      ? crypto.randomUUID()
+      : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+        });
+    localStorage.setItem(LS_MACHINE_ID, id);
+  }
+  return id;
+}
 
 // ── Claves de localStorage ───────────────────────────────────
 export const LS_PRINTER_NAME = 'qz_printer_name';
@@ -81,6 +50,11 @@ export const CUT_VARIANTS = [
 
 // ── Configurar QZ Security una única vez (no hace falta hacerlo en cada componente) ──
 let _securityConfigured = false;
+
+/**
+ * Aplica el certificado y la clave privada a QZ Tray.
+ * Usar resetQzSecurity() antes de llamar de nuevo si los certs cambiaron.
+ */
 export function setupQzSecurity(cert, pk) {
   if (_securityConfigured) return;
   _securityConfigured = true;
@@ -99,6 +73,13 @@ export function setupQzSecurity(cert, pk) {
       }
     };
   });
+}
+
+/**
+ * Permite volver a configurar los certificados (útil tras subir un nuevo cert).
+ */
+export function resetQzSecurity() {
+  _securityConfigured = false;
 }
 
 // ── Getters/setters de localStorage ─────────────────────────

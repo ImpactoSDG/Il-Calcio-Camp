@@ -157,7 +157,7 @@
                   <div class="bg-white border-2 rounded-4 p-3 border shadow-sm">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                       <span class="text-secondary fw-medium">{{ isAjuste ? 'Items a ajustar' : 'Subtotal' }}</span>
-                      <span class="text-dark fw-bold">{{ isAjuste ? articulosCarrito.length : ('$' + Number(totalCarrito).toLocaleString(undefined, { minimumFractionDigits: 2 })) }}</span>
+                      <span class="text-dark fw-bold">{{ isAjuste ? articulosCarrito.length : ('$' + formatMoney(totalCarrito)) }}</span>
                     </div>
                     <div v-if="!isAjuste" class="d-flex justify-content-between align-items-center mb-2">
                       <span class="text-secondary fw-medium">IVA (Total)</span>
@@ -165,7 +165,7 @@
                     </div>
                     <div :class="{ 'border-top border-2 pt-2 mt-2': true, 'd-flex justify-content-between align-items-center': true, 'opacity-50': isAjuste }">
                       <span class="text-dark fw-black fs-5">{{ isAjuste ? 'AJUSTE' : 'TOTAL' }}</span>   
-                      <span class="text-primary fw-black fs-4">{{ isAjuste ? 'STOCK' : ('$' + Number(totalCarrito).toLocaleString(undefined, { minimumFractionDigits: 2 })) }}</span>  
+                      <span class="text-primary fw-black fs-4">{{ isAjuste ? 'STOCK' : ('$' + formatMoney(totalCarrito)) }}</span>  
                     </div>
                   </div>
                 </div>
@@ -180,6 +180,19 @@
                   <div class="text-muted small d-none d-lg-block">
                     <i class="bi bi-info-circle me-1"></i> Usa <kbd class="bg-light text-dark shadow-none border">↓</kbd><kbd class="bg-light text-dark shadow-none border border-start-0">↑</kbd> y <kbd class="bg-light text-dark shadow-none border">Enter</kbd> para buscar rápido
                   </div>
+                </div>
+
+                <!-- Advertencias de Stock Insuficiente -->
+                <div v-if="advertenciasStock.length > 0 && !isAjuste" class="rounded-3 py-2 px-3 mb-3 flex-shrink-0 border border-warning-subtle" style="font-size: 0.82rem; background: #fffdf0;">
+                  <div class="d-flex align-items-center gap-2 mb-1">
+                    <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                    <span class="fw-bold text-warning-emphasis">Stock insuficiente.</span>
+                  </div>
+                  <ul class="mb-0 ps-3" style="list-style: disc;">
+                    <li v-for="item in advertenciasStock" :key="item.id_articulo" class="text-warning-emphasis">
+                      <strong>{{ item.nombre }}</strong>: se piden {{ item.cantidad }}, hay {{ item.stock_actual }} en stock
+                    </li>
+                  </ul>
                 </div>
 
                 <!-- Buscador de Artículos Moderno -->
@@ -240,7 +253,7 @@
                           @click.stop
                         />
                         <div v-if="!isAjuste" class="text-end ms-2">
-                          <div class="fw-black text-primary fs-5">${{ Number(res.precio_actual || 0).toLocaleString() }}</div>
+                          <div class="fw-black text-primary fs-5">${{ formatMoney(res.precio_actual || 0) }}</div>
                         </div>
                       </div>
                     </button>
@@ -261,7 +274,7 @@
                             </div>
                             <div class="lh-sm min-w-0 flex-grow-1 py-1">
                               <div class="fw-bold text-dark small" style="word-break: break-word; line-height: 1.2;">{{ item.nombre }}</div>
-                              <div v-if="!isAjuste" class="text-muted" style="font-size: 0.7rem;">${{ Number(item.precio_unitario).toLocaleString() }} / un.</div>
+                              <div v-if="!isAjuste" class="text-muted" style="font-size: 0.7rem;">${{ formatMoney(item.precio_unitario) }} / un.</div>
                             </div>
                           </div>
                         </td>
@@ -284,7 +297,7 @@
                         </td>
                       
                         <td v-if="!isAjuste" class="text-end py-2 fw-black text-dark px-1" style="width: 18%; font-size: 0.8rem;">
-                          ${{ Number(item.total).toLocaleString(undefined, { minimumFractionDigits: 2 }) }}
+                          ${{ formatMoney(item.total) }}
                         </td>
                       
                         <td class="pe-3 text-end" style="width: 5%;">      
@@ -363,6 +376,7 @@
 <script setup>
 import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
 import { useToastStore } from '@/stores/toastStore';
+import { formatMoney } from '@/utils/formatters';
 import QuickClientModal from '@/components/venta/QuickClientModal.vue';
 import QuickAssignTeamModal from '@/components/venta/QuickAssignTeamModal.vue';
 import FuzzySearch from '@/components/FuzzySearch.vue';
@@ -409,6 +423,7 @@ const handleQuickClientConfirm = (cliente) => {
   
   // Asignar a la venta inmediatamente
   form.value.id_cliente = cliente.id;
+  queryCliente.value = cliente.nombre_cliente; // Sincronizar el buscador con el nombre
   
   toastStore.showToast({
     message: `Cliente ${cliente.nombre_cliente} asignado.`,
@@ -601,7 +616,9 @@ const puedeGuardar = computed(() => {
   if (props.isEditing) {
     if (!esAbierto.value && !form.value.id_medio_cobro) return false;
     if (esCuentaCorriente.value && !form.value.id_cliente) return false;
-    return !!form.value.fecha && !!form.value.id_estado_venta;
+    const itemsOKEditing = articulosCarrito.value.length > 0 &&
+      articulosCarrito.value.every(i => i.id_articulo && Number(i.cantidad) > 0);
+    return !!form.value.fecha && !!form.value.id_estado_venta && itemsOKEditing;
   }
   const cabeceraOK = !!form.value.fecha && !!form.value.id_estado_venta;     
   const itemsOK = articulosCarrito.value.length > 0 &&
@@ -632,56 +649,13 @@ const onQueryArticulo = () => {
 };
 
 const seleccionarArticuloDeSearch = (art) => {
-  const stockDisponible = Number(art.stock_actual || 0);
-  
-  // Si un producto no tiene stock disponible (stock = 0), no debe poder agregarse a la venta.
-  if (stockDisponible <= 0) {
-    toastStore.showToast({
-      message: `El artículo "${art.nombre}" no tiene stock disponible.`,
-      type: 'warning'
-    });
-    return;
-  }
-
   let cantidadAAgregar = Number(art.cantidad_previa) || 1;
   const existente = articulosCarrito.value.find(i => Number(i.id_articulo) === Number(art.id));
   
   if (existente) {
-    const totalDespuesDeAgregar = Number((Number(existente.cantidad) + cantidadAAgregar).toFixed(2));
-    
-    // Si la suma supera el stock, ajustamos para que quede el máximo disponible
-    if (totalDespuesDeAgregar > stockDisponible) {
-      const cantidadRealmenteAgregada = Number((stockDisponible - existente.cantidad).toFixed(2));
-      
-      if (cantidadRealmenteAgregada > 0) {
-        existente.cantidad = stockDisponible;
-        existente.total = (existente.cantidad * existente.precio_unitario).toFixed(2);
-        toastStore.showToast({
-          message: `Se ajustó la cantidad al máximo disponible (${stockDisponible}) para "${art.nombre}".`,
-          type: 'warning'
-        });
-      } else {
-        toastStore.showToast({
-          message: `Ya tienes todo el stock disponible en el carrito para "${art.nombre}".`,
-          type: 'warning'
-        });
-      }
-      limpiarBusqueda();
-      return;
-    }
-    
-    existente.cantidad = totalDespuesDeAgregar;
+    existente.cantidad = Number((Number(existente.cantidad) + cantidadAAgregar).toFixed(2));
     existente.total = (existente.cantidad * existente.precio_unitario).toFixed(2);
   } else {
-    // Si la cantidad inicial es mayor al stock, capamos al máximo disponible
-    if (cantidadAAgregar > stockDisponible) {
-      cantidadAAgregar = stockDisponible;
-      toastStore.showToast({
-        message: `Cantidad ajustada al stock disponible (${stockDisponible}) para "${art.nombre}".`,
-        type: 'warning'
-      });
-    }
-
     // Agregar al principio del array (Unshift) para que el último producto aparezca arriba
     articulosCarrito.value.unshift({
       id_articulo: art.id,
@@ -763,20 +737,10 @@ const stockColor = (stock) => {
 
 const cambiarCantidad = (index, delta) => {
   const item = articulosCarrito.value[index];
-  const stockDisponible = Number(item.stock_actual || 0);
-  let nueva = Number((Number(item.cantidad) + delta).toFixed(2));
+  const nueva = Number((Number(item.cantidad) + delta).toFixed(2));
   
   // No permitir cantidad menor o igual a 0
   if (nueva <= 0) return;
-
-  // Si con el delta superamos el stock, capamos al stock disponible
-  if (nueva > stockDisponible) {
-    nueva = stockDisponible;
-    toastStore.showToast({
-      message: `Solo hay ${stockDisponible} unidades disponibles para "${item.nombre}".`,
-      type: 'warning'
-    });
-  }
 
   item.cantidad = nueva;
   actualizarTotalItem(index);
@@ -790,14 +754,16 @@ const actualizarTotalItem = (index) => {
 
 const quitarFilaArticulo = (index) => { articulosCarrito.value.splice(index, 1); validarStockMasivo(); };
 
+const advertenciasStock = computed(() =>
+  articulosCarrito.value.filter(i =>
+    i.stock_actual !== null &&
+    i.stock_actual !== undefined &&
+    Number(i.cantidad) > Number(i.stock_actual)
+  )
+);
+
 const validarStockMasivo = () => {
   errorStock.value = null;
-  for (const item of articulosCarrito.value) {
-    if (item.id_articulo && Number(item.cantidad) > Number(item.stock_actual ?? 0)) {
-      errorStock.value = "Cantidad mayor al stock disponible para \"" + item.nombre + "\". Disponible: " + (item.stock_actual ?? 0);
-      return false;
-    }
-  }
   return true;
 };
 

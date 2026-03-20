@@ -395,6 +395,7 @@ class PlanTorneoController extends BaseController
             $sql = "SELECT e.id, e.nombre, e.escudo
                     FROM equipo e
                     WHERE e.activo = 1
+                      AND e.confirmar = 1
                       AND e.id NOT IN (
                           SELECT et.id_equipo
                           FROM equipo_torneo et
@@ -1463,7 +1464,7 @@ class PlanTorneoController extends BaseController
         }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $sql = "SELECT id FROM equipo WHERE activo = 1 AND id IN ($placeholders)";
+        $sql = "SELECT id FROM equipo WHERE activo = 1 AND confirmar = 1 AND id IN ($placeholders)";
         $stmt = $this->db->prepare($sql);
         foreach ($ids as $i => $id) {
             $stmt->bindValue($i + 1, $id, PDO::PARAM_INT);

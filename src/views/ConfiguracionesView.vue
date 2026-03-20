@@ -286,6 +286,144 @@
       @confirm="handleDeleteImpresora"
     />
 
+    <!-- ── SECCIÓN CERTIFICADOS QZ TRAY ─────────────────────────── -->
+    <div class="mt-5 pt-4 border-top">
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <i class="bi bi-shield-lock-fill fs-4 text-secondary"></i>
+        <h2 class="h5 fw-bold mb-0 text-secondary">CERTIFICADOS QZ TRAY</h2>
+      </div>
+
+      <!-- ID de esta máquina -->
+      <div class="alert alert-light border d-flex align-items-center gap-3 mb-4">
+        <i class="bi bi-pc-display fs-4 text-secondary flex-shrink-0"></i>
+        <div class="flex-grow-1">
+          <div class="fw-semibold mb-1">ID de esta máquina</div>
+          <code class="user-select-all text-break">{{ thisMachineId }}</code>
+        </div>
+        <span v-if="thisMachineCert" class="badge bg-success d-flex align-items-center gap-1 flex-shrink-0">
+          <i class="bi bi-check-circle-fill"></i> Certificado registrado
+        </span>
+        <span v-else class="badge bg-warning text-dark d-flex align-items-center gap-1 flex-shrink-0">
+          <i class="bi bi-exclamation-triangle-fill"></i> Sin certificado
+        </span>
+      </div>
+
+      <!-- Formulario de subida -->
+      <div class="card shadow-sm border-0 rounded-lg mb-4">
+        <div class="card-header bg-light py-2 px-4 fw-semibold text-secondary">
+          {{ thisMachineCert ? 'Actualizar certificados de esta máquina' : 'Registrar certificados para esta máquina' }}
+        </div>
+        <div class="card-body px-4 py-3">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-semibold">Nombre / etiqueta de esta máquina</label>
+              <input
+                v-model.trim="qzCertForm.nombre_maquina"
+                type="text"
+                class="form-control"
+                :placeholder="thisMachineCert?.nombre_maquina ?? 'Ej: Mostrador 1, Caja Principal...'"
+              />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">
+                Certificado público
+                <span class="text-muted fw-normal">(digital&#8209;certificate.txt)</span>
+              </label>
+              <input
+                ref="certFileInput"
+                type="file"
+                class="form-control"
+                accept=".txt,.pem,.crt,.cer"
+                @change="onCertFileChange"
+              />
+              <div class="form-text">
+                Archivo ubicado en <code>C:\Program Files\QZ Tray\auth\digital-certificate.txt</code>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">
+                Clave privada
+                <span class="text-muted fw-normal">(private&#8209;key.pem)</span>
+              </label>
+              <input
+                ref="pkFileInput"
+                type="file"
+                class="form-control"
+                accept=".pem,.key,.txt"
+                @change="onPkFileChange"
+              />
+              <div class="form-text">
+                Archivo ubicado en <code>C:\Program Files\QZ Tray\auth\private-key.pem</code>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 d-flex justify-content-end">
+            <button
+              class="btn btn-primary-modern px-4"
+              :disabled="isSavingQzCert"
+              @click="uploadQzCert"
+            >
+              <span v-if="isSavingQzCert" class="spinner-border spinner-border-sm me-2"></span>
+              <i v-else class="bi bi-cloud-upload me-2"></i>
+              {{ thisMachineCert ? 'Actualizar certificados' : 'Guardar certificados' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla de máquinas registradas -->
+      <div class="card shadow-sm border-0 rounded-lg overflow-hidden position-relative" :style="{ minHeight: loadingQzCerts ? '150px' : 'auto' }">
+        <div v-if="loadingQzCerts" class="loading-overlay-local d-flex flex-column align-items-center justify-content-center">
+          <div class="spinner-border text-primary-custom" role="status" style="width: 2.5rem; height: 2.5rem;">
+            <span class="visually-hidden">Cargando...</span>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+              <tr>
+                <th class="ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary">Máquina</th>
+                <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start">Machine ID</th>
+                <th class="py-3 text-uppercase fs-xs fw-bold text-secondary border-start">Última actualización</th>
+                <th class="pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary border-start text-end">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white">
+              <tr v-for="cert in qzCerts" :key="cert.machine_id">
+                <td class="ps-4 fw-semibold">
+                  <i class="bi bi-pc-display me-2 text-secondary"></i>
+                  {{ cert.nombre_maquina || '—' }}
+                  <span v-if="cert.machine_id === thisMachineId" class="badge bg-primary ms-2">Esta máquina</span>
+                </td>
+                <td class="border-start px-3"><code class="small">{{ cert.machine_id }}</code></td>
+                <td class="border-start px-3 text-muted small">{{ cert.fecha_modificacion }}</td>
+                <td class="pe-4 text-end border-start">
+                  <button @click="prepareDeleteQzCert(cert.id)" class="btn btn-link link-danger p-1" title="Eliminar">
+                    <i class="bi bi-trash3 fs-4"></i>
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="qzCerts.length === 0 && !loadingQzCerts">
+                <td colspan="4" class="text-center py-5 text-muted">
+                  No hay máquinas con certificados registrados.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <ConfirmModal
+      v-model="showConfirmQzCertModal"
+      title="Eliminar certificados"
+      message="¿Estás seguro de que deseas eliminar los certificados de esta máquina? Deberás volver a subirlos para imprimir sin el diálogo de QZ Tray."
+      confirmButtonText="Eliminar"
+      variant="danger"
+      :isLoading="isDeletingQzCert"
+      @confirm="handleDeleteQzCert"
+    />
+
   </div>
 </template>
 
@@ -293,15 +431,16 @@
 import { ref, computed, onMounted } from 'vue';
 import configuracionService from '@/services/configuracionService';
 import impresoraTiqueteraService from '@/services/impresoraTiqueteraService';
+import qzCertificadoService from '@/services/qzCertificadoService';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
 import { useToastStore } from '@/stores/toastStore';
 import {
-  setupQzSecurity, listarImpresoras,
+  setupQzSecurity, resetQzSecurity, listarImpresoras,
   savePrinterName, saveCutCmd, saveFeedLines, syncLocalStorage,
+  getMachineId,
   CUT_VARIANTS,
-  QZ_CERT, QZ_PK,
 } from '@/composables/usePrinterConfig';
 
 const toast = useToastStore();
@@ -483,13 +622,19 @@ const openImpresoraModal = (imp = null) => {
 const detectarImpresorasEnModal = async () => {
   detectando.value = true;
   try {
-    setupQzSecurity(QZ_CERT, QZ_PK);
+    const machineId = getMachineId();
+    const certData  = await qzCertificadoService.getContent(machineId);
+    resetQzSecurity();
+    setupQzSecurity(certData.cert, certData.pk);
     impresorasDetectadas.value = await listarImpresoras();
     if (!impresorasDetectadas.value.length) {
       toast.showToast({ message: 'No se encontraron impresoras vía QZ Tray.', type: 'warning' });
     }
-  } catch {
-    toast.showToast({ message: 'No se pudo conectar a QZ Tray.', type: 'danger' });
+  } catch (err) {
+    const msg = err?.response?.status === 404
+      ? 'No hay certificados QZ registrados para esta máquina. Subilós en la sección "Certificados QZ Tray".' 
+      : 'No se pudo conectar a QZ Tray.';
+    toast.showToast({ message: msg, type: 'danger' });
   } finally {
     detectando.value = false;
   }
@@ -549,9 +694,99 @@ const handleDeleteImpresora = async () => {
   }
 };
 
+// ──── Certificados QZ Tray ────────────────────────────────────
+const thisMachineId      = getMachineId();
+const qzCerts            = ref([]);
+const loadingQzCerts     = ref(false);
+const isSavingQzCert     = ref(false);
+const isDeletingQzCert   = ref(false);
+const qzCertToDelete     = ref(null);
+const showConfirmQzCertModal = ref(false);
+const thisMachineCert    = ref(null); // registro del cert de esta máquina, si existe
+
+const qzCertForm = ref({
+  nombre_maquina: '',
+  cert_file: null,
+  pk_file: null,
+});
+const certFileInput = ref(null);
+const pkFileInput   = ref(null);
+
+const fetchQzCerts = async () => {
+  loadingQzCerts.value = true;
+  try {
+    qzCerts.value     = await qzCertificadoService.getAll();
+    thisMachineCert.value = qzCerts.value.find(c => c.machine_id === thisMachineId) ?? null;
+  } catch {
+    toast.showToast({ message: 'Error al cargar los certificados QZ.', type: 'danger' });
+  } finally {
+    loadingQzCerts.value = false;
+  }
+};
+
+const onCertFileChange = (e) => { qzCertForm.value.cert_file = e.target.files[0] ?? null; };
+const onPkFileChange   = (e) => { qzCertForm.value.pk_file   = e.target.files[0] ?? null; };
+
+const uploadQzCert = async () => {
+  if (!qzCertForm.value.nombre_maquina.trim()) {
+    toast.showToast({ message: 'Ingresá un nombre para identificar esta máquina.', type: 'warning' });
+    return;
+  }
+  // Si es un registro nuevo, ambos archivos son obligatorios
+  if (!thisMachineCert.value && (!qzCertForm.value.cert_file || !qzCertForm.value.pk_file)) {
+    toast.showToast({ message: 'Debés subir ambos archivos: certificado y clave privada.', type: 'warning' });
+    return;
+  }
+
+  isSavingQzCert.value = true;
+  try {
+    await qzCertificadoService.upload(
+      thisMachineId,
+      qzCertForm.value.nombre_maquina.trim(),
+      qzCertForm.value.cert_file,
+      qzCertForm.value.pk_file,
+    );
+    toast.showToast({ message: 'Certificados guardados correctamente.', type: 'success' });
+    // Recargar seguridad QZ con los nuevos certs
+    const certData = await qzCertificadoService.getContent(thisMachineId);
+    resetQzSecurity();
+    setupQzSecurity(certData.cert, certData.pk);
+    // Limpiar formulario y recargar lista
+    qzCertForm.value = { nombre_maquina: '', cert_file: null, pk_file: null };
+    if (certFileInput.value) certFileInput.value.value = '';
+    if (pkFileInput.value)   pkFileInput.value.value   = '';
+    fetchQzCerts();
+  } catch (err) {
+    const msg = err?.response?.data?.message ?? 'Error al guardar los certificados.';
+    toast.showToast({ message: msg, type: 'danger' });
+  } finally {
+    isSavingQzCert.value = false;
+  }
+};
+
+const prepareDeleteQzCert = (id) => {
+  qzCertToDelete.value       = id;
+  showConfirmQzCertModal.value = true;
+};
+
+const handleDeleteQzCert = async () => {
+  isDeletingQzCert.value = true;
+  try {
+    await qzCertificadoService.delete(qzCertToDelete.value);
+    toast.showToast({ message: 'Certificados eliminados.', type: 'success' });
+    showConfirmQzCertModal.value = false;
+    fetchQzCerts();
+  } catch {
+    toast.showToast({ message: 'Error al eliminar los certificados.', type: 'danger' });
+  } finally {
+    isDeletingQzCert.value = false;
+  }
+};
+
 onMounted(() => {
   fetchConfigs();
   fetchImpresoras();
+  fetchQzCerts();
 });
 </script>
 

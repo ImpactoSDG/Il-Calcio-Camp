@@ -31,6 +31,14 @@ export const formatNumber = (value, decimals = 0, hideRoundDecimals = false) => 
 };
 
 /**
+ * Formatea un valor monetario con separadores de miles y hasta 2 decimales,
+ * omitiendo los decimales si el valor es entero (ej. 1234 → "1.234", 1234.5 → "1.234,50").
+ * @param {number|string} value - El valor a formatear.
+ * @returns {string} - El string formateado.
+ */
+export const formatMoney = (value) => formatNumber(value, 2, true);
+
+/**
  * Limpia un string formateado para obtener un número puro (para la DB).
  * @param {string} value - El valor con puntos/comas (ej. "1.000").
  * @returns {number|null} - El número para guardar (ej. 1000).
