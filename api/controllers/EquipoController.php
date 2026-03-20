@@ -55,21 +55,11 @@ class EquipoController extends BaseController
                     ) . ")"
                     : '';
                 $this->respond(409, [
-                    'message' => 'No se puede dar de baja: el equipo estÃ¡ inscripto en un torneo activo' . $detalle . '.',
+                    'message' => 'No se puede dar de baja: el equipo está inscripto en un torneo activo' . $detalle . '.',
                 ]);
             }
 
-            $escudo = isset($equipo['escudo']) && trim((string)$equipo['escudo']) !== ''
-                ? $equipo['escudo']
-                : null;
-
-            $actualizado = $this->model->update(
-                (int)$equipo['id'],
-                $equipo['nombre'],
-                $equipo['disciplina'],
-                false,
-                $escudo
-            );
+            $actualizado = $this->model->setActivo((int)$equipo['id'], false);
 
             if (!$actualizado) {
                 $this->respond(500, ['message' => 'No se pudo dar de baja el equipo.']);
@@ -111,12 +101,15 @@ class EquipoController extends BaseController
     public function getAll(): void
     {
         try {
-            $activos  = $_GET['activos']    ?? null;
+            $activos = $_GET['activos'] ?? null;
             $disciplina = $_GET['disciplina'] ?? null;
             $pendientes = $_GET['pendientes'] ?? null;
+            $idDisciplina = isset($_GET['id_disciplina']) ? (int)$_GET['id_disciplina'] : 0;
 
             if ($pendientes === '1' || $pendientes === 'true') {
                 $result = $this->model->getPendientesConfirmacion();
+            } elseif ($idDisciplina > 0) {
+                $result = $this->model->getByDisciplinaId($idDisciplina);
             } elseif ($disciplina) {
                 $result = $this->model->getByDisciplina($disciplina);
             } elseif ($activos === '1' || $activos === 'true') {
@@ -138,7 +131,9 @@ class EquipoController extends BaseController
     {
         try {
             $id = $_GET['id'] ?? null;
-            if (!$id) $this->respond(400, ['message' => 'ID requerido.']);
+            if (!$id) {
+                $this->respond(400, ['message' => 'ID requerido.']);
+            }
 
             $result = $this->model->getById((int)$id);
             $result ? $this->respond(200, $result) : $this->respond(404, ['message' => 'Equipo no encontrado.']);
@@ -155,8 +150,8 @@ class EquipoController extends BaseController
         try {
             $data = json_decode(file_get_contents("php://input"), true);
 
-            if (empty($data['nombre']) || empty($data['disciplina'])) {
-                $this->respond(400, ['message' => 'Nombre y disciplina requeridos.']);
+            if (empty($data['nombre']) || empty($data['id_disciplina']) || (int)$data['id_disciplina'] <= 0) {
+                $this->respond(400, ['message' => 'Nombre e id_disciplina requeridos.']);
             }
 
             $activo = $data['activo'] ?? true;
@@ -164,10 +159,16 @@ class EquipoController extends BaseController
             if ($escudo === '') {
                 $escudo = null;
             }
-            // confirmar: 1 por defecto al crear desde el panel admin
             $confirmar = isset($data['confirmar']) ? (int)$data['confirmar'] : 1;
 
-            $id = $this->model->create($data['nombre'], $data['disciplina'], (bool)$activo, $escudo, $confirmar);
+            $id = $this->model->create(
+                (string)$data['nombre'],
+                (int)$data['id_disciplina'],
+                (bool)$activo,
+                $escudo,
+                $confirmar
+            );
+
             if ($id) {
                 $this->respond(201, ['message' => 'Equipo creado exitosamente.', 'id' => $id]);
             } else {
@@ -186,8 +187,8 @@ class EquipoController extends BaseController
         try {
             $data = json_decode(file_get_contents("php://input"), true);
 
-            if (empty($data['id']) || empty($data['nombre']) || empty($data['disciplina']) || !isset($data['activo'])) {
-                $this->respond(400, ['message' => 'ID, nombre, disciplina y estado activo requeridos.']);
+            if (empty($data['id']) || empty($data['nombre']) || empty($data['id_disciplina']) || (int)$data['id_disciplina'] <= 0 || !isset($data['activo'])) {
+                $this->respond(400, ['message' => 'ID, nombre, id_disciplina y estado activo requeridos.']);
             }
 
             $escudo = isset($data['escudo']) ? trim((string)$data['escudo']) : null;
@@ -195,7 +196,7 @@ class EquipoController extends BaseController
                 $escudo = null;
             }
 
-            if ($this->model->update((int)$data['id'], $data['nombre'], $data['disciplina'], (bool)$data['activo'], $escudo)) {
+            if ($this->model->update((int)$data['id'], (string)$data['nombre'], (int)$data['id_disciplina'], (bool)$data['activo'], $escudo)) {
                 $this->respond(200, ['message' => 'Equipo actualizado exitosamente.']);
             } else {
                 $this->respond(500, ['message' => 'Error al actualizar equipo.']);
@@ -214,11 +215,11 @@ class EquipoController extends BaseController
 
             $file = $_FILES['escudo'];
             if (!is_array($file) || !isset($file['error'])) {
-                $this->respond(400, ['message' => 'Archivo de escudo invÃ¡lido.']);
+                $this->respond(400, ['message' => 'Archivo de escudo inválido.']);
             }
 
             if ((int)$file['error'] !== UPLOAD_ERR_OK) {
-                $this->respond(400, ['message' => 'Error al subir el escudo. CÃ³digo: ' . (string)$file['error']]);
+                $this->respond(400, ['message' => 'Error al subir el escudo. Código: ' . (string)$file['error']]);
             }
 
             $maxBytes = 5 * 1024 * 1024;
@@ -229,7 +230,7 @@ class EquipoController extends BaseController
 
             $tmpPath = (string)($file['tmp_name'] ?? '');
             if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
-                $this->respond(400, ['message' => 'No se encontrÃ³ el archivo temporal del escudo.']);
+                $this->respond(400, ['message' => 'No se encontró el archivo temporal del escudo.']);
             }
 
             $allowedMimeToExt = [
@@ -280,7 +281,6 @@ class EquipoController extends BaseController
         if ($configured !== '') {
             $candidates[] = $configured;
         }
-        // Default: always use uploads/escudos under current project root.
         $candidates[] = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'escudos';
 
         foreach ($candidates as $candidate) {
@@ -321,7 +321,7 @@ class EquipoController extends BaseController
     }
 
     /**
-     * Confirma un equipo pendiente de aprobaciÃ³n
+     * Confirma un equipo pendiente de aprobacion
      */
     public function confirmarEquipo(): void
     {
@@ -361,7 +361,9 @@ class EquipoController extends BaseController
             $data = json_decode(file_get_contents("php://input"), true);
             $id = $data['id'] ?? null;
 
-            if (!$id) $this->respond(400, ['message' => 'ID requerido.']);
+            if (!$id) {
+                $this->respond(400, ['message' => 'ID requerido.']);
+            }
 
             if ($this->model->delete((int)$id)) {
                 $this->respond(200, ['message' => 'Equipo eliminado exitosamente.']);

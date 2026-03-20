@@ -736,20 +736,21 @@ onBeforeUnmount(() => {
 
 /* ── Back button ── */
 .btn-back-arrow {
-  background: none;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-  width: 36px;
-  height: 36px;
+  border: none;
+  background: transparent;
+  color: #6c757d;
+  font-size: 1.1rem;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #6c757d;
-  transition: background .15s;
+  transition: background-color 0.2s ease;
   flex-shrink: 0;
 }
-.btn-back-arrow:hover { background: #f0f0f0; }
+.btn-back-arrow:hover { background: #f1f5f9; }
 
 /* ── Date navigator ── */
 .date-nav {

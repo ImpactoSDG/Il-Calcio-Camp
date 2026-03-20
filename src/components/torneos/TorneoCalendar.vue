@@ -63,30 +63,6 @@
         </div>
       </div>
 
-      <div class="mt-4">
-        <h4 class="h6 fw-semibold mb-2">Partidos del {{ selectedDateLabel }}</h4>
-
-        <div v-if="selectedEvents.length === 0" class="alert alert-light border mb-0">
-          No hay partidos para la fecha seleccionada.
-        </div>
-
-        <div v-else class="d-flex flex-column gap-2">
-          <div v-for="ev in selectedEvents" :key="`event-${ev.id}`" class="calendar-event-row">
-            <div class="d-flex justify-content-between align-items-center gap-2">
-              <div class="small text-muted">{{ ev.timeLabel }}</div>
-              <span class="badge rounded-pill" :class="getEstadoEventoBadgeClass(ev)">
-                {{ ev.estado_evento_descripcion || 'Sin estado' }}
-              </span>
-            </div>
-            <div class="fw-semibold">{{ ev.titleLabel }}</div>
-            <div v-if="ev.torneoNombre" class="small text-muted">Torneo: {{ ev.torneoNombre }}</div>
-            <div class="small text-muted">
-              <span v-if="ev.cancha_nombre"> · Cancha: {{ ev.cancha_nombre }}</span>
-              <span v-if="ev.arbitro_nombre_completo"> · Arbitro: {{ ev.arbitro_nombre_completo }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -154,15 +130,6 @@ const getEstadoEventoDotClass = (ev) => {
   if (key === 'pendiente') return 'calendar-mini-dot-pendiente'
   if (key === 'cancelado') return 'calendar-mini-dot-cancelado'
   return 'calendar-mini-dot-otro'
-}
-
-const getEstadoEventoBadgeClass = (ev) => {
-  const key = getEstadoEventoKey(ev)
-  if (key === 'finalizado') return 'bg-success-subtle text-success'
-  if (key === 'programado') return 'bg-primary-subtle text-primary'
-  if (key === 'pendiente') return 'bg-warning-subtle text-warning'
-  if (key === 'cancelado') return 'bg-danger-subtle text-danger'
-  return 'bg-secondary-subtle text-secondary'
 }
 
 const today = new Date()
@@ -250,19 +217,6 @@ const calendarCells = computed(() => {
   }
 
   return cells
-})
-
-const selectedEvents = computed(() => eventsByDate.value[selectedDateKey.value] || [])
-
-const selectedDateLabel = computed(() => {
-  const dt = parseDateTime(`${selectedDateKey.value} 00:00:00`)
-  if (!dt) return selectedDateKey.value
-  return dt.toLocaleDateString('es-AR', {
-    weekday: 'long',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  })
 })
 
 const selectDate = (dateKey) => {
