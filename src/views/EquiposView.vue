@@ -181,7 +181,12 @@
               </div>
               <div class="mb-3">
                 <label class="form-label">Disciplina</label>
-                <input v-model.trim="form.disciplina" type="text" class="form-control" placeholder="Ej: Fútbol" required />
+                <select v-model.number="form.id_disciplina" class="form-select" required>
+                  <option :value="null" disabled>Seleccionar disciplina</option>
+                  <option v-for="disciplina in disciplinas" :key="disciplina.id" :value="Number(disciplina.id)">
+                    {{ disciplina.nombre }}
+                  </option>
+                </select>
               </div>
               <div class="mb-3">
                 <label class="form-label">Escudo (imagen/logo)</label>
@@ -298,7 +303,12 @@
                   </div>
                   <div class="col-md-6">
                     <label class="form-label">Disciplina</label>
-                    <input v-model.trim="bulkForm.disciplina" type="text" class="form-control" placeholder="Ej: Fútbol" required />
+                    <select v-model.number="bulkForm.id_disciplina" class="form-select" required>
+                      <option :value="null" disabled>Seleccionar disciplina</option>
+                      <option v-for="disciplina in disciplinas" :key="disciplina.id" :value="Number(disciplina.id)">
+                        {{ disciplina.nombre }}
+                      </option>
+                    </select>
                   </div>
                   <div class="col-md-8">
                     <label class="form-label">Escudo (opcional)</label>
@@ -502,6 +512,7 @@ const equipos = ref([]);
 const equiposPendientes = ref([]);
 const loadingPendientes = ref(false);
 const idConfirmando = ref(null);
+const disciplinas = ref([]);
 
 const equiposActivos = computed(() => equipos.value.filter(item => Number(item.activo) !== 0 && Number(item.confirmar) === 1))
 const sortedEquipos = computed(() => sortItems(equiposActivos.value))
@@ -523,12 +534,12 @@ const editRoster = ref([]);
 const originalRoster = ref([]);
 let rosterLocalId = 0;
 
-const form = ref({ id: null, nombre: '', disciplina: '', activo: true, escudo: null, escudoFile: null });
+const form = ref({ id: null, nombre: '', id_disciplina: null, activo: true, escudo: null, escudoFile: null });
 const originalForm = ref({});
 
 const emptyBulkForm = () => ({
   nombre: '',
-  disciplina: '',
+  id_disciplina: null,
   escudo: null,
   escudoFile: null,
   jugadores: [{ nombre_completo: '', capitan: false, arquero: false }],
@@ -594,15 +605,40 @@ const doConfirmarEquipo = async () => {
   }
 };
 
+const fetchDisciplinas = async () => {
+  try {
+    const data = await datosMaestrosService.getDisciplinas();
+    disciplinas.value = Array.isArray(data) ? data : [];
+  } catch {
+    disciplinas.value = [];
+    toast.showToast({ message: 'No se pudieron cargar las disciplinas.', type: 'danger' });
+  }
+};
+
+const resolveDisciplinaId = (item) => {
+  const directo = Number(item?.id_disciplina || 0);
+  if (directo > 0) return directo;
+
+  const nombre = String(item?.disciplina || item?.disciplina_nombre || '').trim().toLowerCase();
+  if (!nombre) return null;
+  const match = disciplinas.value.find(d => String(d.nombre || '').trim().toLowerCase() === nombre);
+  return match ? Number(match.id) : null;
+};
+
 const openModal = (item = null) => {
   if (item) {
     isEditing.value = true;
-    form.value = { ...item, activo: Boolean(Number(item.activo)), escudoFile: null };
+    form.value = {
+      ...item,
+      id_disciplina: resolveDisciplinaId(item),
+      activo: Boolean(Number(item.activo)),
+      escudoFile: null,
+    };
     originalForm.value = { ...form.value };
     loadEquipoRoster(item.id);
   } else {
     isEditing.value = false;
-    form.value = { id: null, nombre: '', disciplina: '', activo: true, escudo: null, escudoFile: null };
+    form.value = { id: null, nombre: '', id_disciplina: null, activo: true, escudo: null, escudoFile: null };
     editRoster.value = [];
     originalRoster.value = [];
   }
@@ -832,7 +868,7 @@ const resolveEscudoUrl = (escudo) => {
 };
 
 const save = async () => {
-  if (!form.value.nombre || !form.value.disciplina) {
+  if (!form.value.nombre || !form.value.id_disciplina) {
     toast.showToast({ message: 'Nombre y disciplina son obligatorios.', type: 'warning' });
     return;
   }
@@ -856,7 +892,7 @@ const save = async () => {
     const payload = {
       id: form.value.id,
       nombre: form.value.nombre,
-      disciplina: form.value.disciplina,
+      id_disciplina: Number(form.value.id_disciplina),
       activo: isEditing.value ? form.value.activo : true,
       escudo: escudoPath,
     };
@@ -892,7 +928,7 @@ const parseNombreCompleto = (value) => {
 };
 
 const saveBulkTeamWithPlayers = async () => {
-  if (!bulkForm.value.nombre?.trim() || !bulkForm.value.disciplina?.trim()) {
+  if (!bulkForm.value.nombre?.trim() || !bulkForm.value.id_disciplina) {
     toast.showToast({ message: 'Nombre y disciplina del equipo son obligatorios.', type: 'warning' });
     return;
   }
@@ -928,7 +964,7 @@ const saveBulkTeamWithPlayers = async () => {
 
     const teamResp = await datosMaestrosService.crearEquipo({
       nombre: bulkForm.value.nombre.trim(),
-      disciplina: bulkForm.value.disciplina.trim(),
+      id_disciplina: Number(bulkForm.value.id_disciplina),
       activo: true,
       escudo: escudoPath,
     });
@@ -1016,8 +1052,9 @@ const confirmDelete = async () => {
   }
 };
 
-onMounted(() => {
-  fetchData();
+onMounted(async () => {
+  await fetchDisciplinas();
+  await fetchData();
   fetchPendientes();
 });
 </script>

@@ -746,11 +746,10 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #6c757d;
-  transition: background .15s;
+  transition: background-color 0.2s ease;
   flex-shrink: 0;
 }
-.btn-back-arrow:hover { background: #f0f0f0; }
+.btn-back-arrow:hover { background: #f1f5f9; }
 
 /* ── Date navigator ── */
 .date-nav {
