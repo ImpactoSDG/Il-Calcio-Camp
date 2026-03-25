@@ -108,7 +108,7 @@
               <!-- Link Interno -->
               <router-link
                 v-else
-                :to="modulo.ruta"
+                :to="generarRuta(modulo)"
                 class="action-card"
                 :style="`--card-color: ${modulo.bg || '#6c757d'};`"
               >
@@ -134,6 +134,20 @@ import { computed, ref } from 'vue';
 import { useUserStore } from '@/stores/userStore';
 
 const userStore = useUserStore();
+
+// ── Función para transformar rutas de submenu ──────────────────────────────
+const generarRuta = (modulo) => {
+  if (!modulo.ruta) return '#';
+  
+  // Si la ruta es /submenu/numero, transformar a /submenu/nombre
+  const match = modulo.ruta.match(/^\/submenu\/\d+$/);
+  if (match) {
+    const nombreSubmenu = modulo.nombre.toLowerCase().replace(/\s+/g, '-');
+    return `/submenu/${nombreSubmenu}`;
+  }
+  
+  return modulo.ruta;
+};
 
 // ── Orden fijo de categorías ───────────────────────────────────────────────
 const ORDEN_CATEGORIAS = ['FAVORITOS','NEGOCIO', 'CLIENTES', 'DEPORTES', 'TORNEOS', 'USUARIOS', 'CONFIGURACIONES'];

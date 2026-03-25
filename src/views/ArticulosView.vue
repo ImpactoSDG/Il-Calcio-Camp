@@ -31,6 +31,16 @@
         </button>
         <div class="bulk-divider mx-1"></div>
         <button
+          @click="toggleAllCategories"
+          class="btn-bulk-text"
+          :class="allCategoriesOpen ? 'btn-bulk-text--open' : 'btn-bulk-text--collapsed'"
+          title="Expandir/Colapsar todo"
+        >
+          <i :class="allCategoriesOpen ? 'bi bi-chevron-up' : 'bi bi-chevron-down'" class="me-1"></i>
+          {{ allCategoriesOpen ? 'Colapsar todo' : 'Expandir todo' }}
+        </button>
+        <div class="bulk-divider mx-1"></div>
+        <button
           @click="openBulkModal"
           class="btn-bulk-trigger d-flex align-items-center gap-2"
           :class="{ 'btn-bulk-trigger--disabled': seleccionados.length === 0 }"
@@ -542,10 +552,24 @@ const originalForm = ref({});
 
 // ── Acordeones ───────────────────────────────────────────────────
 const categoriasAbiertas = ref(new Set());
+
 const toggleCategoria = (idx) => {
   const s = new Set(categoriasAbiertas.value);
   s.has(idx) ? s.delete(idx) : s.add(idx);
   categoriasAbiertas.value = s;
+};
+
+const allCategoriesOpen = computed(() => {
+  return articulosAgrupados.value.length > 0 && 
+         categoriasAbiertas.value.size === articulosAgrupados.value.length;
+});
+
+const toggleAllCategories = () => {
+  if (allCategoriesOpen.value) {
+    categoriasAbiertas.value = new Set();
+  } else {
+    categoriasAbiertas.value = new Set(articulosAgrupados.value.map((_, i) => i));
+  }
 };
 
 // ── Selección múltiple ───────────────────────────────────────────
@@ -695,7 +719,7 @@ const articulosAgrupados = computed(() => {
 });
 
 watch(articulosAgrupados, (grupos) => {
-  categoriasAbiertas.value = new Set(grupos.map((_, i) => i));
+  // No abrir categorías por defecto
 }, { immediate: false });
 
 // ── CRUD ─────────────────────────────────────────────────────────
@@ -792,7 +816,6 @@ const formatNum = (val) => formatNumber(val, 2, true);
 
 onMounted(async () => {
   await fetchData();
-  categoriasAbiertas.value = new Set(articulosAgrupados.value.map((_, i) => i));
 });
 </script>
 
@@ -834,6 +857,10 @@ onMounted(async () => {
 .btn-bulk-text--success:hover:not(.btn-bulk-text--disabled) { background: #0d6e35; color: #fff; transform: translateY(-1px); }
 .btn-bulk-text--danger { background: #fdeaea; color: #dc3545; }
 .btn-bulk-text--danger:hover:not(.btn-bulk-text--disabled) { background: #dc3545; color: #fff; transform: translateY(-1px); }
+.btn-bulk-text--open { background: #c5ecec; color: #0e7c7f; }
+.btn-bulk-text--open:hover { background: #0e7c7f; color: #fff; transform: translateY(-1px); }
+.btn-bulk-text--collapsed { background: #f0f4f8; color: #495057; }
+.btn-bulk-text--collapsed:hover { background: #169c9f; color: #fff; transform: translateY(-1px); }
 
 .btn-bulk-text--disabled {
   background: #f1f3f5 !important;

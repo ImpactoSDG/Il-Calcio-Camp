@@ -9,6 +9,23 @@
       </div>
       <div class="d-flex gap-2" v-if="subModulos.length > 1">
         <template v-if="modoOrdenar">
+          <button
+            @click="cambiarModoOrden"
+            class="btn btn-sm"
+            :class="tipoOrden === 'orden_submodulos' ? 'btn-info' : 'btn-light'"
+            title="Ordenar submódulos"
+          >
+            <i class="bi bi-boxes me-1"></i>Submódulos
+          </button>
+          <button
+            @click="cambiarModoOrden"
+            class="btn btn-sm"
+            :class="tipoOrden === 'orden_categorias' ? 'btn-info' : 'btn-light'"
+            title="Ordenar categorías"
+          >
+            <i class="bi bi-folder2-open me-1"></i>Categorías
+          </button>
+          <div class="vr"></div>
           <button @click="guardarOrden" class="btn btn-sm btn-success" :disabled="guardando">
             <i class="bi bi-check-lg me-1"></i>{{ guardando ? 'Guardando...' : 'Guardar orden' }}
           </button>
@@ -24,11 +41,11 @@
 
     <div v-if="modoOrdenar" class="alert alert-info py-2 px-3 mb-3 small">
       <i class="bi bi-info-circle me-1"></i>
-      Arrastrá las tarjetas para cambiar el orden.
+      {{ tipoOrden === 'orden_submodulos' ? 'Arrastrá las tarjetas para cambiar el orden de submódulos.' : 'Arrastrá las categorías para cambiar su orden.' }}
     </div>
 
-    <!-- Modo ordenar -->
-    <div v-if="modoOrdenar" class="card-grid">
+    <!-- Modo ordenar submódulos -->
+    <div v-if="modoOrdenar && tipoOrden === 'orden_submodulos'" class="card-grid">
       <div
         v-for="(hijo, index) in subModulosOrdenables"
         :key="hijo.id"
@@ -56,38 +73,72 @@
       </div>
     </div>
 
-    <!-- Modo normal -->
-    <div v-else class="card-grid">
-      <template v-for="hijo in subModulos" :key="hijo.id">
-        <!-- Link Externo -->
-        <a
-          v-if="hijo.ruta && (hijo.ruta.startsWith('http://') || hijo.ruta.startsWith('https://'))"
-          :href="hijo.ruta"
-          target="_blank"
-          class="action-card"
-          :style="`--card-color: ${hijo.bg || '#6c757d'};`"
-        >
-          <div class="icon-container" style="background-color: var(--card-color);">
-            <i :class="hijo.icon || 'bi bi-app-indicator'"></i>
-          </div>
-          <span class="card-label">{{ hijo.nombre }}</span>
-        </a>
+    <!-- Modo ordenar categorías -->
+    <div v-if="modoOrdenar && tipoOrden === 'orden_categorias'" class="mb-5">
+      <div
+        v-for="(grupo, index) in categoriasOrdenables"
+        :key="grupo.categoria"
+        class="category-section-draggable draggable-category"
+        draggable="true"
+        @dragstart="onDragStartCategoria($event, index)"
+        @dragover.prevent="onDragOverCategoria($event, index)"
+        @dragleave="onDragLeaveCategoria"
+        @drop.stop="onDropCategoria($event, index)"
+        @dragend="onDragEndCategoria"
+        :class="{ 'drag-over': dragOverCategoria.index === index, 'is-dragging': draggingCategoryIndex === index }"
+      >
+        <div class="drag-handle-categoria">
+          <i class="bi bi-grip-vertical"></i>
+        </div>
+        <h2 class="h6 fw-bold text-uppercase text-secondary mb-3 ps-2" style="border-left: 4px solid var(--color-primary, #00558c); padding-left: 0.75rem;">
+          {{ grupo.categoria || 'Sin categoría' }}
+          <span class="badge bg-secondary ms-2">{{ grupo.articulos.length }}</span>
+        </h2>
+      </div>
+    </div>
 
-        <!-- Link Interno -->
-        <router-link
-          v-else
-          :to="hijo.ruta"
-          class="action-card"
-          :style="`--card-color: ${hijo.bg || '#6c757d'};`"
-        >
-          <div class="icon-container" style="background-color: var(--card-color);">
-            <i :class="hijo.icon || 'bi bi-app-indicator'"></i>
+    <!-- Modo normal -->
+    <div v-else-if="!modoOrdenar">
+      <!-- Agrupar por categorías -->
+      <template v-if="subModulosPorCategoria.length > 0">
+        <div v-for="grupo in subModulosPorCategoria" :key="grupo.categoria" class="mb-5">
+          <h2 class="h6 fw-bold text-uppercase text-secondary mb-3 ps-2" style="border-left: 4px solid var(--color-primary, #00558c); padding-left: 0.75rem;">
+            {{ grupo.categoria || 'Sin categoría' }}
+          </h2>
+          <div class="card-grid">
+            <template v-for="hijo in grupo.articulos" :key="hijo.id">
+              <!-- Link Externo -->
+              <a
+                v-if="hijo.ruta && (hijo.ruta.startsWith('http://') || hijo.ruta.startsWith('https://'))"
+                :href="hijo.ruta"
+                target="_blank"
+                class="action-card"
+                :style="`--card-color: ${hijo.bg || '#6c757d'};`"
+              >
+                <div class="icon-container" style="background-color: var(--card-color);">
+                  <i :class="hijo.icon || 'bi bi-app-indicator'"></i>
+                </div>
+                <span class="card-label">{{ hijo.nombre }}</span>
+              </a>
+
+              <!-- Link Interno -->
+              <router-link
+                v-else
+                :to="generarRuta(hijo)"
+                class="action-card"
+                :style="`--card-color: ${hijo.bg || '#6c757d'};`"
+              >
+                <div class="icon-container" style="background-color: var(--card-color);">
+                  <i :class="hijo.icon || 'bi bi-app-indicator'"></i>
+                </div>
+                <span class="card-label">{{ hijo.nombre }}</span>
+              </router-link>
+            </template>
           </div>
-          <span class="card-label">{{ hijo.nombre }}</span>
-        </router-link>
+        </div>
       </template>
 
-      <div v-if="subModulos.length === 0" class="no-modules w-100 py-5 text-center text-muted">
+      <div v-else class="no-modules w-100 py-5 text-center text-muted">
         <i class="bi bi-exclamation-circle d-block mb-2 fs-2"></i>
         No tienes sub-módulos asignados en esta sección.
       </div>
@@ -103,16 +154,39 @@ import { useUserStore } from '@/stores/userStore';
 const route = useRoute();
 const userStore = useUserStore();
 
-// Obtenemos el ID del módulo actual desde el meta de la ruta o desde los parámetros
-const idModuloActual = computed(() => {
-  return Number(route.meta.useParamId ? route.params.id : route.meta.idModulo);
+// Obtenemos el nombre del módulo desde los parámetros
+const nombreModuloParam = computed(() => {
+  return route.params.nombre;
 });
 
 const moduloActual = computed(() => {
-  return userStore.user?.modulos?.find(m => Number(m.id) === idModuloActual.value);
+  return userStore.user?.modulos?.find(m => 
+    m.nombre.toLowerCase().replace(/\s+/g, '-') === nombreModuloParam.value.toLowerCase()
+  );
+});
+
+const idModuloActual = computed(() => {
+  return Number(moduloActual.value?.id);
 });
 
 const nombreModulo = computed(() => moduloActual.value?.nombre || 'MENÚ');
+
+// ── Almacenamiento de orden de categorías ──────────────────────────────────
+const storageKeyCategories = computed(() => `categorias_orden_${idModuloActual.value}`);
+
+const loadCategoriesOrder = () => {
+  try {
+    const stored = localStorage.getItem(storageKeyCategories.value);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveCategoriesOrderLocal = () => {
+  const orden = categoriasOrdenables.value.map(g => g.categoria);
+  localStorage.setItem(storageKeyCategories.value, JSON.stringify(orden));
+};
 
 const subModulos = computed(() => {
   const modulos = userStore.user?.modulos || [];
@@ -125,37 +199,136 @@ const subModulos = computed(() => {
     });
 });
 
+// Agrupar submódulos por categoría
+const subModulosPorCategoria = computed(() => {
+  const grupos = {};
+  subModulos.value.forEach(modulo => {
+    const cat = modulo.categoria || 'General';
+    if (!grupos[cat]) {
+      grupos[cat] = [];
+    }
+    grupos[cat].push(modulo);
+  });
+  
+  let categorias = Object.keys(grupos).sort().map(cat => ({
+    categoria: cat,
+    articulos: grupos[cat]
+  }));
+
+  // Aplicar orden guardado en localStorage
+  const ordenGuardado = loadCategoriesOrder();
+  if (ordenGuardado.length > 0) {
+    const map = new Map(categorias.map(g => [g.categoria, g]));
+    const ordenado = [];
+    
+    // Primero las categorías en orden guardado
+    for (const cat of ordenGuardado) {
+      if (map.has(cat)) {
+        ordenado.push(map.get(cat));
+        map.delete(cat);
+      }
+    }
+    
+    // Luego las categorías nuevas (que no estaban guardadas)
+    for (const grupo of map.values()) {
+      ordenado.push(grupo);
+    }
+    
+    categorias = ordenado;
+  }
+  
+  return categorias;
+});
+
+// Función para generar rutas
+const generarRuta = (modulo) => {
+  if (!modulo.ruta) return '#';
+  
+  // Si es un link interno que apunta a /submenu/..., cambiar a usar nombre
+  if (modulo.ruta && modulo.ruta.startsWith('/submenu/')) {
+    const nombreSubmenu = modulo.nombre.toLowerCase().replace(/\s+/g, '-');
+    return `/submenu/${nombreSubmenu}`;
+  }
+  
+  return modulo.ruta;
+};
+
 // ── Ordenar ────────────────────────────────────────────────────────────────
 const modoOrdenar = ref(false);
+const tipoOrden = ref('orden_submodulos'); // 'orden_submodulos' o 'orden_categorias'
 const guardando = ref(false);
 const subModulosOrdenables = ref([]);
+const categoriasOrdenables = ref([]);
+
+// Drag-and-drop para submódulos
 const dragInfo = ref({ fromIndex: null });
 const dragOver = ref({ index: null });
 const draggingIndex = ref(null);
 
+// Drag-and-drop para categorías
+const dragInfoCategoria = ref({ fromIndex: null });
+const dragOverCategoria = ref({ index: null });
+const draggingCategoryIndex = ref(null);
+
+function cambiarModoOrden() {
+  tipoOrden.value = tipoOrden.value === 'orden_submodulos' ? 'orden_categorias' : 'orden_submodulos';
+  
+  if (tipoOrden.value === 'orden_categorias') {
+    // Cargar orden de categorías guardado
+    const ordenGuardado = loadCategoriesOrder();
+    if (ordenGuardado.length > 0) {
+      const map = new Map(categoriasOrdenables.value.map(g => [g.categoria, g]));
+      categoriasOrdenables.value = ordenGuardado
+        .map(cat => map.get(cat))
+        .filter(Boolean);
+      // Agregar categorías nuevas que no estaban guardadas
+      subModulosPorCategoria.value.forEach(g => {
+        if (!categoriasOrdenables.value.find(c => c.categoria === g.categoria)) {
+          categoriasOrdenables.value.push(g);
+        }
+      });
+    }
+  }
+}
+
 function iniciarOrden() {
   subModulosOrdenables.value = subModulos.value.map(m => ({ ...m }));
+  categoriasOrdenables.value = subModulosPorCategoria.value.map(g => ({ ...g, articulos: [...g.articulos] }));
+  tipoOrden.value = 'orden_submodulos';
   modoOrdenar.value = true;
 }
 
 function cancelarOrden() {
   modoOrdenar.value = false;
+  tipoOrden.value = 'orden_submodulos';
   subModulosOrdenables.value = [];
+  categoriasOrdenables.value = [];
   dragInfo.value = { fromIndex: null };
   dragOver.value = { index: null };
   draggingIndex.value = null;
+  dragInfoCategoria.value = { fromIndex: null };
+  dragOverCategoria.value = { index: null };
+  draggingCategoryIndex.value = null;
 }
 
 async function guardarOrden() {
   guardando.value = true;
   try {
-    const ordenes = subModulosOrdenables.value.map((mod, index) => ({
-      id_modulo: mod.id,
-      orden: index + 1,
-    }));
-    await userStore.saveOrdenModulos(ordenes);
+    if (tipoOrden.value === 'orden_submodulos') {
+      // Guardar orden de submódulos
+      const ordenes = subModulosOrdenables.value.map((mod, index) => ({
+        id_modulo: mod.id,
+        orden: index + 1,
+      }));
+      await userStore.saveOrdenModulos(ordenes);
+    } else {
+      // Guardar orden de categorías en localStorage
+      saveCategoriesOrderLocal();
+    }
     modoOrdenar.value = false;
+    tipoOrden.value = 'orden_submodulos';
     subModulosOrdenables.value = [];
+    categoriasOrdenables.value = [];
   } catch {
     // El error ya se logueó en el store
   } finally {
@@ -163,12 +336,11 @@ async function guardarOrden() {
   }
 }
 
-// ── Drag-and-Drop ──────────────────────────────────────────────────────────
+// ── Drag-and-Drop Submódulos ──────────────────────────────────────────────
 function onDragStart(event, index) {
   dragInfo.value = { fromIndex: index };
   event.dataTransfer.effectAllowed = 'move';
 
-  // Usar solo la tarjeta interior como ghost para evitar capturar contenido extra
   const cardEl = event.currentTarget.querySelector('.action-card');
   const ghost = cardEl.cloneNode(true);
   ghost.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${cardEl.offsetWidth}px;height:${cardEl.offsetHeight}px;pointer-events:none;opacity:0.9;border-radius:12px;`;
@@ -208,6 +380,52 @@ function onDrop(event, toIndex) {
 
   dragInfo.value = { fromIndex: null };
   draggingIndex.value = null;
+}
+
+// ── Drag-and-Drop Categorías ──────────────────────────────────────────────
+function onDragStartCategoria(event, index) {
+  dragInfoCategoria.value = { fromIndex: index };
+  event.dataTransfer.effectAllowed = 'move';
+
+  const sectionEl = event.currentTarget;
+  const ghost = sectionEl.cloneNode(true);
+  ghost.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${sectionEl.offsetWidth}px;height:${sectionEl.offsetHeight}px;pointer-events:none;opacity:0.9;border-radius:8px;`;
+  document.body.appendChild(ghost);
+  event.dataTransfer.setDragImage(ghost, sectionEl.offsetWidth / 2, 20);
+
+  setTimeout(() => {
+    document.body.removeChild(ghost);
+    draggingCategoryIndex.value = index;
+  }, 0);
+}
+
+function onDragEndCategoria() {
+  draggingCategoryIndex.value = null;
+  dragOverCategoria.value = { index: null };
+}
+
+function onDragOverCategoria(event, index) {
+  event.preventDefault();
+  dragOverCategoria.value = { index };
+}
+
+function onDragLeaveCategoria() {
+  dragOverCategoria.value = { index: null };
+}
+
+function onDropCategoria(event, toIndex) {
+  event.preventDefault();
+  dragOverCategoria.value = { index: null };
+
+  const { fromIndex } = dragInfoCategoria.value;
+  if (fromIndex === null || fromIndex === toIndex) return;
+
+  const cats = categoriasOrdenables.value;
+  const [moved] = cats.splice(fromIndex, 1);
+  cats.splice(toIndex, 0, moved);
+
+  dragInfoCategoria.value = { fromIndex: null };
+  draggingCategoryIndex.value = null;
 }
 </script>
 
@@ -253,5 +471,52 @@ function onDrop(event, toIndex) {
 
 .is-dragging {
   opacity: 0;
+}
+
+/* Modo ordenar categorías */
+.category-section-draggable {
+  cursor: grab;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  user-select: none;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  border-left: 5px solid var(--color-primary, #00558c);
+  position: relative;
+}
+
+.category-section-draggable:active {
+  cursor: grabbing;
+}
+
+.category-section-draggable.drag-over {
+  transform: scale(1.02);
+  box-shadow: 0 0 0 2px #0d6efd, 0 4px 12px rgba(13, 110, 253, 0.2);
+  border-radius: 8px;
+  background: #e7f1ff;
+}
+
+.category-section-draggable.is-dragging {
+  opacity: 0.3;
+}
+
+.drag-handle-categoria {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6c757d;
+  font-size: 0.9rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  pointer-events: none;
+  border: 1px solid #dee2e6;
 }
 </style>

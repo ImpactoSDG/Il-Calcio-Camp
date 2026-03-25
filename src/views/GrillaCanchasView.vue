@@ -1,14 +1,14 @@
 <template>
-  <div class="gc-page">
+  <div class="gc-page container-fluid p-4 bg-white min-vh-100 position-relative animate-fade-in">
 
     <!-- ── Header ─────────────────────────────────────────── -->
-    <div class="d-flex align-items-center gap-2 mb-3 pb-3 border-bottom">
-      <button @click="$router.back()" class="btn-back-arrow" title="Volver">
-        <i class="bi bi-arrow-left"></i>
-      </button>
-      <h1 class="h5 fw-bold mb-0 text-secondary text-uppercase tracking-wide">
-        Grilla de canchas de F11
-      </h1>
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
+      <div class="d-flex align-items-center">
+        <button @click="$router.back()" class="btn-back-arrow me-2" title="Volver">
+          <i class="bi bi-arrow-left"></i>
+        </button>
+        <h1 class="h5 fw-bold mb-0 text-secondary">GRILLA DE CANCHAS DE F11</h1>
+      </div>
     </div>
 
     <!-- ── Date navigator ────────────────────────────────── -->
@@ -730,6 +730,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 1rem;
   padding-bottom: 1rem;
+  box-sizing: border-box;
 }
 
 .tracking-wide { letter-spacing: .08em; }
@@ -737,7 +738,7 @@ onBeforeUnmount(() => {
 /* ── Back button ── */
 .btn-back-arrow {
   background: none;
-  border: 1px solid #dee2e6;
+  border: none;
   border-radius: 8px;
   width: 36px;
   height: 36px;

@@ -88,10 +88,10 @@ const router = createRouter({
       meta: { requiresAuth: true, idModulo: 5 }
     },
     {
-      path: '/submenu/:id',
+      path: '/submenu/:nombre',
       name: 'submenu',
       component: SubmenuView,
-      meta: { requiresAuth: true, useParamId: true }
+      meta: { requiresAuth: true, useParamName: true }
     },
 
     // --- ArtÃ­culos & Stock ---

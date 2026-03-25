@@ -202,7 +202,7 @@
                   </div>
                   <div>
                     <label class="form-label">Valor inscripción</label>
-                    <input v-model.number="torneoForm.valor_inscripcion" type="number" min="0" step="0.01" class="form-control" />
+                    <CustomNumberInput v-model="torneoForm.valor_inscripcion" :decimals="2" placeholder="0.00" />
                   </div>
                 </div>
               </div>
@@ -227,6 +227,7 @@ import { useRouter } from 'vue-router'
 import datosMaestrosService from '@/services/datosMaestrosService'
 import planTorneoService from '@/services/planTorneoService'
 import { useToastStore } from '@/stores/toastStore'
+import CustomNumberInput from '@/components/CustomNumberInput.vue'
 
 const toast = useToastStore()
 const router = useRouter()

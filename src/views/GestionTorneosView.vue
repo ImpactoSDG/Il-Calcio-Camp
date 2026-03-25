@@ -129,6 +129,11 @@
               <i class="bi bi-calendar-week me-1"></i>Calendario
             </button>
           </li>
+          <li class="nav-item">
+            <button class="torneo-tab" :class="{ active: tabActiva === 'pagos' }" @click="tabActiva = 'pagos'">
+              <i class="bi bi-cash-coin me-1"></i>Pagos por partido
+            </button>
+          </li>
         </ul>
 
         <template v-if="tabActiva === 'resumen'">
@@ -208,76 +213,7 @@
             </table>
           </div>
 
-          <div class="mt-4">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h3 class="h6 mb-0">Pagos por partido</h3>
-              <span class="small text-muted">Monto por equipo: {{ formatMoney(detalle?.torneo?.valor_inscripcion) }}</span>
-            </div>
-            <p class="small text-muted mb-3">
-              Registrá el pago por equipo para cada próximo partido y adjuntá comprobante si corresponde.
-            </p>
 
-            <div v-if="!eventosPagoPartido.length" class="alert alert-info mb-0">
-              No hay próximos partidos con equipos asignados para gestionar pagos.
-            </div>
-
-            <div v-else class="table-responsive">
-              <table class="table table-sm align-middle mb-0">
-                <thead>
-                  <tr>
-                    <th>Partido</th>
-                    <th>Fecha/Hora</th>
-                    <th>Equipo local</th>
-                    <th>Equipo visitante</th>
-                    <th>Estado pagos</th>
-                    <th class="text-end">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="ev in eventosPagoPartido" :key="`pago-evento-${ev.id}`">
-                    <td>
-                      <div class="fw-semibold">{{ ev.titulo || `Partido ${ev.id}` }}</div>
-                      <div class="small text-muted">Estado: {{ ev.estado_evento_descripcion || '-' }}</div>
-                    </td>
-                    <td>{{ formatearFechaHora(ev.fecha_hora_inicio) }}</td>
-                    <td>
-                      <div class="d-flex align-items-center gap-2">
-                        <img v-if="ev.equipo_local_escudo" :src="resolveEscudoUrl(ev.equipo_local_escudo)" alt="escudo" class="escudo-thumb" />
-                        <span>{{ ev.equipo_local_nombre || '-' }}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div class="d-flex align-items-center gap-2">
-                        <img v-if="ev.equipo_visitante_escudo" :src="resolveEscudoUrl(ev.equipo_visitante_escudo)" alt="escudo" class="escudo-thumb" />
-                        <span>{{ ev.equipo_visitante_nombre || '-' }}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div class="d-flex flex-column gap-1">
-                        <span
-                          class="badge rounded-pill align-self-start"
-                          :class="Number(ev.pago_local_realizado || 0) === 1 ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'"
-                        >
-                          Local: {{ Number(ev.pago_local_realizado || 0) === 1 ? 'Pagado' : 'Pendiente' }}
-                        </span>
-                        <span
-                          class="badge rounded-pill align-self-start"
-                          :class="Number(ev.pago_visitante_realizado || 0) === 1 ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'"
-                        >
-                          Visitante: {{ Number(ev.pago_visitante_realizado || 0) === 1 ? 'Pagado' : 'Pendiente' }}
-                        </span>
-                      </div>
-                    </td>
-                    <td class="text-end">
-                      <button class="btn btn-sm btn-outline-primary" @click="abrirPagoEventoModal(ev)">
-                        Gestionar
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
         </template>
 
         <template v-if="tabActiva === 'asignaciones'">
@@ -747,6 +683,79 @@
             Vista mensual de partidos programados del torneo. Este componente es reusable para otras pantallas.
           </div>
           <TorneoCalendar :eventos="eventosCalendario" :torneo-nombre="detalle?.torneo?.nombre || ''" />
+        </template>
+
+        <template v-if="tabActiva === 'pagos'">
+          <div class="mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h3 class="h6 mb-0">Pagos por partido</h3>
+              <span class="small text-muted">Monto por equipo: {{ formatMoney(detalle?.torneo?.valor_inscripcion) }}</span>
+            </div>
+            <p class="small text-muted mb-3">
+              Registrá el pago por equipo para cada próximo partido y adjuntá comprobante si corresponde.
+            </p>
+
+            <div v-if="!eventosPagoPartido.length" class="alert alert-info mb-0">
+              No hay próximos partidos con equipos asignados para gestionar pagos.
+            </div>
+
+            <div v-else class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Partido</th>
+                    <th>Fecha/Hora</th>
+                    <th>Equipo local</th>
+                    <th>Equipo visitante</th>
+                    <th>Estado pagos</th>
+                    <th class="text-end">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="ev in eventosPagoPartido" :key="`pago-evento-${ev.id}`">
+                    <td>
+                      <div class="fw-semibold">{{ ev.titulo || `Partido ${ev.id}` }}</div>
+                      <div class="small text-muted">Estado: {{ ev.estado_evento_descripcion || '-' }}</div>
+                    </td>
+                    <td>{{ formatearFechaHora(ev.fecha_hora_inicio) }}</td>
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        <img v-if="ev.equipo_local_escudo" :src="resolveEscudoUrl(ev.equipo_local_escudo)" alt="escudo" class="escudo-thumb" />
+                        <span>{{ ev.equipo_local_nombre || '-' }}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        <img v-if="ev.equipo_visitante_escudo" :src="resolveEscudoUrl(ev.equipo_visitante_escudo)" alt="escudo" class="escudo-thumb" />
+                        <span>{{ ev.equipo_visitante_nombre || '-' }}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="d-flex flex-column gap-1">
+                        <span
+                          class="badge rounded-pill align-self-start"
+                          :class="Number(ev.pago_local_realizado || 0) === 1 ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'"
+                        >
+                          Local: {{ Number(ev.pago_local_realizado || 0) === 1 ? 'Pagado' : 'Pendiente' }}
+                        </span>
+                        <span
+                          class="badge rounded-pill align-self-start"
+                          :class="Number(ev.pago_visitante_realizado || 0) === 1 ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'"
+                        >
+                          Visitante: {{ Number(ev.pago_visitante_realizado || 0) === 1 ? 'Pagado' : 'Pendiente' }}
+                        </span>
+                      </div>
+                    </td>
+                    <td class="text-end">
+                      <button class="btn btn-sm btn-outline-primary" @click="abrirPagoEventoModal(ev)">
+                        Gestionar
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </template>
       </div>
     </div>
