@@ -36,8 +36,8 @@
         <input v-model="filterDateTo" type="date" class="form-control" />
       </div>
       <div class="col-md-auto ms-auto">
-        <button @click="resetFilters" class="btn btn-outline-secondary d-flex align-items-center" title="Limpiar Filtros">
-          <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar
+        <button @click="resetFilters" class="btn btn-outline-secondary d-flex align-items-center" title="Limpiar filtros">
+          <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar filtros
         </button>
       </div>
     </div>
@@ -107,12 +107,14 @@
               </td>
             
               <td class="pe-4 text-end">
-                <div class="d-flex justify-content-end gap-1">
-                  <button @click="openModal(item)" class="btn btn-icon btn-light-primary" title="Editar">
-                    <i class="bi bi-pencil-fill"></i>
+                <div class="d-flex justify-content-end gap-1 flex-nowrap">
+                  <button @click="openModal(item)" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 px-2 py-1" title="Editar">
+                    <i class="bi bi-pencil fs-6"></i>
+                    <span class="small fw-bold">Editar</span>
                   </button>
-                  <button @click="prepareDelete(item.id)" class="btn btn-icon btn-light-danger" title="Eliminar">
-                    <i class="bi bi-trash3-fill"></i>
+                  <button @click="prepareDelete(item.id)" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1" title="Eliminar">
+                    <i class="bi bi-trash3 fs-6"></i>
+                    <span class="small fw-bold">Eliminar</span>
                   </button>
                 </div>
               </td>

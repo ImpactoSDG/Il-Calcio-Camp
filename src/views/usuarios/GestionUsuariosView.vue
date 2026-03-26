@@ -42,35 +42,40 @@
                 </span>
               </td>
               <td class="pe-4 text-end">
-                <!-- Cambiar contraseña: Admin puede a todos, otros solo a no-admins o a sí mismos -->
-                <button 
-                  v-if="userStore.userRole === 'admin' || user.rol_nombre?.toLowerCase() !== 'admin' || userStore.user?.id === user.id"
-                  @click="openPasswordModal(user)" 
-                  class="btn btn-link link-warning p-1 me-2" 
-                  title="Cambiar Contraseña"
-                >
-                  <i class="bi bi-key-fill fs-4"></i>
-                </button>
-                
-                <!-- Editar: Admin puede a todos, otros solo a no-admins o a sí mismos -->
-                <button 
-                  v-if="userStore.userRole === 'admin' || user.rol_nombre?.toLowerCase() !== 'admin' || userStore.user?.id === user.id"
-                  @click="openModal(user)" 
-                  class="btn btn-link link-secondary p-1 me-2" 
-                  title="Editar Usuario"
-                >
-                  <i class="bi bi-pencil-square fs-4"></i>
-                </button>
+                <div class="d-flex gap-1 justify-content-end flex-nowrap align-items-center">
+                  <!-- Cambiar contraseña: Admin puede a todos, otros solo a no-admins o a sí mismos -->
+                  <button 
+                    v-if="userStore.userRole === 'admin' || user.rol_nombre?.toLowerCase() !== 'admin' || userStore.user?.id === user.id"
+                    @click="openPasswordModal(user)" 
+                    class="btn btn-sm btn-outline-warning d-inline-flex align-items-center gap-1 px-2 py-1" 
+                    title="Cambiar Contraseña"
+                  >
+                    <i class="bi bi-key-fill fs-6"></i>
+                    <span class="small fw-bold">Clave</span>
+                  </button>
+                  
+                  <!-- Editar: Admin puede a todos, otros solo a no-admins o a sí mismos -->
+                  <button 
+                    v-if="userStore.userRole === 'admin' || user.rol_nombre?.toLowerCase() !== 'admin' || userStore.user?.id === user.id"
+                    @click="openModal(user)" 
+                    class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 px-2 py-1" 
+                    title="Editar Usuario"
+                  >
+                    <i class="bi bi-pencil fs-6"></i>
+                    <span class="small fw-bold">Editar</span>
+                  </button>
 
-                <!-- Eliminar: Admin puede a todos, otros solo a no-admins -->
-                <button 
-                  v-if="userStore.userRole === 'admin' || user.rol_nombre?.toLowerCase() !== 'admin'"
-                  @click="prepareDelete(user.id)" 
-                  class="btn btn-link link-danger p-1" 
-                  title="Eliminar Usuario"
-                >
-                  <i class="bi bi-trash3 fs-4"></i>
-                </button>
+                  <!-- Eliminar: Admin puede a todos, otros solo a no-admins -->
+                  <button 
+                    v-if="userStore.userRole === 'admin' || user.rol_nombre?.toLowerCase() !== 'admin'"
+                    @click="prepareDelete(user.id)" 
+                    class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1" 
+                    title="Eliminar Usuario"
+                  >
+                    <i class="bi bi-trash3 fs-6"></i>
+                    <span class="small fw-bold">Eliminar</span>
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="usuarios.length === 0 && !loading">

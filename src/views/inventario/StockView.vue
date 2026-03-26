@@ -72,12 +72,12 @@
 
     <!-- Barra de filtros -->
     <div class="row g-2 mb-3 align-items-center">
-      <div class="col-12 col-md-5">
+      <div class="col-12 col-md-4">
         <FuzzySearch
           v-model="searchQuery"
           :data="articulosUnicos"
           :keys="['nombre', 'cod_barra', 'categoria_descripcion']"
-          placeholder="Buscar por nombre, categoría o código de barras..."
+          placeholder="Buscar producto..."
         >
           <template #default="{ item }">
             <div class="d-flex justify-content-between align-items-center w-100">
@@ -98,7 +98,7 @@
           <option v-for="cat in categorias" :key="cat" :value="cat">{{ cat }}</option>
         </select>
       </div>
-      <div class="col-5 col-md-3">
+      <div class="col-6 col-md-3">
         <select v-model="filtroAlerta" class="form-select">
           <option value="">Todos los estados</option>
           <option value="sin_stock">Sin stock</option>
@@ -108,9 +108,9 @@
           <option value="ok">Sin alertas</option>
         </select>
       </div>
-      <div class="col-1">
-        <button class="btn btn-light w-100 d-flex align-items-center justify-content-center" @click="limpiarFiltros" title="Limpiar filtros" style="height:38px">
-          <i class="bi bi-x-circle"></i>
+      <div class="col-12 col-md-2">
+        <button class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center" @click="limpiarFiltros" title="Limpiar filtros" style="height:38px">
+          <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar filtros
         </button>
       </div>
     </div>
@@ -197,9 +197,12 @@
 
               <!-- Acciones -->
               <td class="pe-4 text-end">
-                <button @click="verDetalle(item)" class="btn btn-link link-secondary p-1" title="Ver detalle de lotes">
-                  <i class="bi bi-eye fs-4"></i>
-                </button>
+                <div class="d-flex gap-1 justify-content-end flex-nowrap">
+                  <button @click="verDetalle(item)" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 px-2 py-1" title="Ver detalle de lotes">
+                    <i class="bi bi-eye fs-6"></i>
+                    <span class="small fw-bold">Ver</span>
+                  </button>
+                </div>
               </td>
             </tr>
 

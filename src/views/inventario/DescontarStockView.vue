@@ -32,7 +32,7 @@
       </div>
       <div class="col-12 col-md-2 d-flex gap-1">
         <button @click="resetFilters" class="btn btn-outline-secondary w-100 shadow-sm" title="Limpiar filtros">
-          <i class="bi bi-arrow-counterclockwise"></i>
+          <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar filtros
         </button>
       </div>
     </div>
@@ -77,9 +77,12 @@
                 <span class="text-muted small italic">{{ ajuste.descripcion_cliente || 'Sin motivo especificado' }}</span>
               </td>
               <td class="text-end pe-4">
-                <button @click="confirmarEliminarAjuste(ajuste)" class="btn btn-link link-danger p-0" title="Eliminar ajuste (Restaurar stock)">
-                  <i class="bi bi-trash3 fs-5"></i>
-                </button>
+                <div class="d-flex gap-1 justify-content-end flex-nowrap">
+                  <button @click="confirmarEliminarAjuste(ajuste)" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1" title="Eliminar ajuste (Restaurar stock)">
+                    <i class="bi bi-trash3 fs-6"></i>
+                    <span class="small fw-bold">Eliminar</span>
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>

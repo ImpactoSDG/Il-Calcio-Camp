@@ -79,12 +79,16 @@
                 </span>
               </td>
               <td class="pe-4 text-end">
-                <button @click.stop="openModal(item)" class="btn btn-link link-secondary p-1 me-2" title="Editar">
-                  <i class="bi bi-pencil-square fs-4"></i>
-                </button>
-                <button @click.stop="prepareDelete(item.id)" class="btn btn-link link-danger p-1" title="Eliminar">
-                  <i class="bi bi-trash3 fs-4"></i>
-                </button>
+                <div class="d-flex gap-1 justify-content-end flex-nowrap">
+                  <button @click.stop="openModal(item)" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 px-2 py-1" title="Editar">
+                    <i class="bi bi-pencil fs-6"></i>
+                    <span class="small fw-bold">Editar</span>
+                  </button>
+                  <button @click.stop="prepareDelete(item.id)" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1" title="Eliminar">
+                    <i class="bi bi-trash3 fs-6"></i>
+                    <span class="small fw-bold">Eliminar</span>
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="sortedEquipos.length === 0 && !loading">
@@ -127,27 +131,31 @@
               </td>
               <td class="text-center">
                 <button
-                  class="btn btn-sm btn-link link-secondary p-0"
+                  class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 px-2 py-1"
                   @click="openDetalleEquipo(item)"
                   title="Ver integrantes"
                 >
-                  <i class="bi bi-people me-1"></i> Ver
+                  <i class="bi bi-people fs-6"></i>
+                  <span class="small fw-bold">Ver</span>
                 </button>
               </td>
               <td class="pe-4 text-end">
-                <button
-                  class="btn btn-sm btn-success me-2"
-                  @click="prepareConfirmar(item)"
-                  :disabled="idConfirmando === item.id"
-                  title="Confirmar equipo"
-                >
-                  <span v-if="idConfirmando === item.id" class="spinner-border spinner-border-sm me-1"></span>
-                  <i v-else class="bi bi-check-lg me-1"></i>
-                  Confirmar
-                </button>
-                <button @click.stop="prepareDelete(item.id)" class="btn btn-sm btn-link link-danger p-1" title="Rechazar">
-                  <i class="bi bi-trash3 fs-5"></i>
-                </button>
+                <div class="d-flex gap-1 justify-content-end flex-nowrap align-items-center">
+                  <button
+                    class="btn btn-sm btn-success me-2"
+                    @click="prepareConfirmar(item)"
+                    :disabled="idConfirmando === item.id"
+                    title="Confirmar equipo"
+                  >
+                    <span v-if="idConfirmando === item.id" class="spinner-border spinner-border-sm me-1"></span>
+                    <i v-else class="bi bi-check-lg me-1"></i>
+                    Confirmar
+                  </button>
+                  <button @click.stop="prepareDelete(item.id)" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1" title="Rechazar">
+                    <i class="bi bi-trash3 fs-6"></i>
+                    <span class="small fw-bold">Rechazar</span>
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="equiposPendientes.length === 0 && !loadingPendientes">

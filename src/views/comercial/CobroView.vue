@@ -47,7 +47,7 @@
             <i class="bi bi-search"></i><span class="d-none d-sm-inline">Filtrar</span>
           </button>
           <button @click="limpiarFiltros" class="btn btn-sm btn-outline-secondary flex-fill d-flex align-items-center justify-content-center gap-1" title="Limpiar filtros">
-            <i class="bi bi-x-circle"></i>
+            <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar filtros
           </button>
         </div>
       </div>

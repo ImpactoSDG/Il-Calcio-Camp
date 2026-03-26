@@ -56,12 +56,16 @@
               </td>
               <td class="small text-secondary border-start px-3">{{ conf.descripcion || '-' }}</td>
               <td class="pe-4 text-end border-start">
-                <button @click="openModal(conf)" class="btn btn-link link-secondary p-1 me-2" title="Editar">
-                  <i class="bi bi-pencil-square fs-4"></i>
-                </button>
-                <button @click="prepareDelete(conf.id)" class="btn btn-link link-danger p-1" title="Eliminar">
-                  <i class="bi bi-trash3 fs-4"></i>
-                </button>
+                <div class="d-flex gap-1 justify-content-end flex-nowrap">
+                  <button @click="openModal(conf)" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 px-2 py-1" title="Editar">
+                    <i class="bi bi-pencil fs-6"></i>
+                    <span class="small fw-bold">Editar</span>
+                  </button>
+                  <button @click="prepareDelete(conf.id)" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1" title="Eliminar">
+                    <i class="bi bi-trash3 fs-6"></i>
+                    <span class="small fw-bold">Eliminar</span>
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="configs.length === 0 && !loading">
@@ -186,12 +190,16 @@
                   </button>
                 </td>
                 <td class="pe-4 text-end border-start">
-                  <button @click="openImpresoraModal(imp)" class="btn btn-link link-secondary p-1 me-2" title="Editar">
-                    <i class="bi bi-pencil-square fs-4"></i>
-                  </button>
-                  <button @click="prepareDeleteImpresora(imp.id)" class="btn btn-link link-danger p-1" title="Eliminar">
-                    <i class="bi bi-trash3 fs-4"></i>
-                  </button>
+                  <div class="d-flex gap-1 justify-content-end flex-nowrap">
+                    <button @click="openImpresoraModal(imp)" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 px-2 py-1" title="Editar">
+                      <i class="bi bi-pencil fs-6"></i>
+                      <span class="small fw-bold">Editar</span>
+                    </button>
+                    <button @click="prepareDeleteImpresora(imp.id)" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1" title="Eliminar">
+                      <i class="bi bi-trash3 fs-6"></i>
+                      <span class="small fw-bold">Eliminar</span>
+                    </button>
+                  </div>
                 </td>
               </tr>
               <tr v-if="impresoras.length === 0 && !loadingImpresoras">
@@ -529,9 +537,12 @@
                 <td class="border-start px-3"><code class="small">{{ cert.machine_id }}</code></td>
                 <td class="border-start px-3 text-muted small">{{ cert.fecha_modificacion }}</td>
                 <td class="pe-4 text-end border-start">
-                  <button @click="prepareDeleteQzCert(cert.id)" class="btn btn-link link-danger p-1" title="Eliminar">
-                    <i class="bi bi-trash3 fs-4"></i>
-                  </button>
+                  <div class="d-flex gap-1 justify-content-end flex-nowrap">
+                    <button @click="prepareDeleteQzCert(cert.id)" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1" title="Eliminar">
+                      <i class="bi bi-trash3 fs-6"></i>
+                      <span class="small fw-bold">Eliminar</span>
+                    </button>
+                  </div>
                 </td>
               </tr>
               <tr v-if="qzCerts.length === 0 && !loadingQzCerts">

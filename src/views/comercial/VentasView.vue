@@ -53,141 +53,211 @@
       </div>
       <div class="col-12 col-md-2 d-flex gap-1">
         <button @click="resetFilters" class="btn btn-outline-secondary w-100" title="Limpiar filtros">
-          <i class="bi bi-arrow-counterclockwise"></i>
+          <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar filtros
         </button>
       </div>
     </div>
 
-    <!-- -- VENTAS ABIERTAS -------------------------------------- -->
-    <div class="mb-4">
-      <div class="d-flex align-items-center gap-2 mb-2">
-        <span class="ventas-section-badge ventas-section-badge--abierta">
-          <i class="bi bi-folder2-open me-1"></i> ABIERTAS
-        </span>
-        <span class="badge rounded-pill bg-success-subtle text-success fw-bold">{{ ventasAbiertas.length }}</span>
-      </div>
+    <!-- -- VENTAS ABIERTAS Y EN PAUSA (50/50) --------------------- -->
+    <div class="row g-4 mb-4">
+      <!-- Columna Ventas Abiertas -->
+      <div class="col-12 col-xl-6">
+        <div class="p-3 bg-light rounded-3 border h-100 shadow-sm">
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <span class="ventas-section-badge ventas-section-badge--abierta">
+              <i class="bi bi-folder2-open me-1"></i> ABIERTAS
+            </span>
+            <span class="badge rounded-pill bg-success-subtle text-success fw-bold">{{ ventasAbiertas.length }}</span>
+          </div>
 
-      <div v-if="loading" class="text-center py-4">
-        <div class="spinner-border text-primary-custom" role="status" style="width:2.5rem;height:2.5rem">
-          <span class="visually-hidden">Cargando...</span>
-        </div>
-      </div>
-
-      <div v-else-if="ventasAbiertas.length === 0" class="venta-empty-state">
-        <i class="bi bi-inbox"></i>
-        <span>No hay ventas abiertas</span>
-      </div>
-
-      <div v-else class="ventas-grid">
-        <div
-          v-for="venta in ventasAbiertas"
-          :key="venta.id"
-          class="venta-card venta-card--abierta cursor-pointer"
-          :class="{ 'venta-card--expanded': ventaExpandida === venta.id }"
-          @click="openVentaModal(venta)"
-        >
-          <!-- Cabecera de la tarjeta -->
-          <div class="venta-card__header">
-            <div class="d-flex align-items-start gap-3 flex-grow-1 min-w-0">
-              <div class="min-w-0 flex-grow-1">
-                <div class="d-flex justify-content-between align-items-center mb-1">
-                  <span class="venta-card__id text-uppercase text-dark d-flex align-items-center gap-2">
-                    Venta Nro: {{ venta.id }}
-                    <span v-if="venta.simbolo" class="simbolo-badge-text">
-                      - {{ (venta.simbolo || '').replace('.png', '') }}
-                    </span>
-                  </span>
-                </div>
-                <div class="fw-bold text-dark lh-sm text-truncate mb-1" style="font-size: 1.05rem;">
-                  {{ venta.cliente_nombre || 'Consumidor Final' }}
-                </div>
-                <div class="d-flex flex-wrap gap-2 align-items-center mt-1">
-                  <span v-if="venta.total_venta" class="fw-bold text-success me-2">
-                    ${{ formatMoney(venta.total_venta) }}
-                  </span>
-                  <span v-if="venta.equipo_nombre" class="badge-equipo">
-                    <i class="bi bi-person-workspace me-1"></i>{{ venta.equipo_nombre }}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div class="d-flex flex-column align-items-end gap-2 flex-shrink-0 ms-2" @click.stop>
-              <div class="d-flex align-items-center gap-1">
-                <button @click="iniciarCierreVenta(venta)" class="btn btn-sm btn-success-modern d-flex align-items-center px-2 py-1" title="Cerrar y Cobrar">
-                  <i class="bi bi-wallet2 me-1"></i>
-                  <span class="d-none d-sm-inline">Cobrar</span>
-                </button>
-                <button @click="prepareDeleteVenta(venta.id)" class="btn btn-link link-danger p-0 ms-1" title="Eliminar venta">
-                  <i class="bi bi-trash3 fs-5"></i>
-                </button>
-              </div>
+          <div v-if="loading" class="text-center py-4">
+            <div class="spinner-border text-primary-custom" role="status" style="width:2.5rem;height:2.5rem">
+              <span class="visually-hidden">Cargando...</span>
             </div>
           </div>
 
-          <!-- Detalle expandido -->
-          <div v-if="ventaExpandida === venta.id" class="venta-card__detalle">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <span class="text-primary-custom fw-bold small">
-                <i class="bi bi-box-seam me-1"></i>Artículos
-              </span>
-              <button @click="openVentaModal(venta)" class="btn btn-sm btn-outline-primary-modern">
-                <i class="bi bi-plus me-1"></i>Agregar artículo
-              </button>
-            </div>
-            <div v-if="loadingDetalle" class="text-center py-2">
-              <div class="spinner-border spinner-border-sm text-primary-custom"></div>
-            </div>
-            <table v-else class="table table-sm align-middle mb-1">
-              <thead>
-                <tr>
-                  <th style="width: 32px"></th>
-                  <th class="text-uppercase fs-xs text-secondary fw-bold py-1">Artículo</th>
-                  <th class="text-uppercase fs-xs text-secondary fw-bold py-1 text-end">Cant.</th>
-                  <th class="text-uppercase fs-xs text-secondary fw-bold py-1 text-end">P.Unit.</th>
-                  <th class="text-uppercase fs-xs text-secondary fw-bold py-1 text-end">Total</th>
-                  <th class="py-1"></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="av in articulosDeVenta" :key="av.id_articulo_venta">
-                  <td>
-                    <div class="rounded-2 overflow-hidden d-flex align-items-center justify-content-center bg-light border shadow-sm" style="width: 40px; height: 40px;">
-                      <img v-if="av.url_imagen" :src="`${apiBaseUrl}/${av.url_imagen}`" class="w-100 h-100 object-fit-cover" />
-                      <i v-else class="bi bi-box-seam text-muted" style="font-size: 1rem;"></i>
-                    </div>
-                  </td>
-                  <td class="fw-medium small">{{ av.articulo_nombre }}</td>
-                  <td class="text-end small">{{ av.cantidad }}</td>
-                  <td class="text-end small text-muted">${{ formatMoney(av.precio_unitario) }}</td>
-                  <td class="text-end small fw-semibold">${{ formatMoney(av.total) }}</td>
-                  <td class="text-end">
-                    <button @click="prepareDeleteArticuloVenta(av.id_articulo_venta)" class="btn btn-link link-danger p-0">
-                      <i class="bi bi-x-circle"></i>
-                    </button>
-                  </td>
-                </tr>
-                <tr v-if="articulosDeVenta.length === 0">
-                  <td colspan="6" class="text-center text-muted py-2 small">Sin artículos cargados aún.</td>
-                </tr>
-              </tbody>
-              <tfoot v-if="articulosDeVenta.length > 0">
-                <tr class="border-top">
-                  <td colspan="4" class="text-end fw-bold small py-1">Total:</td>
-                  <td class="text-end fw-bold small py-1">${{ totalDetalleVenta }}</td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            </table>
+          <div v-else-if="ventasAbiertas.length === 0" class="venta-empty-state">
+            <i class="bi bi-inbox"></i>
+            <span>No hay ventas abiertas</span>
+          </div>
 
-            <!-- Cerrar venta rpido -->
-            <div class="d-flex justify-content-end mt-2">
-              <button
-                @click="iniciarCierreVenta(venta)"
-                class="btn btn-sm btn-success-modern d-flex align-items-center gap-1"
-                :disabled="articulosDeVenta.length === 0"
+          <div v-else class="ventas-grid">
+            <div
+              v-for="venta in ventasAbiertas"
+              :key="venta.id"
+              class="venta-card venta-card--abierta cursor-pointer"
+              :class="{ 'venta-card--expanded': ventaExpandida === venta.id }"
+              @click="openVentaModal(venta)"
+            >
+              <!-- Cabecera de la tarjeta -->
+              <div class="venta-card__header">
+                <div class="d-flex align-items-start gap-3 flex-grow-1 min-w-0">
+                  <div class="min-w-0 flex-grow-1">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="venta-card__id text-uppercase text-dark d-flex align-items-center gap-2">
+                        Venta Nro: {{ venta.id }}
+                        <span v-if="venta.simbolo" class="simbolo-badge-text">
+                          - {{ (venta.simbolo || '').replace('.png', '') }}
+                        </span>
+                      </span>
+                    </div>
+                    <div class="fw-bold text-dark lh-sm text-truncate mb-1" style="font-size: 1.05rem;">
+                      {{ venta.cliente_nombre || 'Consumidor Final' }}
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 align-items-center mt-1">
+                      <span v-if="venta.total_venta" class="fw-bold text-success me-2">
+                        ${{ formatMoney(venta.total_venta) }}
+                      </span>
+                      <span v-if="venta.equipo_nombre" class="badge-equipo">
+                        <i class="bi bi-person-workspace me-1"></i>{{ venta.equipo_nombre }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div class="d-flex flex-column align-items-end gap-2 flex-shrink-0 ms-2" @click.stop>
+                  <div class="d-flex align-items-center gap-1">
+                    <button @click="iniciarCierreVenta(venta)" class="btn btn-sm btn-success-modern d-flex align-items-center px-2 py-1" title="Cerrar y Cobrar">
+                      <i class="bi bi-wallet2 me-1"></i>
+                      <span class="d-none d-sm-inline">Cobrar</span>
+                    </button>
+                    <button @click="prepareDeleteVenta(venta.id)" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1 ms-1" title="Eliminar venta">
+                      <i class="bi bi-trash3 fs-6"></i>
+                      <span class="small fw-bold">Eliminar</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Detalle expandido -->
+              <div v-if="ventaExpandida === venta.id" class="venta-card__detalle">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="text-primary-custom fw-bold small">
+                    <i class="bi bi-box-seam me-1"></i>Artículos
+                  </span>
+                  <button @click="openVentaModal(venta)" class="btn btn-sm btn-outline-primary-modern">
+                    <i class="bi bi-plus me-1"></i>Agregar artículo
+                  </button>
+                </div>
+                <div v-if="loadingDetalle" class="text-center py-2">
+                  <div class="spinner-border spinner-border-sm text-primary-custom"></div>
+                </div>
+                <table v-else class="table table-sm align-middle mb-1">
+                  <thead>
+                    <tr>
+                      <th style="width: 32px"></th>
+                      <th class="text-uppercase fs-xs text-secondary fw-bold py-1">Artículo</th>
+                      <th class="text-uppercase fs-xs text-secondary fw-bold py-1 text-end">Cant.</th>
+                      <th class="text-uppercase fs-xs text-secondary fw-bold py-1 text-end">P.Unit.</th>
+                      <th class="text-uppercase fs-xs text-secondary fw-bold py-1 text-end">Total</th>
+                      <th class="py-1"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="av in articulosDeVenta" :key="av.id_articulo_venta">
+                      <td>
+                        <div class="rounded-2 overflow-hidden d-flex align-items-center justify-content-center bg-light border shadow-sm" style="width: 40px; height: 40px;">
+                          <img v-if="av.url_imagen" :src="`${apiBaseUrl}/${av.url_imagen}`" class="w-100 h-100 object-fit-cover" />
+                          <i v-else class="bi bi-box-seam text-muted" style="font-size: 1rem;"></i>
+                        </div>
+                      </td>
+                      <td class="fw-medium small">{{ av.articulo_nombre }}</td>
+                      <td class="text-end small">{{ av.cantidad }}</td>
+                      <td class="text-end small text-muted">${{ formatMoney(av.precio_unitario) }}</td>
+                      <td class="text-end small fw-semibold">${{ formatMoney(av.total) }}</td>
+                      <td class="text-end">
+                        <button @click="prepareDeleteArticuloVenta(av.id_articulo_venta)" class="btn btn-link link-danger p-0">
+                          <i class="bi bi-x-circle"></i>
+                        </button>
+                      </td>
+                    </tr>
+                    <tr v-if="articulosDeVenta.length === 0">
+                      <td colspan="6" class="text-center text-muted py-2 small">Sin artículos cargados aún.</td>
+                    </tr>
+                  </tbody>
+                  <tfoot v-if="articulosDeVenta.length > 0">
+                    <tr class="border-top">
+                      <td colspan="4" class="text-end fw-bold small py-1">Total:</td>
+                      <td class="text-end fw-bold small py-1">${{ totalDetalleVenta }}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+
+                <!-- Cerrar venta rpido -->
+                <div class="d-flex justify-content-end mt-2">
+                  <button
+                    @click="iniciarCierreVenta(venta)"
+                    class="btn btn-sm btn-success-modern d-flex align-items-center gap-1"
+                    :disabled="articulosDeVenta.length === 0"
+                  >
+                    <i class="bi bi-check2-circle"></i> Cerrar venta
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Columna Ventas en Pausa -->
+      <div class="col-12 col-xl-6">
+        <div class="p-3 bg-light rounded-3 border h-100 shadow-sm">
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <span class="ventas-section-badge ventas-section-badge--pausa">
+              <i class="bi bi-pause-circle me-1"></i> EN PAUSA
+            </span>
+            <span class="badge rounded-pill bg-warning-subtle text-warning fw-bold">{{ ventasEnPausa.length }}</span>
+          </div>
+
+          <div>
+            <div v-if="ventasEnPausa.length === 0 && !loading" class="venta-empty-state">
+              <i class="bi bi-pause-circle"></i>
+              <span>No hay ventas en pausa</span>
+            </div>
+
+            <div v-else class="ventas-grid">
+              <div
+                v-for="venta in ventasEnPausa"
+                :key="venta.id"
+                class="venta-card venta-card--pausa cursor-pointer"
+                @click="openVentaModal(venta)"
               >
-                <i class="bi bi-check2-circle"></i> Cerrar venta
-              </button>
+                <div class="venta-card__header">
+                  <div class="d-flex align-items-start gap-3 flex-grow-1 min-w-0">
+                    <div class="min-w-0 flex-grow-1">
+                      <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="venta-card__id text-uppercase text-dark d-flex align-items-center gap-2">
+                          Venta Nro: {{ venta.id }}
+                        </span>
+                      </div>
+                      <div class="fw-bold text-dark lh-sm text-truncate mb-1" style="font-size: 1.05rem;">
+                        {{ venta.cliente_nombre || 'Sin cliente asignado' }}
+                      </div>
+                      <div class="d-flex flex-wrap gap-2 align-items-center mt-1">
+                        <span v-if="venta.total_venta" class="fw-bold text-warning-emphasis me-2">
+                          ${{ formatMoney(venta.total_venta) }}
+                        </span>
+                        <span class="text-muted small">{{ formatFecha(venta.fecha) }}</span>
+                        <span v-if="venta.descripcion_cliente" class="text-muted small fst-italic text-truncate" style="max-width:120px">
+                          {{ venta.descripcion_cliente }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="d-flex flex-column align-items-end gap-2 flex-shrink-0 ms-2" @click.stop>
+                    <div class="d-flex align-items-center gap-1">
+                      <button @click="iniciarCierreVenta(venta)" class="btn btn-sm btn-success-modern d-flex align-items-center px-2 py-1" title="Cobrar y cerrar">
+                        <i class="bi bi-wallet2 me-1"></i>
+                        <span class="d-none d-sm-inline">Cobrar</span>
+                      </button>
+                      <button @click="prepareDeleteVenta(venta.id)" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1 ms-1" title="Eliminar venta">
+                        <i class="bi bi-trash3 fs-6"></i>
+                        <span class="small fw-bold">Eliminar</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -241,17 +311,20 @@
                       ${{ formatMoney(venta.total_venta) }}
                     </td>
                     <td class="pe-4 text-end py-1">
-                      <button @click.stop="abrirDetalleVenta(venta)" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 px-2 py-1" title="Ver detalle">
-                        <i class="bi bi-eye fs-6"></i>
-                        <span class="small fw-bold">Ver</span>
-                      </button>
-                      <button @click.stop="openVentaModal(venta)" class="btn btn-sm btn-outline-primary-modern d-inline-flex align-items-center gap-1 px-2 py-1 ms-1" title="Editar venta">
-                        <i class="bi bi-pencil fs-6"></i>
-                        <span class="small fw-bold">Editar</span>
-                      </button>
-                      <button @click.stop="prepareDeleteVenta(venta.id)" class="btn btn-link link-danger p-1 ms-1" title="Eliminar">
-                        <i class="bi bi-trash3 fs-5"></i>
-                      </button>
+                      <div class="d-flex gap-1 justify-content-end flex-nowrap">
+                        <button @click.stop="abrirDetalleVenta(venta)" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 px-2 py-1" title="Ver detalle">
+                          <i class="bi bi-eye fs-6"></i>
+                          <span class="small fw-bold">Ver</span>
+                        </button>
+                        <button @click.stop="openVentaModal(venta)" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 px-2 py-1" title="Editar venta">
+                          <i class="bi bi-pencil fs-6"></i>
+                          <span class="small fw-bold">Editar</span>
+                        </button>
+                        <button @click.stop="prepareDeleteVenta(venta.id)" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1" title="Eliminar">
+                          <i class="bi bi-trash3 fs-6"></i>
+                          <span class="small fw-bold">Eliminar</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 </template>
@@ -296,6 +369,8 @@
       :medios-cobro="mediosCobro"
       :articulos="articulos"
       :id-estado-cerrada="ID_ESTADO_CERRADA"
+      :id-estado-pausa="ID_ESTADO_PAUSA"
+      :id-estado-abierta="ID_ESTADO_ABIERTA"
       :id-cuenta-corriente="ID_CUENTA_CORRIENTE"
       :simbolo-dia="simboloDia"
       @save="handleSaveVenta"
@@ -469,6 +544,9 @@ const ID_ESTADO_ABIERTA = computed(() =>
 const ID_ESTADO_CERRADA = computed(() =>
   estadosVenta.value.find(e => e.descripcion?.toLowerCase().includes('cerrada'))?.id ?? 2
 );
+const ID_ESTADO_PAUSA = computed(() =>
+  estadosVenta.value.find(e => e.descripcion?.toLowerCase().includes('pausa'))?.id ?? 4
+);
 const ID_CUENTA_CORRIENTE = computed(() =>
   mediosCobro.value.find(m => m.descripcion?.toLowerCase().includes('cuenta corriente'))?.id ?? null
 );
@@ -492,6 +570,7 @@ const articulos       = ref([]);
 const loading         = ref(false);
 const searchQuery     = ref('');
 const mostrarCerradas = ref(true);
+const mostrarPausa = ref(true);
 
 const SIMBOLOS_ROTATIVOS = ['estrella', 'circulo', 'triangulo', 'diamante', 'cuadrado', 'cruz', 'corazon', 'luna', 'sol', 'flecha'];
 const simboloDia = computed(() => {
@@ -654,6 +733,24 @@ const ventasAbiertas = computed(() =>
 const ventasCerradas = computed(() =>
   ventasFiltradas.value.filter(v => Number(v.id_estado_venta) === Number(ID_ESTADO_CERRADA.value))
 );
+
+// Ventas en pausa: mostrar todas (sin filtro de fecha) para no perder ventas pausadas de días anteriores
+const ventasEnPausa = computed(() => {
+  let items = (ventas.value || []).map(v => ({
+    ...v,
+    total_venta: Number(v.total_venta || 0).toFixed(2)
+  }));
+  items = items.filter(v => Number(v.id_estado_venta) === Number(ID_ESTADO_PAUSA.value));
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase();
+    items = items.filter(v =>
+      v.cliente_nombre?.toLowerCase().includes(q) ||
+      v.equipo_nombre?.toLowerCase().includes(q) ||
+      v.descripcion_cliente?.toLowerCase().includes(q)
+    );
+  }
+  return sortItems(items);
+});
 
 const ventasAbiertasAntiguas = computed(() =>
   ventas.value
@@ -839,11 +936,14 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito }) => {
     }
 
     const esCerrada = Number(venta.id_estado_venta) === Number(ID_ESTADO_CERRADA.value);
+    const esPausaVenta = Number(venta.id_estado_venta) === Number(ID_ESTADO_PAUSA.value);
     const medioCobroDesc = mediosCobro.value.find(m => m.id === venta.id_medio_cobro)?.descripcion ?? '';
+    let idVenta = null;
     const payload = {
       ...venta,
       tipo_vta: esCerrada ? medioCobroDesc : '',
       id_estado_cerrada: ID_ESTADO_CERRADA.value, // Enviamos el ID para lógica backend
+      id_estado_pausa: ID_ESTADO_PAUSA.value,     // Para que el backend omita el descuento de stock
       articulos: (articulosCarrito || []).map(i => ({
         id_articulo: i.id_articulo,
         cantidad: i.cantidad,
@@ -852,14 +952,13 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito }) => {
       })),
     };
 
-    let idVenta = null;
     if (isEditing.value) {
       await ventasService.actualizarVenta(payload);
-      toast.showToast({ message: 'Venta actualizada.', type: 'success' });
-      idVenta = formVenta.value.id;
+      toast.showToast({ message: esPausaVenta ? 'Venta guardada en pausa.' : 'Venta actualizada.', type: 'success' });
+      idVenta = venta.id;
     } else {
       const resp = await ventasService.crearVenta(payload);
-      toast.showToast({ message: 'Venta creada.', type: 'success' });
+      toast.showToast({ message: esPausaVenta ? 'Venta guardada en pausa.' : 'Venta creada.', type: 'success' });
       // Aseguramos capturar el ID tanto si viene directo como dentro de .data (común en axios/prod)
       idVenta = resp?.id || resp?.data?.id || null;
     }
@@ -869,7 +968,7 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito }) => {
     // El fetchData() puede tardar en producción, por lo que idVenta es nuestra única verdad inmediata
     await fetchData();
 
-    if (esCerrada && idVenta) {
+    if (esCerrada && idVenta && !esPausaVenta) {
       await imprimirTicketDirecto(idVenta);
     }
   } catch (err) {
@@ -1196,6 +1295,23 @@ onUnmounted(() => {
   background: #e0f2fe;
   color: #0369a1;
   border: 1px solid #bae6fd;
+}
+
+.ventas-section-badge--pausa {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffc107;
+}
+
+.venta-card--pausa {
+  border-left: 4px solid #ffc107;
+  background-color: #fffdf0;
+}
+
+.venta-card--pausa:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -8px rgba(255, 193, 7, 0.25);
+  border-color: rgba(255, 193, 7, 0.6);
 }
 
 /* -- Alerta Ventas Viejas -- */

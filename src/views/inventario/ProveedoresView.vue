@@ -40,9 +40,12 @@
                 </span>
               </td>
               <td class="pe-4 text-end">
-                <button @click="openModal(item)" class="btn btn-link link-secondary p-1" title="Editar">
-                  <i class="bi bi-pencil-square fs-4"></i>
-                </button>
+                <div class="d-flex gap-1 justify-content-end flex-nowrap">
+                  <button @click="openModal(item)" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 px-2 py-1" title="Editar">
+                    <i class="bi bi-pencil fs-6"></i>
+                    <span class="small fw-bold">Editar</span>
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="proveedores.length === 0 && !loading">

@@ -38,20 +38,38 @@
                     </div>
 
                     <div class="col-12" v-if="!isAjuste">
-                      <div class="form-check form-switch p-0 d-flex align-items-center gap-3 bg-white p-2 border-2 border rounded-3 shadow-sm">
-                        <label class="form-check-label fw-bold text-dark mb-0 order-2 small" for="checkPedidoAbierto" style="cursor: pointer;">
-                          Dejar pedido abierto
-                        </label>
-                        <div class="form-check p-0 mb-0 d-flex align-items-center order-1 ms-2">
-                          <input 
-                            class="form-check-input ms-0 mt-0" 
-                            type="checkbox" 
-                            id="checkPedidoAbierto" 
-                            style="width: 2rem; height: 1rem; cursor: pointer;"
-                            :checked="esAbierto"
-                            @change="toggleEstadoVenta($event.target.checked)"
-                          >
-                        </div>
+                      <label class="form-label fw-semibold text-secondary small mb-1">Estado de la venta</label>
+                      <div class="d-flex gap-1 w-100">
+                        <button
+                          type="button"
+                          @click="cambiarEstado(props.idEstadoCerrada)"
+                          class="btn btn-sm flex-fill py-2 fw-bold"
+                          :class="esCerrada ? 'btn-dark text-white' : 'btn-outline-secondary'"
+                          style="font-size: 0.72rem;"
+                          title="Finalizar y cobrar"
+                        >
+                          <i class="bi bi-check2-circle me-1"></i>Cerrar
+                        </button>
+                        <button
+                          type="button"
+                          @click="cambiarEstado(props.idEstadoAbierta)"
+                          class="btn btn-sm flex-fill py-2 fw-bold"
+                          :class="esAbierta ? 'btn-primary text-white' : 'btn-outline-primary'"
+                          style="font-size: 0.72rem;"
+                          title="Dejar abierta (requiere cliente)"
+                        >
+                          <i class="bi bi-folder2-open me-1"></i>Abierta
+                        </button>
+                        <button
+                          type="button"
+                          @click="cambiarEstado(props.idEstadoPausa)"
+                          class="btn btn-sm flex-fill py-2 fw-bold"
+                          :class="esPausa ? 'btn-warning text-dark' : 'btn-outline-warning'"
+                          style="font-size: 0.72rem;"
+                          title="Pausar sin cobrar ni descontar stock"
+                        >
+                          <i class="bi bi-pause-circle me-1"></i>Pausar
+                        </button>
                       </div>
                     </div>
 
@@ -61,7 +79,7 @@
                         <div class="col-12" v-if="!isAjuste">
                           <div class="d-flex justify-content-between align-items-center mb-1">
                             <label class="form-label fw-semibold text-secondary small mb-0">
-                              Cliente <span v-if="esAbierto" class="text-danger">*</span>
+                              Cliente <span v-if="esAbierta" class="text-danger">*</span>
                             </label>
                             <button 
                               type="button" 
@@ -87,7 +105,7 @@
                               </div>
                             </template>
                           </FuzzySearch>
-                          <input type="hidden" v-model="form.id_cliente" :required="esAbierto">
+                          <input type="hidden" v-model="form.id_cliente" :required="esAbierta">
                         </div>
                         
                         <div class="col-12">
@@ -350,7 +368,7 @@
             :disabled="isLoading || !puedeGuardar"
           >
             <span v-if="isLoading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-            <span>{{ isLoading ? 'GUARDANDO...' : (isAjuste ? 'REGISTRAR AJUSTE' : (isEditing ? 'GUARDAR' : 'CREAR VENTA')) }}</span>
+            <span>{{ isLoading ? 'GUARDANDO...' : (isAjuste ? 'REGISTRAR AJUSTE' : (esPausa ? 'PAUSAR VENTA' : (isEditing ? 'GUARDAR' : 'CREAR VENTA'))) }}</span>
           </button>
         </div>
       </form>
@@ -394,6 +412,8 @@ const props = defineProps({
   mediosCobro: Array,
   articulos: Array,
   idEstadoCerrada: Number,
+  idEstadoPausa: Number,
+  idEstadoAbierta: Number,
   idCuentaCorriente: Number,
   simboloDia: String,
   isAjuste: Boolean
@@ -467,8 +487,12 @@ watch(() => form.value.id_cliente, (newVal) => {
     form.value.tipo_vta = 0; // Si hay cliente, es "A cuenta"
   } else {
     form.value.id_equipo = null;
-    // Si no hay cliente, solo es "A cuenta" (tipo 0) si el pedido está abierto
-    form.value.tipo_vta = esAbierto.value ? 0 : 1;
+    // Pausa y cerrada sin cliente: tipo_vta = 1 (Común); solo Abierta es A cuenta
+    if (!esPausa.value && !esCerrada.value) {
+      form.value.tipo_vta = 0;
+    } else {
+      form.value.tipo_vta = 1;
+    }
   }
 });
 
@@ -576,24 +600,24 @@ onUnmounted(() => {
 });
 
 const esCerrada = computed(() => form.value.id_estado_venta === props.idEstadoCerrada);
+const esPausa = computed(() => form.value.id_estado_venta === props.idEstadoPausa);
+const esAbierta = computed(() => !esCerrada.value && !esPausa.value);
 const esCuentaCorriente = computed(() => form.value.tipo_vta === 0);
 
 const totalCarrito = computed(() =>
   articulosCarrito.value.reduce((acc, i) => acc + Number(i.total || 0), 0).toFixed(2)
 );
 
+// esAbierto mantiene compatibilidad: true cuando NO está cerrada (incluye pausa y abierta)
 const esAbierto = computed(() => form.value.id_estado_venta !== props.idEstadoCerrada);
 
+// Mantenido por compatibilidad legacy — ya no se usa con el nuevo selector de 3 estados
 const toggleEstadoVenta = (abierto) => {
   if (abierto) {
-    // Si el usuario marca "Dejar pedido abierto", buscamos un ID de estado que no sea el de "Cerrada"
-    const estadoAbierto = props.estadosVenta.find(ev => ev.id !== props.idEstadoCerrada);
-    form.value.id_estado_venta = estadoAbierto ? estadoAbierto.id : null;
-    form.value.tipo_vta = 0; // A cuenta obligatoriamente
+    form.value.id_estado_venta = props.idEstadoAbierta || null;
+    form.value.tipo_vta = 0;
   } else {
-    // Si desmarca, vuelve a estado cerrada
     form.value.id_estado_venta = props.idEstadoCerrada;
-    // Si no tiene cliente, vuelve a tipo_vta = 1 (Común), si tiene cliente sigue siendo 0 (A cuenta)
     form.value.tipo_vta = form.value.id_cliente ? 0 : 1;
   }
 };
@@ -615,7 +639,10 @@ const cambiarTipoVta = (tipo) => {
 const puedeGuardar = computed(() => {
   if (props.isEditing) {
     if (!esAbierto.value && !form.value.id_medio_cobro) return false;
-    if (esCuentaCorriente.value && !form.value.id_cliente) return false;
+    // Cliente requerido solo para 'Abierta' (no para pausa ni cerrada)
+    const clienteOKEditing = esAbierta.value ? !!form.value.id_cliente : true;
+    if (!clienteOKEditing) return false;
+    
     const itemsOKEditing = articulosCarrito.value.length > 0 &&
       articulosCarrito.value.every(i => i.id_articulo && Number(i.cantidad) > 0);
     return !!form.value.fecha && !!form.value.id_estado_venta && itemsOKEditing;
@@ -626,8 +653,8 @@ const puedeGuardar = computed(() => {
   const stockOK = !errorStock.value;
   const pagoOK = esAbierto.value || !!form.value.id_medio_cobro;
   
-  // Cliente obligatorio si está abierto, sino es opcional
-  const clienteOK = esAbierto.value ? !!form.value.id_cliente : true;
+  // Cliente obligatorio solo para 'Abierta'; pausa y cerrada no lo requieren
+  const clienteOK = esAbierta.value ? !!form.value.id_cliente : true;
   
   return cabeceraOK && itemsOK && stockOK && pagoOK && clienteOK;
 });

@@ -193,6 +193,10 @@ class Venta
             require_once __DIR__ . '/../inventario/Articulo.php';
             $articuloModel = new Articulo($this->conn);
 
+            // Determinar si la venta está en estado pausa (no descuenta stock)
+            $idEstadoPausa = (int)($data['id_estado_pausa'] ?? 0);
+            $esPausa = $idEstadoPausa > 0 && (int)$data['id_estado_venta'] === $idEstadoPausa;
+
             foreach ($articulos as $art) {
                 // a. Crear el registro en articulo_venta
                 $sqlAV = "INSERT INTO articulo_venta (id_articulo, id_venta, cantidad, precio_unitario, total) 
@@ -206,44 +210,46 @@ class Venta
                 $stmtAV->execute();
                 $idArticuloVenta = (int)$this->conn->lastInsertId();
 
-                // b. Lógica de Descuento de Stock (FIFO) — permite stock negativo
-                $lotes = $articuloModel->getLotesDisponibles((int)$art['id_articulo']);
-                $cantidadPendiente = (float)($art['cantidad'] ?? 0);
+                // b. Lógica de Descuento de Stock (FIFO) — solo si NO está en pausa
+                if (!$esPausa) {
+                    $lotes = $articuloModel->getLotesDisponibles((int)$art['id_articulo']);
+                    $cantidadPendiente = (float)($art['cantidad'] ?? 0);
 
-                // c. Distribuir contra lotes disponibles (FIFO)
-                foreach ($lotes as $lote) {
-                    if ($cantidadPendiente <= 0) break;
+                    // c. Distribuir contra lotes disponibles (FIFO)
+                    foreach ($lotes as $lote) {
+                        if ($cantidadPendiente <= 0) break;
 
-                    $disponibleEnLote = (float)$lote['disponible'];
-                    $aDescontar = min($cantidadPendiente, $disponibleEnLote);
+                        $disponibleEnLote = (float)$lote['disponible'];
+                        $aDescontar = min($cantidadPendiente, $disponibleEnLote);
 
-                    $sqlAVIA = "INSERT INTO articulo_venta_ingreso_articulo (articulo_venta_id_articulo_venta, ingreso_articulo_id, cantidad) 
-                               VALUES (:id_av, :id_ingreso, :cant)";
-                    $stmtAVIA = $this->conn->prepare($sqlAVIA);
-                    $stmtAVIA->bindValue(':id_av', $idArticuloVenta, PDO::PARAM_INT);
-                    $stmtAVIA->bindValue(':id_ingreso', $lote['id'], PDO::PARAM_INT);
-                    $stmtAVIA->bindValue(':cant', (float)$aDescontar);
-                    $stmtAVIA->execute();
+                        $sqlAVIA = "INSERT INTO articulo_venta_ingreso_articulo (articulo_venta_id_articulo_venta, ingreso_articulo_id, cantidad) 
+                                   VALUES (:id_av, :id_ingreso, :cant)";
+                        $stmtAVIA = $this->conn->prepare($sqlAVIA);
+                        $stmtAVIA->bindValue(':id_av', $idArticuloVenta, PDO::PARAM_INT);
+                        $stmtAVIA->bindValue(':id_ingreso', $lote['id'], PDO::PARAM_INT);
+                        $stmtAVIA->bindValue(':cant', (float)$aDescontar);
+                        $stmtAVIA->execute();
 
-                    $cantidadPendiente -= $aDescontar;
-                }
+                        $cantidadPendiente -= $aDescontar;
+                    }
 
-                // d. Si aún queda cantidad (sin stock suficiente), registrar contra el último lote
-                //    o crear un ingreso de ajuste — el stock resultará negativo.
-                if ($cantidadPendiente > 0) {
-                    $idArticuloInt = (int)$art['id_articulo'];
-                    $loteFallback = $articuloModel->getUltimoLote($idArticuloInt);
-                    $idLoteFallback = $loteFallback
-                        ? $loteFallback['id']
-                        : $articuloModel->crearIngresoAjuste($idArticuloInt);
+                    // d. Si aún queda cantidad (sin stock suficiente), registrar contra el último lote
+                    //    o crear un ingreso de ajuste — el stock resultará negativo.
+                    if ($cantidadPendiente > 0) {
+                        $idArticuloInt = (int)$art['id_articulo'];
+                        $loteFallback = $articuloModel->getUltimoLote($idArticuloInt);
+                        $idLoteFallback = $loteFallback
+                            ? $loteFallback['id']
+                            : $articuloModel->crearIngresoAjuste($idArticuloInt);
 
-                    $sqlAVIA = "INSERT INTO articulo_venta_ingreso_articulo (articulo_venta_id_articulo_venta, ingreso_articulo_id, cantidad) 
-                               VALUES (:id_av, :id_ingreso, :cant)";
-                    $stmtAVIA = $this->conn->prepare($sqlAVIA);
-                    $stmtAVIA->bindValue(':id_av', $idArticuloVenta, PDO::PARAM_INT);
-                    $stmtAVIA->bindValue(':id_ingreso', $idLoteFallback, PDO::PARAM_INT);
-                    $stmtAVIA->bindValue(':cant', (float)$cantidadPendiente);
-                    $stmtAVIA->execute();
+                        $sqlAVIA = "INSERT INTO articulo_venta_ingreso_articulo (articulo_venta_id_articulo_venta, ingreso_articulo_id, cantidad) 
+                                   VALUES (:id_av, :id_ingreso, :cant)";
+                        $stmtAVIA = $this->conn->prepare($sqlAVIA);
+                        $stmtAVIA->bindValue(':id_av', $idArticuloVenta, PDO::PARAM_INT);
+                        $stmtAVIA->bindValue(':id_ingreso', $idLoteFallback, PDO::PARAM_INT);
+                        $stmtAVIA->bindValue(':cant', (float)$cantidadPendiente);
+                        $stmtAVIA->execute();
+                    }
                 }
             }
 
@@ -252,7 +258,8 @@ class Venta
             $totalVentaCalculado = array_sum(array_column($articulos, 'total'));
             
             if ($data['id_estado_venta'] == $data['id_estado_cerrada'] || !empty($data['monto_cobrado'])) {
-                if (!empty($data['id_medio_cobro'])) {
+                // Solo registramos pago si hay un medio de cobro seleccionado Y el estado NO es pausa
+                if (!empty($data['id_medio_cobro']) && (int)$data['id_estado_venta'] !== (int)($data['id_estado_pausa'] ?? 0)) {
                     $montoARegistrar = $data['monto_cobrado'] ?? $totalVentaCalculado;
                     if ($montoARegistrar > 0) {
                         $this->registrarPago($idVenta, (int)$data['id_medio_cobro'], (float)$montoARegistrar, $data['fecha']);
@@ -398,6 +405,10 @@ class Venta
             require_once __DIR__ . '/../inventario/Articulo.php';
             $articuloModel = new Articulo($this->conn);
 
+            // Determinar si la venta está en estado pausa (no descuenta stock)
+            $idEstadoPausa = (int)($data['id_estado_pausa'] ?? 0);
+            $esPausa = $idEstadoPausa > 0 && (int)$data['id_estado_venta'] === $idEstadoPausa;
+
             foreach ($articulos as $art) {
                 $sqlAV = "INSERT INTO articulo_venta (id_articulo, id_venta, cantidad, precio_unitario, total) 
                          VALUES (:id_articulo, :id_venta, :cantidad, :precio_unitario, :total)";
@@ -410,44 +421,46 @@ class Venta
                 $stmtAV->execute();
                 $idArticuloVenta = (int)$this->conn->lastInsertId();
 
-                // Lógica de Descuento de Stock (FIFO) — permite stock negativo
-                $lotes = $articuloModel->getLotesDisponibles((int)$art['id_articulo']);
-                $cantidadPendiente = (float)($art['cantidad'] ?? 0);
+                // Lógica de Descuento de Stock (FIFO) — solo si NO está en pausa
+                if (!$esPausa) {
+                    $lotes = $articuloModel->getLotesDisponibles((int)$art['id_articulo']);
+                    $cantidadPendiente = (float)($art['cantidad'] ?? 0);
 
-                // Distribuir contra lotes disponibles (FIFO)
-                foreach ($lotes as $lote) {
-                    if ($cantidadPendiente <= 0) break;
+                    // Distribuir contra lotes disponibles (FIFO)
+                    foreach ($lotes as $lote) {
+                        if ($cantidadPendiente <= 0) break;
 
-                    $disponibleEnLote = (float)$lote['disponible'];
-                    $aDescontar = min($cantidadPendiente, $disponibleEnLote);
+                        $disponibleEnLote = (float)$lote['disponible'];
+                        $aDescontar = min($cantidadPendiente, $disponibleEnLote);
 
-                    $sqlAVIA = "INSERT INTO articulo_venta_ingreso_articulo (articulo_venta_id_articulo_venta, ingreso_articulo_id, cantidad) 
-                               VALUES (:id_av, :id_ingreso, :cant)";
-                    $stmtAVIA = $this->conn->prepare($sqlAVIA);
-                    $stmtAVIA->bindValue(':id_av', $idArticuloVenta, PDO::PARAM_INT);
-                    $stmtAVIA->bindValue(':id_ingreso', $lote['id'], PDO::PARAM_INT);
-                    $stmtAVIA->bindValue(':cant', (float)$aDescontar);
-                    $stmtAVIA->execute();
+                        $sqlAVIA = "INSERT INTO articulo_venta_ingreso_articulo (articulo_venta_id_articulo_venta, ingreso_articulo_id, cantidad) 
+                                   VALUES (:id_av, :id_ingreso, :cant)";
+                        $stmtAVIA = $this->conn->prepare($sqlAVIA);
+                        $stmtAVIA->bindValue(':id_av', $idArticuloVenta, PDO::PARAM_INT);
+                        $stmtAVIA->bindValue(':id_ingreso', $lote['id'], PDO::PARAM_INT);
+                        $stmtAVIA->bindValue(':cant', (float)$aDescontar);
+                        $stmtAVIA->execute();
 
-                    $cantidadPendiente -= $aDescontar;
-                }
+                        $cantidadPendiente -= $aDescontar;
+                    }
 
-                // Si aún queda cantidad (sin stock suficiente), registrar contra el último lote
-                // o crear un ingreso de ajuste — el stock resultará negativo.
-                if ($cantidadPendiente > 0) {
-                    $idArticuloInt = (int)$art['id_articulo'];
-                    $loteFallback = $articuloModel->getUltimoLote($idArticuloInt);
-                    $idLoteFallback = $loteFallback
-                        ? $loteFallback['id']
-                        : $articuloModel->crearIngresoAjuste($idArticuloInt);
+                    // Si aún queda cantidad (sin stock suficiente), registrar contra el último lote
+                    // o crear un ingreso de ajuste — el stock resultará negativo.
+                    if ($cantidadPendiente > 0) {
+                        $idArticuloInt = (int)$art['id_articulo'];
+                        $loteFallback = $articuloModel->getUltimoLote($idArticuloInt);
+                        $idLoteFallback = $loteFallback
+                            ? $loteFallback['id']
+                            : $articuloModel->crearIngresoAjuste($idArticuloInt);
 
-                    $sqlAVIA = "INSERT INTO articulo_venta_ingreso_articulo (articulo_venta_id_articulo_venta, ingreso_articulo_id, cantidad) 
-                               VALUES (:id_av, :id_ingreso, :cant)";
-                    $stmtAVIA = $this->conn->prepare($sqlAVIA);
-                    $stmtAVIA->bindValue(':id_av', $idArticuloVenta, PDO::PARAM_INT);
-                    $stmtAVIA->bindValue(':id_ingreso', $idLoteFallback, PDO::PARAM_INT);
-                    $stmtAVIA->bindValue(':cant', (float)$cantidadPendiente);
-                    $stmtAVIA->execute();
+                        $sqlAVIA = "INSERT INTO articulo_venta_ingreso_articulo (articulo_venta_id_articulo_venta, ingreso_articulo_id, cantidad) 
+                                   VALUES (:id_av, :id_ingreso, :cant)";
+                        $stmtAVIA = $this->conn->prepare($sqlAVIA);
+                        $stmtAVIA->bindValue(':id_av', $idArticuloVenta, PDO::PARAM_INT);
+                        $stmtAVIA->bindValue(':id_ingreso', $idLoteFallback, PDO::PARAM_INT);
+                        $stmtAVIA->bindValue(':cant', (float)$cantidadPendiente);
+                        $stmtAVIA->execute();
+                    }
                 }
             }
 

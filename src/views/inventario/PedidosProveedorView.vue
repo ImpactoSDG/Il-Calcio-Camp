@@ -46,7 +46,7 @@
       </div>
       <div class="col-12 col-md-2 d-flex gap-1">
         <button @click="resetFilters" class="btn btn-outline-secondary w-100" title="Limpiar filtros">
-          <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar
+          <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar filtros
         </button>
       </div>
     </div>
@@ -59,22 +59,31 @@
         </div>
       </div>
       <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-hover align-middle mb-0" style="table-layout: fixed; width: 100%;">
+          
+          <colgroup>
+            <col style="width: 20%;"> <col style="width: 10%;"> <col style="width: 10%;"> <col style="width: 10%;"> <col style="width: 10%;"> <col style="width: 10%;"> <col style="width: 15%;"> </colgroup>
+          
           <SortableTableHead :columns="columns" :sort-key="sortKey" :sort-dir="sortDir" @sort="handleSort" />
+          
           <tbody class="bg-white">
             <tr v-for="item in pedidosFiltrados" :key="item.id_pedido_proveedor" @click="verDetalle(item)" class="cursor-pointer">
-              <td class="ps-4 fw-medium text-dark">
+              
+              <td class="ps-4 fw-medium text-dark text-truncate" title="item.proveedor_fantasia || item.proveedor_nombre">
                 {{ item.proveedor_fantasia || item.proveedor_nombre }}
-                <small v-if="item.proveedor_fantasia" class="d-block text-muted">{{ item.proveedor_nombre }}</small>
+                <small v-if="item.proveedor_fantasia" class="d-block text-muted text-truncate">{{ item.proveedor_nombre }}</small>
               </td>
+              
               <td class="text-muted">{{ formatDate(item.fecha_pedido) }}</td>
               <td class="text-muted">{{ item.fecha_entrega ? formatDate(item.fecha_entrega) : '—' }}</td>
+              
               <td class="text-center" @click.stop>
                 <select 
                   :value="item.estado" 
-                  class="form-select form-select-sm fw-bold rounded-pill px-3 state-select"
+                  class="form-select form-select-sm fw-bold rounded-pill px-3 state-select mx-auto"
                   :class="estadoSelectClass(item.estado)"
                   :disabled="item.estado !== 'pendiente'"
+                  style="width: 100%; max-width: 140px;"
                   @change="(e) => handleEstadoChangeInTable(item, e.target.value)"
                 >
                   <option value="pendiente" class="text-dark bg-white">PENDIENTE</option>
@@ -82,19 +91,26 @@
                   <option value="cancelado" class="text-dark bg-white">CANCELADO</option>
                 </select>
               </td>
+              
               <td class="text-center text-muted">{{ item.total_items }}</td>
-              <td class="text-end text-muted">{{ formatMonto(item.total_estimado) }}</td>
+              <td class="text-end text-muted pe-4">{{ formatMonto(item.total_estimado) }}</td>
+              
               <td class="pe-4 text-end" @click.stop>
-                <button v-if="item.estado === 'pendiente'" @click="openModal(item)" class="btn btn-link link-secondary p-1 me-1" title="Editar">
-                  <i class="bi bi-pencil-square fs-4"></i>
-                </button>
-                <button @click="prepareDelete(item.id_pedido_proveedor)" class="btn btn-link link-danger p-1" title="Eliminar">
-                  <i class="bi bi-trash3 fs-4"></i>
-                </button>
+                <div class="d-flex gap-2 justify-content-end flex-nowrap">
+                  <button v-if="item.estado === 'pendiente'" @click="openModal(item)" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 px-2 py-1" title="Editar">
+                    <i class="bi bi-pencil fs-6"></i>
+                    <span class="small fw-bold">Editar</span>
+                  </button>
+                  <button @click="prepareDelete(item.id_pedido_proveedor)" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1" title="Eliminar">
+                    <i class="bi bi-trash3 fs-6"></i>
+                    <span class="small fw-bold">Eliminar</span>
+                  </button>
+                </div>
               </td>
+              
             </tr>
             <tr v-if="pedidosFiltrados.length === 0 && !loading">
-              <td colspan="8" class="text-center py-5 text-muted">No hay pedidos para mostrar.</td>
+              <td colspan="7" class="text-center py-5 text-muted">No hay pedidos para mostrar.</td>
             </tr>
           </tbody>
         </table>

@@ -45,9 +45,12 @@
                 <span v-else class="text-muted">—</span>
               </td>
               <td class="pe-4 text-end">
-                <button @click="prepareDelete(item.id_cliente_equipo)" class="btn btn-link link-danger p-1" title="Eliminar relación">
-                  <i class="bi bi-trash3 fs-4"></i>
-                </button>
+                <div class="d-flex gap-1 justify-content-end flex-nowrap">
+                  <button @click="prepareDelete(item.id_cliente_equipo)" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1" title="Eliminar relación">
+                    <i class="bi bi-trash3 fs-6"></i>
+                    <span class="small fw-bold">Eliminar</span>
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="relacionesFiltradas.length === 0 && !loading">
