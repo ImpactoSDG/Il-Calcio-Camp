@@ -1,44 +1,57 @@
 <?php
-require_once __DIR__ . '/controllers/RegistroPublicoController.php';
-require_once __DIR__ . '/controllers/AuthController.php';
-require_once __DIR__ . '/controllers/UsuarioController.php';
-require_once __DIR__ . '/controllers/PermisoController.php';
-require_once __DIR__ . '/controllers/ConfiguracionController.php';
-require_once __DIR__ . '/controllers/ModuloController.php';
+// --- Auth ---
+require_once __DIR__ . '/controllers/auth/RegistroPublicoController.php';
+require_once __DIR__ . '/controllers/auth/AuthController.php';
 
-// Nuevos controladores
-require_once __DIR__ . '/controllers/CategoriaArticuloController.php';
-require_once __DIR__ . '/controllers/ArticuloController.php';
-require_once __DIR__ . '/controllers/IngresoArticuloController.php';
-require_once __DIR__ . '/controllers/EstadoVentaController.php';
-require_once __DIR__ . '/controllers/CondicionIvaReceptorController.php';
-require_once __DIR__ . '/controllers/ProvinciaController.php';
-require_once __DIR__ . '/controllers/DisciplinaController.php';
-require_once __DIR__ . '/controllers/ClienteController.php';
-require_once __DIR__ . '/controllers/VentaController.php';
-require_once __DIR__ . '/controllers/ArticuloVentaController.php';
-require_once __DIR__ . '/controllers/MedioCobroController.php';
-require_once __DIR__ . '/controllers/CobroController.php';
-require_once __DIR__ . '/controllers/VentaCobroController.php';
-require_once __DIR__ . '/controllers/EquipoController.php';
-require_once __DIR__ . '/controllers/JugadorController.php';
-require_once __DIR__ . '/controllers/ArbitroController.php';
-require_once __DIR__ . '/controllers/EventoController.php';
-require_once __DIR__ . '/controllers/EstadoEventoController.php';
-require_once __DIR__ . '/controllers/CanchaController.php';
-require_once __DIR__ . '/controllers/TorneoController.php';
-require_once __DIR__ . '/controllers/PlanTorneoController.php';
-require_once __DIR__ . '/controllers/ClienteEquipoController.php';
-require_once __DIR__ . '/controllers/ArticuloVentaIngresoArticuloController.php';
-require_once __DIR__ . '/controllers/TipoEventoPartidoController.php';
-require_once __DIR__ . '/controllers/EventoPartidoController.php';
-require_once __DIR__ . '/controllers/TicketVentaController.php';
-require_once __DIR__ . '/controllers/ImpresoraTiqueteraController.php';
-require_once __DIR__ . '/controllers/QzCertificadoController.php';
-require_once __DIR__ . '/controllers/ProveedorController.php';
-require_once __DIR__ . '/controllers/PedidoProveedorController.php';
-require_once __DIR__ . '/controllers/PagoProveedorController.php';
-require_once __DIR__ . '/controllers/SimboloDiaController.php';
+// --- Usuarios y Configuraciones ---
+require_once __DIR__ . '/controllers/usuarios/UsuarioController.php';
+require_once __DIR__ . '/controllers/usuarios/PermisoController.php';
+require_once __DIR__ . '/controllers/usuarios/ConfiguracionController.php';
+require_once __DIR__ . '/controllers/usuarios/ModuloController.php';
+
+// --- Catálogo (datos de referencia) ---
+require_once __DIR__ . '/controllers/catalogo/EstadoVentaController.php';
+require_once __DIR__ . '/controllers/catalogo/CondicionIvaReceptorController.php';
+require_once __DIR__ . '/controllers/catalogo/ProvinciaController.php';
+require_once __DIR__ . '/controllers/catalogo/DisciplinaController.php';
+require_once __DIR__ . '/controllers/catalogo/MedioCobroController.php';
+
+// --- Torneos (Gestión Deportiva) ---
+require_once __DIR__ . '/controllers/torneos/ArbitroController.php';
+require_once __DIR__ . '/controllers/torneos/EquipoController.php';
+require_once __DIR__ . '/controllers/torneos/JugadorController.php';
+require_once __DIR__ . '/controllers/torneos/TorneoController.php';
+require_once __DIR__ . '/controllers/torneos/PlanTorneoController.php';
+require_once __DIR__ . '/controllers/torneos/ClienteEquipoController.php';
+require_once __DIR__ . '/controllers/torneos/TipoEventoPartidoController.php';
+require_once __DIR__ . '/controllers/torneos/EventoPartidoController.php';
+
+// --- Instalaciones (Canchas y Eventos) ---
+require_once __DIR__ . '/controllers/instalaciones/CanchaController.php';
+require_once __DIR__ . '/controllers/instalaciones/EventoController.php';
+require_once __DIR__ . '/controllers/instalaciones/EstadoEventoController.php';
+
+// --- Inventario (Stock y Proveedores) ---
+require_once __DIR__ . '/controllers/inventario/CategoriaArticuloController.php';
+require_once __DIR__ . '/controllers/inventario/ArticuloController.php';
+require_once __DIR__ . '/controllers/inventario/IngresoArticuloController.php';
+require_once __DIR__ . '/controllers/inventario/ArticuloVentaIngresoArticuloController.php';
+require_once __DIR__ . '/controllers/inventario/ProveedorController.php';
+require_once __DIR__ . '/controllers/inventario/PedidoProveedorController.php';
+require_once __DIR__ . '/controllers/inventario/PagoProveedorController.php';
+
+// --- Comercial (Ventas y Clientes) ---
+require_once __DIR__ . '/controllers/comercial/SimboloDiaController.php';
+require_once __DIR__ . '/controllers/comercial/ClienteController.php';
+require_once __DIR__ . '/controllers/comercial/VentaController.php';
+require_once __DIR__ . '/controllers/comercial/ArticuloVentaController.php';
+require_once __DIR__ . '/controllers/comercial/CobroController.php';
+require_once __DIR__ . '/controllers/comercial/VentaCobroController.php';
+require_once __DIR__ . '/controllers/comercial/TicketVentaController.php';
+
+// --- Hardware ---
+require_once __DIR__ . '/controllers/hardware/ImpresoraTiqueteraController.php';
+require_once __DIR__ . '/controllers/hardware/QzCertificadoController.php';
 
 require_once __DIR__ . '/core/JwtHandler.php';
 require_once __DIR__ . '/core/BaseController.php';

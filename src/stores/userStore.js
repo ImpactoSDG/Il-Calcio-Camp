@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import router from '@/router'
-import usuariosService from '@/services/usuariosService'
+import usuariosService from '@/services/usuarios/usuariosService'
 
 export const useUserStore = defineStore('user', {
   state: () => ({

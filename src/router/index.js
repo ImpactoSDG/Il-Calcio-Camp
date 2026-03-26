@@ -1,45 +1,50 @@
 ﻿import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 
-// --- Vistas Base ---
-import LoginView from '@/views/LoginView.vue'
-import RegisterView from '@/views/RegisterView.vue'
+// --- Auth ---
+import LoginView from '@/views/auth/LoginView.vue'
+import RegisterView from '@/views/auth/RegisterView.vue'
+
+// --- Layout ---
 import MenuView from '@/views/MenuView.vue'
-import PermisosView from '@/views/PermisosView.vue'
-import GestionUsuariosView from '@/views/GestionUsuariosView.vue'
-import ConfiguracionesView from '@/views/ConfiguracionesView.vue'
 import SubmenuView from '@/views/SubmenuView.vue'
-import RegistroPublicoView from '@/views/RegistroPublicoView.vue'
 
-// --- Vistas de ArtÃ­culos y Stock ---
-import CategoriasArticuloView from '@/views/CategoriasArticuloView.vue'
-import ArticulosView from '@/views/ArticulosView.vue'
-import IngresoArticuloView from '@/views/IngresoArticuloView.vue'
-import StockView from '@/views/StockView.vue'
-import DescontarStockView from '@/views/DescontarStockView.vue'
+// --- Usuarios y Configuraciones ---
+import UsuariosView from '@/views/usuarios/UsuariosView.vue'
+import PermisosView from '@/views/usuarios/PermisosView.vue'
+import GestionUsuariosView from '@/views/usuarios/GestionUsuariosView.vue'
+import ConfiguracionesView from '@/views/usuarios/ConfiguracionesView.vue'
 
-// --- Vistas Deportivas (Equipos, Torneos, etc.) ---
-import EquiposView from '@/views/EquiposView.vue'
-import JugadoresView from '@/views/JugadoresView.vue'
-import CanchasView from '@/views/CanchasView.vue'
-import ArbitrosView from '@/views/ArbitrosView.vue'
-import EventosView from '@/views/EventosView.vue'
-import PlanTorneoView from '@/views/PlanTorneoView.vue'
-import GestionTorneosView from '@/views/GestionTorneosView.vue'
-import CalendarioTorneosView from '@/views/CalendarioTorneosView.vue'
-import RtadoPartidoView from '@/views/RtadoPartidoView.vue'
-import RtadoTorneoView from '@/views/RtadoTorneoView.vue'
-import GrillaCanchasView from '@/views/GrillaCanchasView.vue'
+// --- Torneos (Gestión Deportiva) ---
+import ArbitrosView from '@/views/torneos/ArbitrosView.vue'
+import CalendarioTorneosView from '@/views/torneos/CalendarioTorneosView.vue'
+import EquiposView from '@/views/torneos/EquiposView.vue'
+import GestionTorneosView from '@/views/torneos/GestionTorneosView.vue'
+import JugadoresView from '@/views/torneos/JugadoresView.vue'
+import PlanTorneoView from '@/views/torneos/PlanTorneoView.vue'
+import RtadoPartidoView from '@/views/torneos/RtadoPartidoView.vue'
+import RtadoTorneoView from '@/views/torneos/RtadoTorneoView.vue'
+import RegistroPublicoView from '@/views/torneos/RegistroPublicoView.vue'
 
-// --- Vistas de Clientes, Ventas y Cobros ---
-import ClientesView from '@/views/ClientesView.vue'
-import ClienteEquipoView from '@/views/ClienteEquipoView.vue'
-import VentasView from '@/views/VentasView.vue'
-import CobroView from '@/views/CobroView.vue'
+// --- Instalaciones (Canchas y Eventos) ---
+import CanchasView from '@/views/instalaciones/CanchasView.vue'
+import GrillaCanchasView from '@/views/instalaciones/GrillaCanchasView.vue'
+import EventosView from '@/views/instalaciones/EventosView.vue'
 
-// --- Vistas de Proveedores y Compras ---
-import ProveedoresView from '@/views/ProveedoresView.vue'
-import PedidosProveedorView from '@/views/PedidosProveedorView.vue'
+// --- Inventario (Stock y Proveedores) ---
+import ArticulosView from '@/views/inventario/ArticulosView.vue'
+import CategoriasArticuloView from '@/views/inventario/CategoriasArticuloView.vue'
+import DescontarStockView from '@/views/inventario/DescontarStockView.vue'
+import IngresoArticuloView from '@/views/inventario/IngresoArticuloView.vue'
+import StockView from '@/views/inventario/StockView.vue'
+import ProveedoresView from '@/views/inventario/ProveedoresView.vue'
+import PedidosProveedorView from '@/views/inventario/PedidosProveedorView.vue'
+
+// --- Comercial (Ventas y Clientes) ---
+import ClientesView from '@/views/comercial/ClientesView.vue'
+import ClienteEquipoView from '@/views/comercial/ClienteEquipoView.vue'
+import CobroView from '@/views/comercial/CobroView.vue'
+import VentasView from '@/views/comercial/VentasView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
