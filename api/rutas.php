@@ -729,7 +729,7 @@ switch ($resource) {
         break;
 
     case 'ventas':
-        verifyAuth();
+        $ventasAuth = verifyAuth();
         switch ($method) {
             case 'GET':
                 if ($id) {
@@ -744,10 +744,10 @@ switch ($resource) {
                 }
                 break;
             case 'POST':
-                $ventaController->store();
+                $ventaController->store((int)($ventasAuth['id'] ?? 0));
                 break;
             case 'PUT':
-                $ventaController->update();
+                $ventaController->update((int)($ventasAuth['id'] ?? 0));
                 break;
             case 'DELETE':
                 $ventaController->delete();

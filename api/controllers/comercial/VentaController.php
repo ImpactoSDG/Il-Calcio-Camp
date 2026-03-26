@@ -78,7 +78,7 @@ class VentaController extends BaseController
     /**
      * Crea una nueva venta con sus artículos de manera atómica
      */
-    public function store(): void
+    public function store(int $idUsuario = 0): void
     {
         try {
             $data = json_decode(file_get_contents("php://input"), true);
@@ -95,7 +95,7 @@ class VentaController extends BaseController
             $data['simbolo'] = SimboloDiaController::obtenerArchivoSimboloDia();
 
             // Llamamos al nuevo método transaccional
-            $result = $this->model->createWithDetails($data, $data['articulos']);
+            $result = $this->model->createWithDetails($data, $data['articulos'], $idUsuario);
 
             if ($result['success']) {
                 $this->respond(201, ['message' => 'Venta creada exitosamente y stock actualizado.', 'id' => $result['id']]);
@@ -110,7 +110,7 @@ class VentaController extends BaseController
     /**
      * Actualiza una venta existente y sus artículos asociados (Transaccional)
      */
-    public function update(): void
+    public function update(int $idUsuario = 0): void
     {
         try {
             $data = json_decode(file_get_contents("php://input"), true);
@@ -129,7 +129,7 @@ class VentaController extends BaseController
                 $data['simbolo'] = SimboloDiaController::obtenerArchivoSimboloDia();
             }
 
-            $result = $this->model->updateWithDetails($data, $data['articulos']);
+            $result = $this->model->updateWithDetails($data, $data['articulos'], $idUsuario);
 
             if ($result['success']) {
                 $this->respond(200, ['message' => 'Venta actualizada exitosamente.']);

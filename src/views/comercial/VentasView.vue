@@ -513,9 +513,11 @@ import configuracionService from '@/services/usuarios/configuracionService';
 import impresoraTiqueteraService from '@/services/impresoraTiqueteraService';
 import qzCertificadoService from '@/services/qzCertificadoService';
 import { useToastStore } from '@/stores/toastStore';
+import { useUserStore } from '@/stores/userStore';
 import { formatMoney } from '@/utils/formatters';
 
 const toast = useToastStore();
+const userStore = useUserStore();
 const { sortKey, sortDir, handleSort, sortItems } = useSorting('id', 'desc');
 
 const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost/Il-Calcio-Camp/api';
@@ -800,9 +802,6 @@ const fetchData = async () => {
     estadosVenta.value = estadosRes;
     mediosCobro.value = mediosRes;
     articulos.value = articulosRes;
-
-    console.log('Ventas:', ventas.value);
-    console.log('Medios Cobro:', mediosCobro.value);
   } catch {
     toast.showToast({ message: 'Error al cargar datos.', type: 'danger' });
   } finally {
@@ -939,11 +938,16 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito }) => {
     const esPausaVenta = Number(venta.id_estado_venta) === Number(ID_ESTADO_PAUSA.value);
     const medioCobroDesc = mediosCobro.value.find(m => m.id === venta.id_medio_cobro)?.descripcion ?? '';
     let idVenta = null;
+    
+    // Calcular el total real basado en los artículos del carrito
+    const totalCarritoCalculado = (articulosCarrito || []).reduce((acc, i) => acc + Number(i.total || 0), 0).toFixed(2);
+
     const payload = {
       ...venta,
       tipo_vta: esCerrada ? medioCobroDesc : '',
       id_estado_cerrada: ID_ESTADO_CERRADA.value, // Enviamos el ID para lógica backend
       id_estado_pausa: ID_ESTADO_PAUSA.value,     // Para que el backend omita el descuento de stock
+      monto_cobrado: esCerrada ? (venta.monto_cobrado || Number(totalCarritoCalculado)) : 0,
       articulos: (articulosCarrito || []).map(i => ({
         id_articulo: i.id_articulo,
         cantidad: i.cantidad,
@@ -1002,7 +1006,6 @@ const imprimirTicketDirecto = async (idVenta) => {
   try {
     // Si fetchData aún no terminó de actualizar la lista (común en prod), la buscamos por ID individualmente
     if (!venta) {
-      console.log('Venta no encontrada en la lista local, buscando en el servidor para imprimir...');
       venta = await ventasService.getById(idVenta);
     }
     

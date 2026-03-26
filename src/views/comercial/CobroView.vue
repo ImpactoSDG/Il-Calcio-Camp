@@ -361,11 +361,13 @@ import { ref, computed, onMounted } from 'vue';
 import cobrosService from '@/services/comercial/cobrosService';
 import datosMaestrosService from '@/services/datosMaestrosService';
 import { useToastStore } from '@/stores/toastStore';
+import { useUserStore } from '@/stores/userStore';
 import { formatMoney } from '@/utils/formatters';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
 import FuzzySearch from '@/components/FuzzySearch.vue';
 
 const toast = useToastStore();
+const userStore = useUserStore();
 
 // ── Funciones auxiliares para fechas ────────────────────────────
 const getHoy = () => new Date().toISOString().split('T')[0];
@@ -419,7 +421,11 @@ const confirmarPago = async () => {
   if (!isPagoValido.value) return;
   isSaving.value = true;
   try {
-    await cobrosService.registrarCobroVenta(formPago.value);
+    const payload = {
+      ...formPago.value,
+      id_usuario: userStore.user?.id || 0
+    };
+    await cobrosService.registrarCobroVenta(payload);
     toast.showToast({ message: 'Cobro registrado exitosamente.', type: 'success' });
     cerrarModalPago();
     cargarDatos(); // Recargar tablas para actualizar saldos

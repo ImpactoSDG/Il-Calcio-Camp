@@ -167,7 +167,7 @@ class Venta
     /**
      * Crea una nueva venta y sus artículos asociados con descuento de stock (Transaccional)
      */
-    public function createWithDetails(array $data, array $articulos): array
+    public function createWithDetails(array $data, array $articulos, ?int $idUsuario = null): array
     {
         try {
             $this->conn->beginTransaction();
@@ -262,7 +262,7 @@ class Venta
                 if (!empty($data['id_medio_cobro']) && (int)$data['id_estado_venta'] !== (int)($data['id_estado_pausa'] ?? 0)) {
                     $montoARegistrar = $data['monto_cobrado'] ?? $totalVentaCalculado;
                     if ($montoARegistrar > 0) {
-                        $this->registrarPago($idVenta, (int)$data['id_medio_cobro'], (float)$montoARegistrar, $data['fecha']);
+                        $this->registrarPago($idVenta, (int)$data['id_medio_cobro'], (float)$montoARegistrar, $data['fecha'], $idUsuario);
                     }
                 }
             }
@@ -291,7 +291,11 @@ class Venta
         $sqlCobro = "INSERT INTO cobro (cliente_id, id_usuario) VALUES (:id_cliente, :id_usuario)";
         $stmtCobro = $this->conn->prepare($sqlCobro);
         $stmtCobro->bindValue(':id_cliente', $idCliente, $idCliente ? PDO::PARAM_INT : PDO::PARAM_NULL);
-        $stmtCobro->bindValue(':id_usuario', $idUsuario, $idUsuario ? PDO::PARAM_INT : PDO::PARAM_NULL);
+        
+        // Log logging if idUsuario is 0 or null
+        $idUsuarioVal = ($idUsuario && (int)$idUsuario > 0) ? (int)$idUsuario : null;
+        $stmtCobro->bindValue(':id_usuario', $idUsuarioVal, $idUsuarioVal ? PDO::PARAM_INT : PDO::PARAM_NULL);
+        
         $stmtCobro->execute();
         $idCobro = (int)$this->conn->lastInsertId();
 
@@ -357,7 +361,7 @@ class Venta
     /**
      * Actualiza una venta y sus artículos asociados (Transaccional)
      */
-    public function updateWithDetails(array $data, array $articulos): array
+    public function updateWithDetails(array $data, array $articulos, ?int $idUsuario = null): array
     {
         try {
             $this->conn->beginTransaction();
@@ -470,7 +474,7 @@ class Venta
                 if (!empty($data['id_medio_cobro'])) {
                     $montoARegistrar = $data['monto_cobrado'] ?? $totalVentaCalculado;
                     if ($montoARegistrar > 0) {
-                        $this->registrarPago($idVenta, (int)$data['id_medio_cobro'], (float)$montoARegistrar, $data['fecha']);
+                        $this->registrarPago($idVenta, (int)$data['id_medio_cobro'], (float)$montoARegistrar, $data['fecha'], $idUsuario);
                     }
                 }
             }

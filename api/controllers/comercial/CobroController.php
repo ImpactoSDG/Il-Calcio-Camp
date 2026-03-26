@@ -203,12 +203,16 @@ class CobroController extends BaseController
             $ventaModel = new Venta($this->db);
             
             $fecha = $data['fecha'] ?? date('Y-m-d H:i:s');
+            
+            // Usar el ID de usuario del body si viene, sino usar el de la sesión (auth)
+            $idFinalUsuario = (int)($data['id_usuario'] ?? $idUsuario);
+
             $success = $ventaModel->registrarPago(
                 (int)$data['id_venta'], 
                 (int)$data['id_medio_pago'], 
                 (float)$data['monto'], 
                 $fecha,
-                $idUsuario > 0 ? $idUsuario : null
+                $idFinalUsuario > 0 ? $idFinalUsuario : null
             );
 
             if ($success) {
