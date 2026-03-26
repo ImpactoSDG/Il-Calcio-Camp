@@ -270,7 +270,7 @@ class Venta
         }
     }
 
-    public function registrarPago(int $idVenta, int $idMedioCobro, float $monto, string $fecha): bool
+    public function registrarPago(int $idVenta, int $idMedioCobro, float $monto, string $fecha, ?int $idUsuario = null): bool
     {
         // 1. Obtener el cliente de la venta
         $sqlV = "SELECT id_cliente FROM {$this->table} WHERE id = :id";
@@ -281,9 +281,10 @@ class Venta
         $idCliente = $ventaData['id_cliente'] ?? null;
 
         // 2. Crear el cobro
-        $sqlCobro = "INSERT INTO cobro (cliente_id) VALUES (:id_cliente)";
+        $sqlCobro = "INSERT INTO cobro (cliente_id, id_usuario) VALUES (:id_cliente, :id_usuario)";
         $stmtCobro = $this->conn->prepare($sqlCobro);
         $stmtCobro->bindValue(':id_cliente', $idCliente, $idCliente ? PDO::PARAM_INT : PDO::PARAM_NULL);
+        $stmtCobro->bindValue(':id_usuario', $idUsuario, $idUsuario ? PDO::PARAM_INT : PDO::PARAM_NULL);
         $stmtCobro->execute();
         $idCobro = (int)$this->conn->lastInsertId();
 

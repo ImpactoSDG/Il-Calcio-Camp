@@ -256,4 +256,35 @@ class Cobro
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         return $stmt->execute();
     }
+
+    /**
+     * Reporte de cobros de un día específico.
+     * Devuelve filas agrupadas por usuario + medio de cobro para luego
+     * armar la vista en el frontend.
+     */
+    public function getReporteDia(string $fecha): array
+    {
+        $sql = "SELECT
+                    COALESCE(c.id_usuario, 0)          AS id_usuario,
+                    COALESCE(u.nombre, 'Sin usuario')  AS nombre_usuario,
+                    mc.id                              AS id_medio_pago,
+                    mc.descripcion                     AS medio_pago,
+                    SUM(vc.monto)                      AS total
+                FROM {$this->table} c
+                LEFT JOIN usuario u ON c.id_usuario = u.id
+                INNER JOIN venta_cobro vc ON vc.id_cobro = c.id
+                INNER JOIN medio_cobro mc ON vc.id_medio_pago = mc.id
+                WHERE DATE(c.fecha) = :fecha
+                GROUP BY
+                    COALESCE(c.id_usuario, 0),
+                    COALESCE(u.nombre, 'Sin usuario'),
+                    mc.id,
+                    mc.descripcion
+                ORDER BY nombre_usuario, medio_pago";
+
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':fecha', $fecha);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }

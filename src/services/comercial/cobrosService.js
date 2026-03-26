@@ -19,6 +19,10 @@ const cobrosService = {
   // Registrar un cobro para una venta específica
   registrarCobroVenta: (data) =>
     api.post('/cobros', { action: 'registrar-pago', ...data }).then(r => r.data),
+
+  // Reporte de cobros de un día (default: hoy), agrupado por usuario y medio de cobro
+  getReporteDia: (params = {}) =>
+    api.get('/cobros', { params: { action: 'reporte-dia', ...params } }).then(r => r.data),
 };
 
 export default cobrosService;

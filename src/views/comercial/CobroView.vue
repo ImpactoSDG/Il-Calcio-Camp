@@ -9,6 +9,10 @@
         </button>
         <h1 class="h5 fw-bold mb-0 text-secondary">COBROS</h1>
       </div>
+      <button @click="abrirReporte" class="btn-primary-modern btn-sm d-flex align-items-center gap-2">
+        <i class="bi bi-bar-chart-line"></i>
+        <span class="d-none d-sm-inline">Reporte del día</span>
+      </button>
     </div>
 
     <!-- ── Filtros ─────────────────────────────────────────────── -->
@@ -181,8 +185,7 @@
       </div>
     </template>
 
-    <!-- ── Modal Registrar Pago ────────────────────────────────── -->
-    <div v-if="showModalPago" class="modal-backdrop-custom animate-fade-in" @click.self="cerrarModalPago">
+    <!-- ── Modal Registrar Pago ────────────────────────────────── -->    <div v-if="showModalPago" class="modal-backdrop-custom animate-fade-in" @click.self="cerrarModalPago">
       <div class="modal-dialog-custom">
         <div class="modal-content-custom modern-card shadow-lg">
           <div class="modal-header-custom p-4 border-bottom d-flex justify-content-between align-items-center">
@@ -235,7 +238,122 @@
       </div>
     </div>
 
-  </div>
+    <!-- ── Modal Reporte del día ──────────────────────────────── -->
+    <div v-if="showModalReporte" class="modal-backdrop-custom animate-fade-in">
+      <div class="modal-dialog-custom modal-dialog-reporte-wide">
+        <div class="modal-content-custom modern-card shadow-lg">
+          <div class="modal-header-custom p-4 border-bottom d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="mb-0 fw-bold text-primary-custom">REPORTE DE COBROS DIARIO</h5>
+              <small class="text-muted">Resumen visual y detallado por usuario</small>
+            </div>
+            <button @click="cerrarReporte" class="btn-close"></button>
+          </div>
+          <div class="modal-body-custom p-4">
+            <!-- Selector de fecha -->
+            <div class="mb-4" style="max-width: 250px;">
+              <label class="form-label form-label-sm mb-2 text-uppercase fw-semibold text-secondary" style="font-size:0.7rem">Día de Consulta</label>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text bg-white border-end-0"><i class="bi bi-calendar-event"></i></span>
+                <input v-model="reporteFecha" type="date" class="form-control border-start-0 form-control-sm" @change="cargarReporte" />
+              </div>
+            </div>
+
+            <!-- Spinner -->
+            <div v-if="loadingReporte" class="text-center py-5">
+              <div class="spinner-border text-primary-custom" role="status">
+                <span class="visually-hidden">Cargando…</span>
+              </div>
+            </div>
+
+            <!-- Sin datos -->
+            <div v-else-if="reporteUsuarios.length === 0" class="empty-state py-5">
+              <div class="mb-3"><i class="bi bi-inbox fs-1 text-muted"></i></div>
+              <h6 class="fw-bold text-secondary">No se encontraron cobros</h6>
+              <p class="text-muted small">No hay registros de cobros realizados para la fecha seleccionada.</p>
+            </div>
+
+            <!-- Layout Principal -->
+            <div v-else class="row g-4">
+              <!-- Columna Gráfico -->
+              <div class="col-lg-6">
+                <div class="reporte-viz-container h-100 p-3 bg-white border rounded-4 shadow-sm">
+                  <h6 class="small fw-bold text-secondary text-uppercase mb-4 px-2 border-start border-primary-custom border-3">Distribución Visual</h6>
+                  
+                  <div class="reporte-barras-wrapper">
+                    <div v-for="u in reporteUsuarios" :key="'bar-'+u.id_usuario" class="reporte-columna">
+                      <div class="reporte-barra-apilada">
+                        <div 
+                          v-for="(mp, idx) in u.medios_pago" 
+                          :key="mp.id_medio_pago"
+                          class="reporte-segmento"
+                          :style="{ 
+                            height: (mp.total / reporteMaxUsuario * 100) + '%',
+                            backgroundColor: mp.color
+                          }"
+                          :title="`${mp.medio_pago}: $${formatMonto(mp.total)}`"
+                        ></div>
+                      </div>
+                      <div class="reporte-barra-nombre mt-2 fw-bold text-truncate w-100 text-center" style="font-size: 0.7rem;">{{ u.nombre_usuario }}</div>
+                      <div class="reporte-barra-monto text-primary-custom fw-bold small">${{ formatMonto(u.total) }}</div>
+                    </div>
+                  </div>
+
+                  <div class="reporte-leyenda mt-4 p-3 bg-light rounded-3">
+                    <div class="row g-2">
+                      <div v-for="(color, idx) in leyendaColores" :key="idx" class="col-6">
+                        <div class="d-flex align-items-center gap-2">
+                          <span class="leyenda-dot shadow-sm" :style="{ backgroundColor: color.color }"></span>
+                          <span class="leyenda-text text-truncate">{{ color.label }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Columna Detalle -->
+              <div class="col-lg-6">
+                <div class="reporte-detalle-scroll custom-scrollbar">
+                  <h6 class="small fw-bold text-secondary text-uppercase mb-3 px-2 border-start border-primary-custom border-3">Desglose por Usuario</h6>
+                  
+                  <div class="reporte-usuarios-compactos">
+                    <div v-for="usuario in reporteUsuarios" :key="usuario.id_usuario" class="reporte-usuario-compact mb-3 p-3 bg-white border rounded-2" style="border: 1px solid #e3e6f0;">
+                      <div class="reporte-usuario-header d-flex align-items-center gap-2 mb-2">
+                        <div class="user-avatar d-flex align-items-center justify-content-center bg-primary-custom text-white rounded-circle fw-bold" style="width: 28px; height: 28px; font-size: 0.8rem; flex-shrink: 0;">
+                          {{ usuario.nombre_usuario.charAt(0).toUpperCase() }}
+                        </div>
+                        <span class="fw-bold text-dark" style="font-size: 0.9rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ usuario.nombre_usuario }}</span>
+                        <span class="fw-bold text-primary-custom" style="font-size: 0.95rem; flex-shrink: 0;">${{ formatMonto(usuario.total) }}</span>
+                      </div>
+                      <div class="reporte-usuario-medios">
+                        <div v-for="mp in usuario.medios_pago" :key="mp.id_medio_pago" class="reporte-medio-compact d-flex justify-content-between align-items-center px-2 py-1" style="font-size: 0.8rem; border-bottom: 1px dashed #f0f0f0;">
+                          <span class="text-muted d-flex align-items-center gap-1" style="min-width: 0; flex: 1; overflow: hidden;">
+                            <i class="bi bi-circle-fill" :style="{ color: mp.color, fontSize: '0.5rem', 'flex-shrink': 0 }"></i>
+                            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ mp.medio_pago }}</span>
+                          </span>
+                          <span class="fw-bold text-dark" style="flex-shrink: 0; margin-left: 0.5rem;">${{ formatMonto(mp.total) }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                </div>
+
+                <!-- Gran total al final -->
+                <div class="reporte-gran-total-modern d-flex justify-content-between align-items-center p-3 mt-4 shadow rounded-4 bg-primary-custom text-white">
+                  <div class="d-flex align-items-center gap-2 opacity-75">
+                    <i class="bi bi-wallet2 fs-4"></i>
+                    <span class="fw-bold text-uppercase small">Total General Cobrado</span>
+                  </div>
+                  <span class="fw-bold fs-4">${{ formatMonto(reporteGranTotal) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 </template>
 
 <script setup>
@@ -418,6 +536,88 @@ const limpiarFiltros = () => {
   cargarDatos();
 };
 
+// ── Reporte del día ──────────────────────────────────────────────
+const showModalReporte = ref(false);
+const loadingReporte   = ref(false);
+const reporteFecha     = ref(getHoy());
+const reporteFilas     = ref([]);
+
+/** Agrupa filas planas del backend en [ { id_usuario, nombre_usuario, medios_pago[], total } ] */
+const reporteUsuarios = computed(() => {
+  const map = new Map();
+  for (const fila of reporteFilas.value) {
+    const key = fila.id_usuario;
+    if (!map.has(key)) {
+      map.set(key, { id_usuario: fila.id_usuario, nombre_usuario: fila.nombre_usuario, medios_pago: [], total: 0 });
+    }
+    const u = map.get(key);
+    // Asignar color fijo por medio de pago para consistencia
+    const mpId = fila.id_medio_pago;
+    u.medios_pago.push({ 
+      id_medio_pago: mpId, 
+      medio_pago: fila.medio_pago, 
+      total: Number(fila.total),
+      color: getMedioColor(u.medios_pago.length) // O usar una lógica basada en el nombre del medio
+    });
+    u.total += Number(fila.total);
+  }
+  return [...map.values()];
+});
+
+/** Colores para los medios de pago en el gráfico */
+const getMedioColor = (idx) => {
+  const colores = ['#4e73df', '#1cc88a', '#f6c23e', '#e74a3b', '#858796', '#36b9cc', '#5a5c69'];
+  return colores[idx % colores.length];
+};
+
+const reporteMaxUsuario = computed(() => Math.max(...reporteUsuarios.value.map(u => u.total), 1));
+
+const reporteGranTotal = computed(() => reporteUsuarios.value.reduce((sum, u) => sum + u.total, 0));
+
+/** Extrae medios de pago únicos con color fijo para la leyenda */
+const leyendaColores = computed(() => {
+  const mediosMap = new Map();
+  // Primero recolectamos todos los nombres de medios de pago únicos
+  const todosLosMedios = new Set();
+  reporteUsuarios.value.forEach(u => u.medios_pago.forEach(mp => todosLosMedios.add(mp.medio_pago)));
+  
+  // Asignamos color por orden de aparición global
+  Array.from(todosLosMedios).forEach((medio, idx) => {
+    mediosMap.set(medio, getMedioColor(idx));
+  });
+
+  // Actualizamos los colores en los objetos de usuario para que coincidan con la leyenda
+  reporteUsuarios.value.forEach(u => {
+    u.medios_pago.forEach(mp => {
+      mp.color = mediosMap.get(mp.medio_pago);
+    });
+  });
+
+  return Array.from(mediosMap).map(([label, color]) => ({ label, color }));
+});
+
+const cargarReporte = async () => {
+  loadingReporte.value = true;
+  try {
+    reporteFilas.value = await cobrosService.getReporteDia({ fecha: reporteFecha.value });
+  } catch {
+    toast.showToast({ message: 'Error al cargar el reporte.', type: 'danger' });
+  } finally {
+    loadingReporte.value = false;
+  }
+};
+
+const abrirReporte = () => {
+  showModalReporte.value = true;
+  document.body.style.overflow = 'hidden';
+  cargarReporte();
+};
+
+const cerrarReporte = () => {
+  showModalReporte.value = false;
+  document.body.style.overflow = '';
+};
+
 onMounted(async () => {
   try {
     mediosCobro.value = await datosMaestrosService.getMediosCobro();
@@ -429,6 +629,200 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* Modal Reporte Wide */
+.modal-dialog-reporte-wide {
+  width: 90vw !important;
+  max-width: 90vw !important;
+  margin: 1.75rem auto;
+}
+
+@media (min-width: 1400px) {
+  .modal-dialog-reporte-wide {
+    width: 85vw !important;
+    max-width: 85vw !important;
+  }
+}
+
+@media (max-width: 991px) {
+  .modal-dialog-reporte-wide {
+    width: 95vw !important;
+    max-width: 95vw !important;
+  }
+}
+
+/* Gráfico Visual */
+.reporte-viz-container {
+  background: #f8f9fc;
+  border-radius: 12px;
+  padding: 2.5rem 1rem 1rem 1rem;
+  border: 1px solid #eaecf4;
+  height: 400px;
+  position: relative;
+}
+
+.reporte-y-axis {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.y-grid-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed #e3e6f0;
+}
+
+.y-grid-label {
+  position: absolute;
+  left: -2px;
+  top: -10px;
+  font-size: 0.65rem;
+  color: #858796;
+  background: white;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.reporte-bar-stack {
+  position: relative;
+  z-index: 1;
+}
+
+.reporte-bar-column {
+  width: 50px;
+  display: flex;
+  flex-direction: column-reverse;
+  background: #eaecf4;
+  border-radius: 6px 6px 0 0;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  min-height: 4px;
+}
+
+.reporte-bar-column:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.reporte-bar-segment {
+  width: 100%;
+  transition: height 0.3s ease;
+  position: relative;
+}
+
+.reporte-bar-segment:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.reporte-bar-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #4e73df;
+  margin-top: 8px;
+  text-align: center;
+  word-wrap: break-word;
+}
+
+/* Detalle por Usuario Moderno */
+.reporte-detalles-container {
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.reporte-card-modern {
+  background: #fff;
+  border: 1px solid #e3e6f0;
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  transition: border-color 0.2s;
+}
+
+.reporte-card-modern:hover {
+  border-color: #4e73df;
+}
+
+.user-avatar-circle {
+  width: 36px;
+  height: 36px;
+  background: #4e73df;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1rem;
+  box-shadow: 0 2px 4px rgba(78,115,223,0.2);
+}
+
+.medio-pago-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.75rem;
+}
+
+.medio-pago-pill {
+  background: #f8f9fc;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid #eaecf4;
+}
+
+.medio-pago-pill .label {
+  font-size: 0.7rem;
+  color: #858796;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.medio-pago-pill .value {
+  font-weight: 700;
+  color: #2e59d9;
+}
+
+/* Leyenda Colores */
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.legend-text {
+  font-size: 0.75rem;
+  color: #5a5c69;
+}
+
+/* Custom Scrollbar */
+.reporte-detalles-container::-webkit-scrollbar {
+  width: 6px;
+}
+.reporte-detalles-container::-webkit-scrollbar-thumb {
+  background: #d1d3e2;
+  border-radius: 10px;
+}
+.reporte-detalles-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 /* ── Filtros card ──────────────────────────────────────────────── */
 .filtros-card {
   background: var(--color-background-soft, #f8f9fa);
@@ -595,8 +989,10 @@ onMounted(async () => {
   backdrop-filter: blur(4px);
   z-index: 1050;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding: 2rem 0;
+  overflow-y: auto;
 }
 
 .modal-dialog-custom {
@@ -653,5 +1049,118 @@ onMounted(async () => {
     font-size: 0.78rem;
     padding: 0.4rem 0.65rem 0.5rem;
   }
+}
+
+/* ── Modal Reporte del día ──────────────────────────────────────── */
+.modal-dialog-reporte {
+  max-width: 520px;
+}
+
+.reporte-card {
+  border: 1px solid var(--color-border, #dee2e6);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.reporte-card-header {
+  background: var(--color-background-soft, #f8f9fa);
+  border-bottom: 1px solid var(--color-border, #dee2e6);
+  font-size: 0.9rem;
+}
+
+.reporte-total-usuario {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--color-primary, #00558c);
+}
+
+.reporte-card-body {
+  background: #fff;
+}
+
+.reporte-medio-row {
+  border-bottom: 1px dashed #f0f0f0;
+  font-size: 0.875rem;
+}
+
+.reporte-medio-row:last-child {
+  border-bottom: none;
+}
+
+.reporte-gran-total {
+  background: var(--color-primary, #00558c);
+  border-radius: 10px;
+  color: #fff;
+}
+
+.reporte-total-general {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+/* ── Gráfico de barras apiladas ────────────────────────────────── */
+.reporte-barras-wrapper {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  height: 160px;
+  padding: 10px 20px;
+  border-bottom: 2px solid #e9ecef;
+  gap: 12px;
+}
+
+.reporte-columna {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.reporte-barra-apilada {
+  width: 32px;
+  height: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  border-radius: 6px 6px 0 0;
+  overflow: hidden;
+  background: #f1f3f5;
+}
+
+.reporte-segmento {
+  width: 100%;
+  transition: transform 0.3s ease;
+  cursor: help;
+}
+
+.reporte-segmento:hover {
+  filter: brightness(1.15);
+}
+
+.reporte-barra-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #6c757d;
+  margin-top: 6px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 40px;
+}
+
+.leyenda-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.leyenda-text {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #6c757d;
 }
 </style>

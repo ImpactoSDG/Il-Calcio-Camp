@@ -189,7 +189,7 @@ class CobroController extends BaseController
     /**
      * Registra un pago para una venta específica.
      */
-    public function registrarPagoVenta(): void
+    public function registrarPagoVenta(int $idUsuario = 0): void
     {
         try {
             $data = json_decode(file_get_contents("php://input"), true);
@@ -207,7 +207,8 @@ class CobroController extends BaseController
                 (int)$data['id_venta'], 
                 (int)$data['id_medio_pago'], 
                 (float)$data['monto'], 
-                $fecha
+                $fecha,
+                $idUsuario > 0 ? $idUsuario : null
             );
 
             if ($success) {
@@ -217,6 +218,20 @@ class CobroController extends BaseController
             }
         } catch (Throwable $e) {
             $this->handleError($e, 'Error al registrar pago');
+        }
+    }
+
+    /**
+     * Reporte de cobros de un día específico, agrupado por usuario y medio de cobro.
+     */
+    public function getReporteDia(): void
+    {
+        try {
+            $fecha = $_GET['fecha'] ?? date('Y-m-d');
+            $result = $this->model->getReporteDia($fecha);
+            $this->respond(200, $result);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al obtener reporte del día');
         }
     }
 }

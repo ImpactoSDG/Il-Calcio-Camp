@@ -759,7 +759,7 @@ switch ($resource) {
         break;
 
     case 'cobros':
-        verifyAuth();
+        $cobrosAuth = verifyAuth();
         switch ($method) {
             case 'GET':
                 if ($id) {
@@ -777,6 +777,8 @@ switch ($resource) {
                         $cobroController->getConCliente();
                     } elseif ($action === 'ventas-pendientes') {
                         $cobroController->getVentasPendientes();
+                    } elseif ($action === 'reporte-dia') {
+                        $cobroController->getReporteDia();
                     } else {
                         $cobroController->getAll();
                     }
@@ -788,7 +790,7 @@ switch ($resource) {
                 $action = $_GET['action'] ?? ($postData['action'] ?? null);
 
                 if ($action === 'registrar-pago') {
-                    $cobroController->registrarPagoVenta();
+                    $cobroController->registrarPagoVenta((int)($cobrosAuth['id'] ?? 0));
                 } else {
                     $cobroController->store();
                 }
