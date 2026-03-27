@@ -135,15 +135,23 @@
           <div v-if="categoriasAbiertas.has(idx)" class="card-categoria__body">
             <table class="table-articulos w-100">
               <colgroup>
-                <col style="width: 44px">    <col style="width: 60px">    <col style="width: auto">    <col style="width: 110px">   <col style="width: 110px">   <col style="width: 150px">   <col style="width: 100px">   <col style="width: 100px">   </colgroup>
+                <col style="width: 44px">    <!-- Checkbox -->
+                <col style="width: 60px">    <!-- Imagen -->
+                <col style="width: 40%">    <!-- Nombre -->
+                <col style="width: 10%">    <!-- Precio -->
+                <col style="width: 10%">    <!-- Costo -->
+                <col style="width: 10%">    <!-- Cód. Barra -->
+                <col style="width: 10%">    <!-- Estado -->
+                <col style="width: 20%">    <!-- Acciones -->
+              </colgroup>
               <thead>
                 <tr>
                   <th></th>
                   <th></th>
                   <th>Nombre</th>
-                  <th class="text-end">Precio</th>
-                  <th class="text-end">Costo</th>
-                  <th>Cód. Barra</th>
+                  <th class="text-center">Precio</th>
+                  <th class="text-center">Costo</th>
+                  <th class="text-center">Cód. Barra</th>
                   <th class="text-center">Estado</th>
                   <th class="text-end pe-4">Acciones</th>
                 </tr>
@@ -172,17 +180,17 @@
                   <td>
                     <span class="fw-semibold text-dark">{{ item.nombre }}</span>
                   </td>
-                  <td class="text-end">
+                  <td class="text-center">
                     <span class="precio-val">
                       {{ item.precio_actual != null ? `$${formatNum(item.precio_actual)}` : '—' }}
                     </span>
                   </td>
-                  <td class="text-end">
+                  <td class="text-center">
                     <span class="precio-val precio-val--costo">
                       {{ item.costo_actual != null ? `$${formatNum(item.costo_actual)}` : '—' }}
                     </span>
                   </td>
-                  <td class="text-muted small font-monospace">
+                  <td class="text-center text-muted small font-monospace">
                     <i class="bi bi-upc me-1 opacity-50"></i>{{ item.cod_barra || '—' }}
                   </td>
                   <td class="text-center">
@@ -603,8 +611,8 @@ const isApplying    = ref(false);
 const previsualizacionMap = ref({});
 
 const opcionesBase = [
-  { value: 'precio_actual', label: 'Precio Final',  icon: 'bi-tag-fill' },
   { value: 'costo_actual',  label: 'Precio Costo',  icon: 'bi-box-seam' },
+  { value: 'precio_actual', label: 'Precio Final',  icon: 'bi-tag-fill' },
 ];
 
 const previsualizacion = computed(() =>

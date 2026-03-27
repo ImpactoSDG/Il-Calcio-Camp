@@ -93,6 +93,10 @@
                     <td colspan="4" class="text-end fw-bold py-3 text-secondary">TOTAL FINAL:</td>
                     <td class="text-end pe-3 fw-bold fs-5 py-3 text-primary-custom">${{ totalVenta }}</td>
                   </tr>
+                  <tr v-if="venta?.monto_cobrado && Number(venta.monto_cobrado) !== Number(venta.total_venta)">
+                    <td colspan="4" class="text-end fw-bold py-1 text-success">MONTO PAGADO:</td>
+                    <td class="text-end pe-3 fw-bold py-1 text-success">${{ formatMoney(venta.monto_cobrado) }}</td>
+                  </tr>
                 </tfoot>
               </table>
             </div>

@@ -274,7 +274,7 @@ export async function imprimirTicketEscPos({ venta, articulos, nombreLocal = 'IL
     '\x1B\x21\x18',      // Negrita + doble alto
     `TOTAL: $${totalGeneral}\x0A`,
     '\x1B\x21\x00',      // Normal
-    `Pago: ${venta.medio_cobro_nombre || 'Efectivo'}\x0A\x0A`,
+    `Pago: ${venta.medio_cobro_nombre || 'No registrado'}\x0A\x0A`,
     '\x1B\x61\x01',      // Centrar
     '¡Gracias por su compra!\x0A',
     SEP,

@@ -207,12 +207,17 @@ class CobroController extends BaseController
             // Usar el ID de usuario del body si viene, sino usar el de la sesión (auth)
             $idFinalUsuario = (int)($data['id_usuario'] ?? $idUsuario);
 
+            // esAditivo = true por defecto cuando se llama desde CobroController
+            // (que es la vista específica de Cobros donde sumamos al saldo)
+            $esAditivo = isset($data['esAditivo']) ? (bool)$data['esAditivo'] : true;
+
             $success = $ventaModel->registrarPago(
                 (int)$data['id_venta'], 
                 (int)$data['id_medio_pago'], 
                 (float)$data['monto'], 
                 $fecha,
-                $idFinalUsuario > 0 ? $idFinalUsuario : null
+                $idFinalUsuario > 0 ? $idFinalUsuario : null,
+                $esAditivo
             );
 
             if ($success) {

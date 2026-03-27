@@ -198,15 +198,23 @@
           <div class="modal-body-custom p-4">
             <div class="row g-3">
               <div class="col-12">
-                <div class="p-3 bg-light rounded-3 mb-3">
+                <div class="p-3 bg-light rounded-3 mb-3 border">
                   <div class="d-flex justify-content-between mb-1">
-                    <span class="small text-secondary">Saldo Pendiente:</span>
-                    <span class="fw-bold text-danger">${{ formatMonto(ventaSeleccionada?.saldo_pendiente) }}</span>
+                    <span class="small text-secondary">Total Venta:</span>
+                    <span class="fw-bold text-dark">${{ formatMonto(ventaSeleccionada?.total_venta) }}</span>
+                  </div>
+                  <div class="d-flex justify-content-between mb-1">
+                    <span class="small text-secondary">Ya Cobrado:</span>
+                    <span class="fw-bold text-success">${{ formatMonto(ventaSeleccionada?.total_cobrado) }}</span>
+                  </div>
+                  <div class="d-flex justify-content-between border-top pt-2 mt-2">
+                    <span class="small fw-bold text-secondary text-uppercase">Saldo Pendiente:</span>
+                    <span class="fw-black text-danger fs-5">${{ formatMonto(ventaSeleccionada?.saldo_pendiente) }}</span>
                   </div>
                 </div>
               </div>
               <div class="col-md-6">
-                <label class="form-label small fw-bold text-secondary">FECHA</label>
+                <label class="form-label small fw-bold text-secondary">FECHA DEL PAGO</label>
                 <input v-model="formPago.fecha" type="date" class="form-control" />
               </div>
               <div class="col-md-6">
@@ -216,13 +224,18 @@
                 </select>
               </div>
               <div class="col-12 mt-3">
-                <label class="form-label small fw-bold text-secondary">MONTO A COBRAR</label>
+                <label class="form-label small fw-bold text-secondary">MONTO A ENTREGAR AHORA</label>
                 <div class="input-group">
                   <span class="input-group-text bg-white">$</span>
                   <input v-model.number="formPago.monto" type="number" step="0.01" class="form-control form-control-lg fw-bold text-primary-custom" placeholder="0.00" />
-                  <button @click="formPago.monto = ventaSeleccionada.saldo_pendiente" class="btn btn-outline-secondary btn-sm px-2" title="Cobrar todo">
-                    saldar total
+                  <button @click="formPago.monto = ventaSeleccionada.saldo_pendiente" class="btn btn-outline-danger btn-sm px-3 fw-bold" title="Cobrar todo">
+                    SALDAR TOTAL
                   </button>
+                </div>
+                <!-- Previsualización del nuevo total cobrado -->
+                <div v-if="formPago.monto > 0" class="mt-2 p-2 rounded-2 bg-success-subtle text-success small animate-fade-in border border-success-subtle">
+                  <i class="bi bi-info-circle-fill me-1"></i>
+                  El nuevo total cobrado será: <strong>${{ formatMonto(Number(ventaSeleccionada?.total_cobrado) + Number(formPago.monto)) }}</strong>
                 </div>
               </div>
             </div>

@@ -23,6 +23,8 @@ class Venta
                        c.nombre_cliente AS cliente_nombre,
                        e.nombre AS equipo_nombre,
                        vc.id_medio_pago AS id_medio_cobro,
+                       vc.monto AS monto_cobrado,
+                       mc.descripcion AS medio_cobro_nombre,
                        (
                            SELECT GROUP_CONCAT(CONCAT(av.cantidad, 'x ', a.nombre) SEPARATOR '||')
                            FROM articulo_venta av
@@ -46,10 +48,11 @@ class Venta
                 LEFT JOIN cliente c ON v.id_cliente = c.id
                 LEFT JOIN equipo e ON v.id_equipo = e.id
                 LEFT JOIN (
-                    SELECT id_venta, MAX(id_medio_pago) as id_medio_pago 
+                    SELECT id_venta, MAX(id_medio_pago) as id_medio_pago, SUM(monto) as monto 
                     FROM venta_cobro 
                     GROUP BY id_venta
                 ) vc ON v.id = vc.id_venta
+                LEFT JOIN medio_cobro mc ON vc.id_medio_pago = mc.id
                 ORDER BY v.fecha DESC, v.id DESC";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
@@ -66,16 +69,19 @@ class Venta
                        ev.descripcion AS estado_descripcion,
                        c.nombre_cliente AS cliente_nombre,
                        e.nombre AS equipo_nombre,
-                       vc.id_medio_pago AS id_medio_cobro
+                       vc.id_medio_pago AS id_medio_cobro,
+                       vc.monto AS monto_cobrado,
+                       mc.descripcion AS medio_cobro_nombre
                 FROM {$this->table} v
                 LEFT JOIN estado_venta ev ON v.id_estado_venta = ev.id
                 LEFT JOIN cliente c ON v.id_cliente = c.id
                 LEFT JOIN equipo e ON v.id_equipo = e.id
                 LEFT JOIN (
-                    SELECT id_venta, MAX(id_medio_pago) as id_medio_pago 
+                    SELECT id_venta, MAX(id_medio_pago) as id_medio_pago, SUM(monto) as monto 
                     FROM venta_cobro 
                     GROUP BY id_venta
                 ) vc ON v.id = vc.id_venta
+                LEFT JOIN medio_cobro mc ON vc.id_medio_pago = mc.id
                 WHERE v.id = :id LIMIT 1";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
@@ -91,9 +97,17 @@ class Venta
     {
         $sql = "SELECT v.id, v.fecha, v.id_equipo, v.descripcion_cliente, v.id_estado_venta, 
                        v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste,
-                       ev.descripcion AS estado_descripcion
+                       ev.descripcion AS estado_descripcion,
+                       vc.id_medio_pago AS id_medio_cobro,
+                       mc.descripcion AS medio_cobro_nombre
                 FROM {$this->table} v
                 LEFT JOIN estado_venta ev ON v.id_estado_venta = ev.id
+                LEFT JOIN (
+                    SELECT id_venta, MAX(id_medio_pago) as id_medio_pago 
+                    FROM venta_cobro 
+                    GROUP BY id_venta
+                ) vc ON v.id = vc.id_venta
+                LEFT JOIN medio_cobro mc ON vc.id_medio_pago = mc.id
                 WHERE v.id_cliente = :id_cliente
                 ORDER BY v.fecha DESC";
         $stmt = $this->conn->prepare($sql);
@@ -109,9 +123,17 @@ class Venta
     {
         $sql = "SELECT v.id, v.fecha, v.id_equipo, v.descripcion_cliente, v.id_estado_venta, 
                        v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste,
-                       c.nombre_cliente AS cliente_nombre
+                       c.nombre_cliente AS cliente_nombre,
+                       vc.id_medio_pago AS id_medio_cobro,
+                       mc.descripcion AS medio_cobro_nombre
                 FROM {$this->table} v
                 LEFT JOIN cliente c ON v.id_cliente = c.id
+                LEFT JOIN (
+                    SELECT id_venta, MAX(id_medio_pago) as id_medio_pago 
+                    FROM venta_cobro 
+                    GROUP BY id_venta
+                ) vc ON v.id = vc.id_venta
+                LEFT JOIN medio_cobro mc ON vc.id_medio_pago = mc.id
                 WHERE v.id_estado_venta = :id_estado
                 ORDER BY v.fecha DESC";
         $stmt = $this->conn->prepare($sql);
@@ -129,15 +151,18 @@ class Venta
                        v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste,
                        ev.descripcion AS estado_descripcion,
                        c.nombre_cliente AS cliente_nombre,
-                       vc.id_medio_pago AS id_medio_cobro
+                       vc.id_medio_pago AS id_medio_cobro,
+                       vc.monto AS monto_cobrado,
+                       mc.descripcion AS medio_cobro_nombre
                 FROM {$this->table} v
                 LEFT JOIN estado_venta ev ON v.id_estado_venta = ev.id
                 LEFT JOIN cliente c ON v.id_cliente = c.id
                 LEFT JOIN (
-                    SELECT id_venta, MAX(id_medio_pago) as id_medio_pago 
+                    SELECT id_venta, MAX(id_medio_pago) as id_medio_pago, SUM(monto) as monto 
                     FROM venta_cobro 
                     GROUP BY id_venta
                 ) vc ON v.id = vc.id_venta
+                LEFT JOIN medio_cobro mc ON vc.id_medio_pago = mc.id
                 WHERE v.fecha BETWEEN :fecha_desde AND :fecha_hasta
                 ORDER BY v.fecha DESC";
         $stmt = $this->conn->prepare($sql);
@@ -262,7 +287,8 @@ class Venta
                 if (!empty($data['id_medio_cobro']) && (int)$data['id_estado_venta'] !== (int)($data['id_estado_pausa'] ?? 0)) {
                     $montoARegistrar = $data['monto_cobrado'] ?? $totalVentaCalculado;
                     if ($montoARegistrar > 0) {
-                        $this->registrarPago($idVenta, (int)$data['id_medio_cobro'], (float)$montoARegistrar, $data['fecha'], $idUsuario);
+                        // En la UNIÓN inicial o creación, es esAditivo = false porque el usuario está definiendo el monto total cobrado en ese momento
+                        $this->registrarPago($idVenta, (int)$data['id_medio_cobro'], (float)$montoARegistrar, $data['fecha'], $idUsuario, false);
                     }
                 }
             }
@@ -277,9 +303,31 @@ class Venta
         }
     }
 
-    public function registrarPago(int $idVenta, int $idMedioCobro, float $monto, string $fecha, ?int $idUsuario = null): bool
+    public function registrarPago(int $idVenta, int $idMedioCobro, float $monto, string $fecha, ?int $idUsuario = null, bool $esAditivo = true): bool
     {
-        // 1. Obtener el cliente de la venta
+        // 1. Verificar si ya existe un cobro para esta venta
+        $sqlCheck = "SELECT id_cobro FROM venta_cobro WHERE id_venta = :id_v LIMIT 1";
+        $stmtCheck = $this->conn->prepare($sqlCheck);
+        $stmtCheck->bindValue(':id_v', $idVenta, PDO::PARAM_INT);
+        $stmtCheck->execute();
+        $existing = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+
+        if ($existing) {
+            // Si es aditivo sumamos (para CobroView), si no sobreescribimos (para VentasView/Edición)
+            $operacionMonto = $esAditivo ? "monto + :monto" : ":monto";
+            
+            $sqlUpdVC = "UPDATE venta_cobro 
+                         SET id_medio_pago = :id_medio, monto = $operacionMonto 
+                         WHERE id_venta = :id_v";
+            $stmtUpdVC = $this->conn->prepare($sqlUpdVC);
+            $stmtUpdVC->bindValue(':id_v', $idVenta, PDO::PARAM_INT);
+            $stmtUpdVC->bindValue(':id_medio', $idMedioCobro, PDO::PARAM_INT);
+            $stmtUpdVC->bindValue(':monto', $monto);
+            return $stmtUpdVC->execute();
+        }
+
+        // 2. Si no existe, crear el proceso de cobro completo
+        // Obtener el cliente de la venta
         $sqlV = "SELECT id_cliente FROM {$this->table} WHERE id = :id";
         $stmtV = $this->conn->prepare($sqlV);
         $stmtV->bindValue(':id', $idVenta, PDO::PARAM_INT);
@@ -287,19 +335,17 @@ class Venta
         $ventaData = $stmtV->fetch(PDO::FETCH_ASSOC);
         $idCliente = $ventaData['id_cliente'] ?? null;
 
-        // 2. Crear el cobro
+        // Crear el registro en 'cobro'
         $sqlCobro = "INSERT INTO cobro (cliente_id, id_usuario) VALUES (:id_cliente, :id_usuario)";
         $stmtCobro = $this->conn->prepare($sqlCobro);
         $stmtCobro->bindValue(':id_cliente', $idCliente, $idCliente ? PDO::PARAM_INT : PDO::PARAM_NULL);
         
-        // Log logging if idUsuario is 0 or null
         $idUsuarioVal = ($idUsuario && (int)$idUsuario > 0) ? (int)$idUsuario : null;
         $stmtCobro->bindValue(':id_usuario', $idUsuarioVal, $idUsuarioVal ? PDO::PARAM_INT : PDO::PARAM_NULL);
-        
         $stmtCobro->execute();
         $idCobro = (int)$this->conn->lastInsertId();
 
-        // 3. Relacionar cobro con la venta en 'venta_cobro'
+        // Relacionar cobro con la venta en 'venta_cobro'
         $sqlVC = "INSERT INTO venta_cobro (id_venta, id_cobro, id_medio_pago, monto) 
                   VALUES (:id_v, :id_c, :id_medio, :monto)";
         $stmtVC = $this->conn->prepare($sqlVC);
@@ -468,13 +514,14 @@ class Venta
                 }
             }
 
-            // 3. Registrar Pago si se está cerrando y hay datos de cobro
+            // 3. Registrar Pago si se está cerrando o hay monto cobrado (Sobreescribimos el monto anterior)
             $totalVentaCalculado = array_sum(array_column($articulos, 'total'));
             if ($data['id_estado_venta'] == $data['id_estado_cerrada'] || !empty($data['monto_cobrado'])) {
                 if (!empty($data['id_medio_cobro'])) {
                     $montoARegistrar = $data['monto_cobrado'] ?? $totalVentaCalculado;
                     if ($montoARegistrar > 0) {
-                        $this->registrarPago($idVenta, (int)$data['id_medio_cobro'], (float)$montoARegistrar, $data['fecha'], $idUsuario);
+                        // esAditivo = false porque al EDITAR establecemos el nuevo monto total
+                        $this->registrarPago($idVenta, (int)$data['id_medio_cobro'], (float)$montoARegistrar, $data['fecha'], $idUsuario, false);
                     }
                 }
             }

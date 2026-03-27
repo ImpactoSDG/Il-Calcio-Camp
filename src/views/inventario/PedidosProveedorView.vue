@@ -159,8 +159,8 @@
                         </div>
 
                         <div class="col-12">
-                          <label class="form-label fw-semibold text-secondary small mb-1">Fecha de Entrega Estimada</label>
-                          <input v-model="form.fecha_entrega" type="date" class="form-control border-2 rounded-3" />
+                          <label class="form-label fw-semibold text-secondary small mb-1">Fecha de Entrega Estimada <span class="text-danger">*</span></label>
+                          <input v-model="form.fecha_entrega" type="date" class="form-control border-2 rounded-3" required />
                         </div>
 
                         <div class="col-12">

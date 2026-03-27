@@ -852,6 +852,7 @@ const openVentaModal = async (item = null, forceCierre = false) => {
         ...item, 
         simbolo: item.simbolo || simboloDia.value,
         id_medio_cobro: item.id_medio_cobro || 1, // Por defecto ID 1 al editar/cerrar
+        monto_cobrado: item.monto_cobrado || (item.total_venta || 0),
         articulos: articulosExistentes.map(av => ({
           id_articulo: av.id_articulo,
           nombre: av.articulo_nombre,
