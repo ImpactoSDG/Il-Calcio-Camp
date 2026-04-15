@@ -391,6 +391,21 @@
       </div>
     </div>
 
+    <!-- ── ACORDEÓN: MODO DE IMPRESIÓN ─────────────────────────── -->
+    <div class="accordion-section">
+      <button class="accordion-header" @click="toggleAccordion('modoPrint')">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-arrow-left-right fs-5 text-secondary"></i>
+          <span>MODO DE IMPRESIÓN</span>
+          <span class="badge bg-info text-white fw-bold ms-1">DEV ONLY</span>
+        </div>
+        <i class="bi accordion-chevron" :class="accordion.modoPrint ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+      </button>
+      <div v-show="accordion.modoPrint" class="accordion-body">
+        <PrintModeToggle />
+      </div>
+    </div>
+
     <!-- ── ACORDEÓN: CERTIFICADOS QZ TRAY ─────────────────────────── -->
     <div class="accordion-section">
       <button class="accordion-header" @click="toggleAccordion('certificados')">
@@ -579,6 +594,7 @@ import qzCertificadoService from '@/services/qzCertificadoService';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
+import PrintModeToggle from '@/components/PrintModeToggle.vue';
 import { useToastStore } from '@/stores/toastStore';
 import {
   setupQzSecurity, resetQzSecurity, listarImpresoras,
@@ -597,6 +613,7 @@ const accordion = reactive({
   parametros:  false,
   impresoras:  false,
   maquina:     false,
+  modoPrint:   false,
   certificados: false,
 });
 const toggleAccordion = (key) => { accordion[key] = !accordion[key]; };

@@ -499,7 +499,9 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
-import { setupQzSecurity, ensureQzConnected, imprimirTicketEscPos, getMachineId, syncLocalStorage, getMachinePreferredPrinter, saveMachinePreferredPrinter } from '@/composables/usePrinterConfig';
+import { setupQzSecurity, ensureQzConnected, imprimirTicketEscPos, imprimirTicketConModo, getMachineId, syncLocalStorage, getMachinePreferredPrinter, saveMachinePreferredPrinter } from '@/composables/usePrinterConfig';
+import { usePrinter } from '@/composables/usePrinter';
+import { usePrintModeStore } from '@/stores/printModeStore';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import FuzzySearch from '@/components/FuzzySearch.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
@@ -1013,7 +1015,7 @@ const imprimirTicketDirecto = async (idVenta) => {
     if (!venta) throw new Error("No se pudo recuperar la información de la venta para imprimir.");
 
     const articulosVenta = await ventasService.getArticulosDeVenta(idVenta);
-    await imprimirTicketEscPos({ venta, articulos: articulosVenta });
+    await imprimirTicketConModo({ venta, articulos: articulosVenta });
     toast.showToast({ message: 'Ticket en cola de impresin.', type: 'info' });
   } catch (err) {
     console.error('Error al imprimir ticket:', err);

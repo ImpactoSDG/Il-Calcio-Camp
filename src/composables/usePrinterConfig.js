@@ -284,3 +284,139 @@ export async function imprimirTicketEscPos({ venta, articulos, nombreLocal = 'IL
 
   await qz.print(config, data);
 }
+
+/**
+ * Genera HTML del ticket para impresión o descarga como PDF
+ * Compatible con impresoras térmicas (80mm de ancho)
+ */
+export function generarHtmlTicket({ venta, articulos, nombreLocal = 'IL CALCIO CAMP' }) {
+  const totalGeneral = articulos.reduce((a, i) => a + Number(i.total || 0), 0).toFixed(2);
+
+  const formatFechaLocal = (fecha) => {
+    if (!fecha) return '—';
+    const [y, m, d] = String(fecha).split('T')[0].split('-');
+    return `${d}/${m}/${y}`;
+  };
+
+  const simbolo = venta.simbolo || '';
+
+  const lineasArticulos = articulos.map(a => `
+    <tr>
+      <td style="width: 10%; text-align: center;">${a.cantidad}</td>
+      <td style="width: 60%; text-align: left;">${a.articulo_nombre}</td>
+      <td style="width: 30%; text-align: right;">$${Number(a.total).toFixed(2)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Ticket Venta ${venta.id}</title>
+      <style>
+        * { margin: 0; padding: 0; }
+        body { 
+          font-family: 'Courier New', monospace; 
+          width: 80mm;
+          padding: 5mm;
+          background: white;
+        }
+        .ticket { text-align: center; }
+        .header { 
+          font-weight: bold; 
+          font-size: 14px;
+          margin-bottom: 5px;
+        }
+        .fecha { 
+          font-size: 11px; 
+          margin-bottom: 10px;
+          color: #666;
+        }
+        .separador { 
+          border-top: 1px dashed #000; 
+          margin: 8px 0;
+        }
+        table { 
+          width: 100%; 
+          font-size: 11px;
+          margin: 8px 0;
+        }
+        th { 
+          border-bottom: 1px dashed #000;
+          padding: 3px 0;
+          font-size: 10px;
+        }
+        td { padding: 2px 0; }
+        .total { 
+          font-weight: bold; 
+          font-size: 14px;
+          margin: 10px 0;
+        }
+        .pago { 
+          font-size: 11px;
+          margin: 5px 0;
+        }
+        .footer { 
+          font-size: 12px;
+          margin-top: 10px;
+          font-weight: bold;
+        }
+        @media print {
+          body { width: 80mm; margin: 0; padding: 0; }
+          .no-print { display: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="ticket">
+        <div class="header">${nombreLocal}</div>
+        <div>Venta Nº ${venta.id} ${simbolo}</div>
+        <div class="fecha">Fecha: ${formatFechaLocal(venta.fecha)}</div>
+        <div class="separador"></div>
+        
+        <table>
+          <tr>
+            <th style="text-align: center; width: 10%">CANT</th>
+            <th style="text-align: left; width: 60%">DESCRIPCIÓN</th>
+            <th style="text-align: right; width: 30%">TOTAL</th>
+          </tr>
+          <tr><td colspan="3" style="border-bottom: 1px dashed #000; height: 2px;"></td></tr>
+          ${lineasArticulos}
+        </table>
+        
+        <div class="separador"></div>
+        <div class="total">TOTAL: $${totalGeneral}</div>
+        <div class="pago">Pago: ${venta.medio_cobro_nombre || 'No registrado'}</div>
+        <div class="separador"></div>
+        <div class="footer">¡Gracias por su compra!</div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Imprime ticket respetando el modo configurado (QZ Tray o PDF)
+ */
+export async function imprimirTicketConModo({ venta, articulos, nombreLocal = 'IL CALCIO CAMP' }) {
+  const { usePrintModeStore } = await import('@/stores/printModeStore');
+  const printStore = usePrintModeStore();
+
+  if (printStore.isPrintMode()) {
+    // Modo impresión: usar QZ Tray
+    await imprimirTicketEscPos({ venta, articulos, nombreLocal });
+  } else {
+    // Modo descarga: generar HTML e intentar descargar como PDF
+    const html = generarHtmlTicket({ venta, articulos, nombreLocal });
+    const ventanaImpresion = window.open('', '', 'height=600,width=800');
+    ventanaImpresion.document.write(html);
+    ventanaImpresion.document.close();
+    
+    // Esperar a que el contenido se cargue y luego abrir el diálogo de impresión
+    ventanaImpresion.onload = () => {
+      ventanaImpresion.print();
+    };
+  }
+}
