@@ -88,7 +88,7 @@ class ArticuloController extends BaseController
             // Nombre de archivo limpio: id_nombre_timestamp.extension para evitar sobreescritura y cache
             $cleanName = preg_replace('/[^a-zA-Z0-9]/', '_', $nombreArticulo);
             $fileName = $id . '_' . $cleanName . '_' . time() . '.' . $fileExtension;
-            $uploadPath = __DIR__ . '/../uploads/' . $fileName;
+            $uploadPath = __DIR__ . '/../../uploads/' . $fileName;
 
             if (move_uploaded_file($file['tmp_name'], $uploadPath)) {
                 $urlImagen = 'uploads/' . $fileName;

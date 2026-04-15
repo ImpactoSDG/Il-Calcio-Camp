@@ -22,6 +22,10 @@ const articulosService = {
   // ids: [id1, id2, ...], activo: boolean
   bulkUpdateStatus: (ids, activo) => api.patch('/articulos', { action: 'bulk-status', ids, activo }).then(r => r.data),
 
+  // --- Artículos Vendidos (/articulos-vendidos) ---
+  getArticulosVendidos: (fechaDesde, fechaHasta) =>
+    api.get('/articulos-vendidos', { params: { fecha_desde: fechaDesde, fecha_hasta: fechaHasta } }).then(r => r.data),
+
   // --- Ingresos de Artículo (/ingresos-articulo) ---
   getIngresos: () => api.get('/ingresos-articulo').then(r => r.data),
   getIngresoById: (id) => api.get(`/ingresos-articulo/${id}`).then(r => r.data),

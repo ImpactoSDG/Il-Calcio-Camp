@@ -33,6 +33,7 @@ require_once __DIR__ . '/controllers/instalaciones/EstadoEventoController.php';
 
 // --- Inventario (Stock y Proveedores) ---
 require_once __DIR__ . '/controllers/inventario/CategoriaArticuloController.php';
+require_once __DIR__ . '/controllers/inventario/ArticuloResumenVentaController.php';
 require_once __DIR__ . '/controllers/inventario/ArticuloController.php';
 require_once __DIR__ . '/controllers/inventario/IngresoArticuloController.php';
 require_once __DIR__ . '/controllers/inventario/ArticuloVentaIngresoArticuloController.php';
@@ -99,6 +100,7 @@ $qzCertificadoController       = new QzCertificadoController($db);
 $proveedorController           = new ProveedorController($db);
 $pedidoProveedorController = new PedidoProveedorController($db);
 $pagoProveedorController = new PagoProveedorController($db);
+$articuloResumenVentaController = new ArticuloResumenVentaController($db);
 $simboloDiaController = new SimboloDiaController();
 $registroPublicoController = new RegistroPublicoController($db);
 
@@ -725,6 +727,15 @@ switch ($resource) {
             default:
                 http_response_code(405);
                 break;
+        }
+        break;
+
+    case 'articulos-vendidos':
+        verifyAuth();
+        if ($method === 'GET') {
+            $articuloResumenVentaController->getAll();
+        } else {
+            http_response_code(405);
         }
         break;
 

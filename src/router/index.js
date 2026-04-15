@@ -33,6 +33,7 @@ import EventosView from '@/views/instalaciones/EventosView.vue'
 
 // --- Inventario (Stock y Proveedores) ---
 import ArticulosView from '@/views/inventario/ArticulosView.vue'
+import ArticulosVendidosView from '@/views/inventario/ArticulosVendidosView.vue'
 import CategoriasArticuloView from '@/views/inventario/CategoriasArticuloView.vue'
 import DescontarStockView from '@/views/inventario/DescontarStockView.vue'
 import IngresoArticuloView from '@/views/inventario/IngresoArticuloView.vue'
@@ -123,6 +124,12 @@ const router = createRouter({
       name: 'stock',
       component: StockView,
       meta: { requiresAuth: true, idModulo: 16 }
+    },
+    {
+      path: '/articulos/vendidos',
+      name: 'articulos-vendidos',
+      component: ArticulosVendidosView,
+      meta: { requiresAuth: true, idModulo: 32 }
     },
     {
       path: '/articulos/descontar-stock',
