@@ -18,7 +18,7 @@ class Venta
     public function getAll(): array
     {
         $sql = "SELECT v.id, v.fecha, v.id_equipo, v.descripcion_cliente, v.id_estado_venta, 
-                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste,
+                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste, v.facturada,
                        ev.descripcion AS estado_descripcion,
                        c.nombre_cliente AS cliente_nombre,
                        e.nombre AS equipo_nombre,
@@ -65,7 +65,7 @@ class Venta
     public function getById(int $id): ?array
     {
         $sql = "SELECT v.id, v.fecha, v.id_equipo, v.descripcion_cliente, v.id_estado_venta, 
-                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste,
+                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste, v.facturada,
                        ev.descripcion AS estado_descripcion,
                        c.nombre_cliente AS cliente_nombre,
                        e.nombre AS equipo_nombre,
@@ -282,9 +282,12 @@ class Venta
             // Calculamos el total de la venta de los items
             $totalVentaCalculado = array_sum(array_column($articulos, 'total'));
             
-            if ($data['id_estado_venta'] == $data['id_estado_cerrada'] || !empty($data['monto_cobrado'])) {
+            $idEstadoCerrada = $data['id_estado_cerrada'] ?? 0;
+            $idEstadoPausa   = $data['id_estado_pausa'] ?? 0;
+
+            if ((int)$data['id_estado_venta'] === (int)$idEstadoCerrada || !empty($data['monto_cobrado'])) {
                 // Solo registramos pago si hay un medio de cobro seleccionado Y el estado NO es pausa
-                if (!empty($data['id_medio_cobro']) && (int)$data['id_estado_venta'] !== (int)($data['id_estado_pausa'] ?? 0)) {
+                if (!empty($data['id_medio_cobro']) && (int)$data['id_estado_venta'] !== (int)$idEstadoPausa) {
                     $montoARegistrar = $data['monto_cobrado'] ?? $totalVentaCalculado;
                     if ($montoARegistrar > 0) {
                         // En la UNIÓN inicial o creación, es esAditivo = false porque el usuario está definiendo el monto total cobrado en ese momento

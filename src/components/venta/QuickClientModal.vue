@@ -28,6 +28,19 @@
           </div>
 
           <div class="mb-4">
+            <label class="form-label fw-semibold text-secondary small mb-1">DNI / CUIT <span class="text-danger">*</span></label>
+            <input 
+              ref="dniInputRef"
+              v-model="dni_cuit" 
+              type="text" 
+              class="form-control border-2 py-2 px-3 rounded-3" 
+              placeholder="Ej: 23123456789 (CUIT) o 23456789 (DNI)"
+              @keydown.enter.prevent="nextPhoneInput"
+            />
+            <small class="text-muted d-block mt-1">Requerido para emitir facturas electrónicas</small>
+          </div>
+
+          <div class="mb-4">
             <label class="form-label fw-semibold text-secondary small mb-1">Teléfono (Opcional)</label>
             <input 
               ref="phoneInputRef"
@@ -78,7 +91,8 @@
             @click="crearNuevo" 
             type="button" 
             class="btn btn-primary px-4 py-2 rounded-3 fw-bold flex-fill"
-            :disabled="!nombre.trim() || duplicados.length > 0"
+            :disabled="!nombre.trim() || !dni_cuit.trim() || duplicados.length > 0"
+            :title="!nombre.trim() ? 'Ingrese nombre' : !dni_cuit.trim() ? 'Ingrese DNI/CUIT' : 'Crear cliente'"
           >
             CONFIRMAR
           </button>
@@ -102,14 +116,17 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'confirm']);
 
 const nombre = ref('');
+const dni_cuit = ref('');
 const telefono = ref('');
 const nameInputRef = ref(null);
+const dniInputRef = ref(null);
 const phoneInputRef = ref(null);
 const duplicados = ref([]);
 
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
     nombre.value = '';
+    dni_cuit.value = '';
     telefono.value = '';
     duplicados.value = [];
     nextTick(() => {
@@ -141,10 +158,11 @@ const seleccionarExistente = (cliente) => {
 };
 
 const crearNuevo = () => {
-  if (!nombre.value.trim()) return;
+  if (!nombre.value.trim() || !dni_cuit.value.trim()) return;
   emit('confirm', { 
     id: 'temp-' + Date.now(), 
-    nombre_cliente: nombre.value.trim(), 
+    nombre_cliente: nombre.value.trim(),
+    cuit_dni: dni_cuit.value.trim(),
     telefono: telefono.value.trim(),
     isNew: true 
   });
@@ -153,6 +171,12 @@ const crearNuevo = () => {
 
 const nextInput = () => {
   if (nombre.value.trim()) {
+    dniInputRef.value?.focus();
+  }
+};
+
+const nextPhoneInput = () => {
+  if (dni_cuit.value.trim()) {
     phoneInputRef.value?.focus();
   }
 };

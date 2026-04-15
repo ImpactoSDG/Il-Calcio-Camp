@@ -42,7 +42,7 @@
                       <div class="d-flex gap-1 w-100">
                         <button
                           type="button"
-                          @click="cambiarEstado(props.idEstadoCerrada)"
+                          @click="cambiarEstado(VENTA_STATES.CERRADA)"
                           class="btn btn-sm flex-fill py-2 fw-bold"
                           :class="esCerrada ? 'btn-dark text-white' : 'btn-outline-secondary'"
                           style="font-size: 0.72rem;"
@@ -52,7 +52,7 @@
                         </button>
                         <button
                           type="button"
-                          @click="cambiarEstado(props.idEstadoAbierta)"
+                          @click="cambiarEstado(VENTA_STATES.ABIERTA)"
                           class="btn btn-sm flex-fill py-2 fw-bold"
                           :class="esAbierta ? 'btn-primary text-white' : 'btn-outline-primary'"
                           style="font-size: 0.72rem;"
@@ -62,7 +62,7 @@
                         </button>
                         <button
                           type="button"
-                          @click="cambiarEstado(props.idEstadoPausa)"
+                          @click="cambiarEstado(VENTA_STATES.PAUSA)"
                           class="btn btn-sm flex-fill py-2 fw-bold"
                           :class="esPausa ? 'btn-warning text-dark' : 'btn-outline-warning'"
                           style="font-size: 0.72rem;"
@@ -173,13 +173,29 @@
                   </h6>
 
                   <div class="bg-white border-2 rounded-4 p-3 border shadow-sm">
+                    <!-- Checkbox Facturación -->
+                    <div v-if="!isAjuste && esCerrada" class="form-check mb-3 pb-3 border-bottom">
+                      <input 
+                        id="chkFacturar" 
+                        v-model="facturar" 
+                        type="checkbox" 
+                        class="form-check-input cursor-pointer" 
+                        style="width: 1.5em; height: 1.5em;"
+                        :disabled="!puedeFacturar"
+                        :title="mensajeFacturacion"
+                      />
+                      <label class="form-check-label fw-semibold text-secondary small ms-2 cursor-pointer" for="chkFacturar" :class="{ 'opacity-50': !puedeFacturar }">
+                        Emitir factura AFIP
+                      </label>
+                    </div>
+
                     <div class="d-flex justify-content-between align-items-center mb-2">
                       <span class="text-secondary fw-medium">{{ isAjuste ? 'Items a ajustar' : 'Subtotal' }}</span>
-                      <span class="text-dark fw-bold">{{ isAjuste ? articulosCarrito.length : ('$' + formatMoney(totalCarrito)) }}</span>
+                      <span class="text-dark fw-bold">{{ isAjuste ? articulosCarrito.length : ('$' + formatMoney(subtotal.toFixed(2))) }}</span>
                     </div>
-                    <div v-if="!isAjuste" class="d-flex justify-content-between align-items-center mb-2">
-                      <span class="text-secondary fw-medium">IVA (Total)</span>
-                      <span class="text-dark fw-bold">$ 0,00</span>        
+                    <div v-if="!isAjuste" class="d-flex justify-content-between align-items-center mb-2" :class="{ 'opacity-50': !facturar }">
+                      <span class="text-secondary fw-medium">IVA (21%)</span>
+                      <span class="text-dark fw-bold">${{ formatMoney(totalIVA) }}</span>        
                     </div>
                     <div :class="{ 'border-top border-2 pt-2 mt-2': true, 'd-flex justify-content-between align-items-center': true, 'opacity-50': isAjuste }">
                       <span class="text-dark fw-black fs-5">{{ isAjuste ? 'AJUSTE' : 'TOTAL' }}</span>   
@@ -395,9 +411,11 @@
 import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
 import { useToastStore } from '@/stores/toastStore';
 import { formatMoney } from '@/utils/formatters';
+import { VENTA_STATES } from '@/constants/states';
 import QuickClientModal from '@/components/venta/QuickClientModal.vue';
 import QuickAssignTeamModal from '@/components/venta/QuickAssignTeamModal.vue';
 import FuzzySearch from '@/components/FuzzySearch.vue';
+import facturaService from '@/services/comercial/facturaService';
 
 const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost/Il-Calcio-Camp/api';
 
@@ -426,6 +444,7 @@ const form = ref({});
 const montoEntregadoRef = ref(null);
 const articulosCarrito = ref([]);
 const queryCliente = ref('');
+const facturar = ref(false);
 
 const onClienteSelected = (cliente) => {
   form.value.id_cliente = cliente?.id || null;
@@ -511,7 +530,7 @@ watch(() => props.modelValue, (isOpen) => {
     }
     
     if (!props.isEditing) {
-      form.value.id_estado_venta = props.idEstadoCerrada;
+      form.value.id_estado_venta = VENTA_STATES.CERRADA;
       form.value.tipo_vta = 1; // Común
       if (!form.value.fecha) {
         form.value.fecha = new Date().toISOString().split('T')[0];
@@ -557,7 +576,7 @@ watch(() => articulosCarrito.value.length, () => {
 
 // Asegurar valores por defecto para nuevas ventas
 if (!props.isEditing) {
-  form.value.id_estado_venta = props.idEstadoCerrada;
+  form.value.id_estado_venta = VENTA_STATES.CERRADA;
   form.value.tipo_vta = 1; // Común
   if (!form.value.fecha) {
     form.value.fecha = new Date().toISOString().split('T')[0];
@@ -599,31 +618,45 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydownGlobal);
 });
 
-const esCerrada = computed(() => form.value.id_estado_venta === props.idEstadoCerrada);
-const esPausa = computed(() => form.value.id_estado_venta === props.idEstadoPausa);
+const esCerrada = computed(() => form.value.id_estado_venta === VENTA_STATES.CERRADA);
+const esPausa = computed(() => form.value.id_estado_venta === VENTA_STATES.PAUSA);
 const esAbierta = computed(() => !esCerrada.value && !esPausa.value);
 const esCuentaCorriente = computed(() => form.value.tipo_vta === 0);
 
-const totalCarrito = computed(() =>
-  articulosCarrito.value.reduce((acc, i) => acc + Number(i.total || 0), 0).toFixed(2)
+const subtotal = computed(() =>
+  articulosCarrito.value.reduce((acc, i) => acc + Number(i.total || 0), 0)
 );
 
+const totalIVA = computed(() => {
+  if (facturar.value && !props.isAjuste) {
+    return (subtotal.value * 0.21).toFixed(2);
+  }
+  return '0.00';
+});
+
+const totalCarrito = computed(() => {
+  if (facturar.value && !props.isAjuste) {
+    return (subtotal.value + Number(totalIVA.value)).toFixed(2);
+  }
+  return subtotal.value.toFixed(2);
+});
+
 // esAbierto mantiene compatibilidad: true cuando NO está cerrada (incluye pausa y abierta)
-const esAbierto = computed(() => form.value.id_estado_venta !== props.idEstadoCerrada);
+const esAbierto = computed(() => form.value.id_estado_venta !== VENTA_STATES.CERRADA);
 
 // Mantenido por compatibilidad legacy — ya no se usa con el nuevo selector de 3 estados
 const toggleEstadoVenta = (abierto) => {
   if (abierto) {
-    form.value.id_estado_venta = props.idEstadoAbierta || null;
+    form.value.id_estado_venta = VENTA_STATES.ABIERTA;
     form.value.tipo_vta = 0;
   } else {
-    form.value.id_estado_venta = props.idEstadoCerrada;
+    form.value.id_estado_venta = VENTA_STATES.CERRADA;
     form.value.tipo_vta = form.value.id_cliente ? 0 : 1;
   }
 };
 
 const cambiarEstado = (id) => {
-  if (id !== props.idEstadoCerrada) {
+  if (id !== VENTA_STATES.CERRADA) {
     // Si se selecciona abierta, forzar a "A Cuenta"
     form.value.tipo_vta = 0; 
   }
@@ -657,6 +690,27 @@ const puedeGuardar = computed(() => {
   const clienteOK = esAbierta.value ? !!form.value.id_cliente : true;
   
   return cabeceraOK && itemsOK && stockOK && pagoOK && clienteOK;
+});
+
+const puedeFacturar = computed(() => {
+  if (props.isAjuste) return false;
+  if (!esCerrada.value) return false;
+  const cliente = clienteSeleccionado.value;
+  if (!cliente) return false;
+  const tieneDNI = !!cliente.cuit_dni || !!cliente.dni_cliente;
+  const tieneCondicionIva = !!cliente.id_condicion_iva_receptor;
+  return tieneDNI && tieneCondicionIva;
+});
+
+const mensajeFacturacion = computed(() => {
+  if (props.isAjuste) return 'No aplica a ajustes';
+  if (!esCerrada.value) return 'Solo en ventas cerradas';
+  const cliente = clienteSeleccionado.value;
+  if (!cliente) return 'Requiere cliente';
+  const tieneDNI = !!cliente.cuit_dni || !!cliente.dni_cliente;
+  if (!tieneDNI) return 'Cliente sin DNI/CUIT';
+  if (!cliente.id_condicion_iva_receptor) return 'Cliente sin condición IVA';
+  return '';
 });
 
 const onQueryArticulo = () => {
@@ -804,8 +858,20 @@ const handleKeydownGlobal = (e) => {
   }
 };
 
-const handleSave = () => emit('save', { venta: form.value, articulos: articulosCarrito.value });
-const closeModal = () => emit('update:modelValue', false);
+const handleSave = async () => {
+  // Emitir el evento de guardar venta al padre (VentasView.vue)
+  // El padre se encarga de llamar al servicio y devolver el ID creado o editado
+  emit('save', { 
+    venta: form.value, 
+    articulos: articulosCarrito.value,
+    facturar: facturar.value && !props.isAjuste // Pasamos la intención de facturar
+  });
+};
+
+const closeModal = () => {
+  facturar.value = false;
+  emit('update:modelValue', false);
+};
 </script>
 
 <style scoped>

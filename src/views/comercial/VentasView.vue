@@ -499,6 +499,8 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { useToastStore } from '@/stores/toastStore';
+import { VENTA_STATES } from '@/constants/states';
 import { setupQzSecurity, ensureQzConnected, imprimirTicketEscPos, imprimirTicketConModo, getMachineId, syncLocalStorage, getMachinePreferredPrinter, saveMachinePreferredPrinter } from '@/composables/usePrinterConfig';
 import { usePrinter } from '@/composables/usePrinter';
 import { usePrintModeStore } from '@/stores/printModeStore';
@@ -514,7 +516,7 @@ import datosMaestrosService from '@/services/datosMaestrosService';
 import configuracionService from '@/services/usuarios/configuracionService';
 import impresoraTiqueteraService from '@/services/impresoraTiqueteraService';
 import qzCertificadoService from '@/services/qzCertificadoService';
-import { useToastStore } from '@/stores/toastStore';
+import facturaService from '@/services/comercial/facturaService';
 import { useUserStore } from '@/stores/userStore';
 import { formatMoney } from '@/utils/formatters';
 
@@ -542,15 +544,9 @@ const totalVentaParaImprimir = computed(() =>
   formatMoney(articulosDeVentaParaImprimir.value.reduce((acc, av) => acc + Number(av.total || 0), 0))
 );
 
-const ID_ESTADO_ABIERTA = computed(() =>
-  estadosVenta.value.find(e => e.descripcion?.toLowerCase().includes('abierta'))?.id ?? 1
-);
-const ID_ESTADO_CERRADA = computed(() =>
-  estadosVenta.value.find(e => e.descripcion?.toLowerCase().includes('cerrada'))?.id ?? 2
-);
-const ID_ESTADO_PAUSA = computed(() =>
-  estadosVenta.value.find(e => e.descripcion?.toLowerCase().includes('pausa'))?.id ?? 4
-);
+const ID_ESTADO_ABIERTA = VENTA_STATES.ABIERTA;  // 2
+const ID_ESTADO_CERRADA = VENTA_STATES.CERRADA; // 3
+const ID_ESTADO_PAUSA = VENTA_STATES.PAUSA;     // 4
 const ID_CUENTA_CORRIENTE = computed(() =>
   mediosCobro.value.find(m => m.descripcion?.toLowerCase().includes('cuenta corriente'))?.id ?? null
 );
@@ -632,6 +628,9 @@ const ventaForm = ref(emptyVentaForm());
 const tempQuickClient = ref(null);
 
 const handleQuickClientCreated = (cliente) => {
+  // Asignar condición IVA por defecto: ID 2 = Consumidor Final (AFIP 5)
+  cliente.id_condicion_iva_receptor = 2;
+  
   tempQuickClient.value = cliente;
   // Agregarlo a la lista local para que aparezca en el select del modal
   clientes.value.push(cliente);
@@ -732,10 +731,10 @@ const ventasFiltradas = computed(() => {
 });
 
 const ventasAbiertas = computed(() =>
-  ventasFiltradas.value.filter(v => Number(v.id_estado_venta) === Number(ID_ESTADO_ABIERTA.value))
+  ventasFiltradas.value.filter(v => Number(v.id_estado_venta) === ID_ESTADO_ABIERTA)
 );
 const ventasCerradas = computed(() =>
-  ventasFiltradas.value.filter(v => Number(v.id_estado_venta) === Number(ID_ESTADO_CERRADA.value))
+  ventasFiltradas.value.filter(v => Number(v.id_estado_venta) === ID_ESTADO_CERRADA)
 );
 
 // Ventas en pausa: mostrar todas (sin filtro de fecha) para no perder ventas pausadas de días anteriores
@@ -744,7 +743,7 @@ const ventasEnPausa = computed(() => {
     ...v,
     total_venta: Number(v.total_venta || 0).toFixed(2)
   }));
-  items = items.filter(v => Number(v.id_estado_venta) === Number(ID_ESTADO_PAUSA.value));
+  items = items.filter(v => Number(v.id_estado_venta) === ID_ESTADO_PAUSA);
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase();
     items = items.filter(v =>
@@ -758,7 +757,7 @@ const ventasEnPausa = computed(() => {
 
 const ventasAbiertasAntiguas = computed(() =>
   ventas.value
-    .filter(v => v.id_estado_venta && Number(v.id_estado_venta) === Number(ID_ESTADO_ABIERTA.value))
+    .filter(v => v.id_estado_venta && Number(v.id_estado_venta) === ID_ESTADO_ABIERTA)
     .filter(v => esVentaAntigua(v.fecha))
 );
 
@@ -895,8 +894,8 @@ const iniciarCierreVenta = (venta) => {
   openVentaModal(venta, true);
 };
 
-const handleSaveVenta = async ({ venta, articulos: articulosCarrito }) => {
-  if (isSaving.value) return; // Evitar mltiples clicks
+const handleSaveVenta = async ({ venta, articulos: articulosCarrito, facturar }) => {
+  if (isSaving.value) return; // Evitar múltiples clicks
   isSaving.value = true;
   try {
     // 1. Si hay un cliente temporal asignado a esta venta, crearlo primero
@@ -904,7 +903,7 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito }) => {
       try {
         const respNuevo = await clientesService.crearCliente({
           nombre_cliente: tempQuickClient.value.nombre_cliente,
-          id_condicion_iva_receptor: 1, // Consumidor Final por defecto
+          id_condicion_iva_receptor: 2, // Consumidor Final por defecto (ID 2)
           id_provincia: 1,
           condicion_iva: 'Consumidor Final',
           direccion: '',
@@ -916,7 +915,7 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito }) => {
         // El ID real viene en respNuevo.id (o respNuevo si la API solo devuelve el objeto)
         const nuevoId = respNuevo.id || respNuevo;
 
-        // Si el cliente temporal tena un equipo asignado, guardarlo ahora en la DB
+        // Si el cliente temporal tenía un equipo asignado, guardarlo ahora en la DB
         if (tempQuickClient.value.id_equipo) {
           try {
             await clientesService.crearClienteEquipo({ 
@@ -937,8 +936,8 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito }) => {
       }
     }
 
-    const esCerrada = Number(venta.id_estado_venta) === Number(ID_ESTADO_CERRADA.value);
-    const esPausaVenta = Number(venta.id_estado_venta) === Number(ID_ESTADO_PAUSA.value);
+    const esCerrada = Number(venta.id_estado_venta) === Number(ID_ESTADO_CERRADA);
+    const esPausaVenta = Number(venta.id_estado_venta) === Number(ID_ESTADO_PAUSA);
     const medioCobroDesc = mediosCobro.value.find(m => m.id === venta.id_medio_cobro)?.descripcion ?? '';
     let idVenta = null;
     
@@ -948,8 +947,8 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito }) => {
     const payload = {
       ...venta,
       tipo_vta: esCerrada ? medioCobroDesc : '',
-      id_estado_cerrada: ID_ESTADO_CERRADA.value, // Enviamos el ID para lógica backend
-      id_estado_pausa: ID_ESTADO_PAUSA.value,     // Para que el backend omita el descuento de stock
+      id_estado_cerrada: ID_ESTADO_CERRADA, // Enviamos el ID para lógica backend
+      id_estado_pausa: ID_ESTADO_PAUSA,     // Para que el backend omita el descuento de stock
       monto_cobrado: esCerrada ? (venta.monto_cobrado || Number(totalCarritoCalculado)) : 0,
       articulos: (articulosCarrito || []).map(i => ({
         id_articulo: i.id_articulo,
@@ -975,6 +974,23 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito }) => {
     // El fetchData() puede tardar en producción, por lo que idVenta es nuestra única verdad inmediata
     await fetchData();
 
+    // 2. Facturación AFIP si se solicitó
+    if (facturar && esCerrada && idVenta && !esPausaVenta) {
+      toast.showToast({ message: 'Emitiendo factura AFIP...', type: 'info' });
+      try {
+        const factRes = await facturaService.facturarVenta(idVenta);
+        if (factRes.success) {
+          toast.showToast({ message: `Factura CAE: ${factRes.cae}`, type: 'success' });
+        } else {
+          toast.showToast({ message: `Error AFIP: ${factRes.message || factRes.error}`, type: 'danger' });
+        }
+      } catch (errFact) {
+        console.error('Error al facturar:', errFact);
+        toast.showToast({ message: 'Error de conexión con AFIP.', type: 'danger' });
+      }
+    }
+
+    // 3. Impresión de Ticket
     if (esCerrada && idVenta && !esPausaVenta) {
       await imprimirTicketDirecto(idVenta);
     }

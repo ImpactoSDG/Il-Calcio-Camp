@@ -49,6 +49,7 @@ require_once __DIR__ . '/controllers/comercial/ArticuloVentaController.php';
 require_once __DIR__ . '/controllers/comercial/CobroController.php';
 require_once __DIR__ . '/controllers/comercial/VentaCobroController.php';
 require_once __DIR__ . '/controllers/comercial/TicketVentaController.php';
+require_once __DIR__ . '/controllers/comercial/FacturaController.php';
 
 // --- Hardware ---
 require_once __DIR__ . '/controllers/hardware/ImpresoraTiqueteraController.php';
@@ -103,6 +104,7 @@ $pagoProveedorController = new PagoProveedorController($db);
 $articuloResumenVentaController = new ArticuloResumenVentaController($db);
 $simboloDiaController = new SimboloDiaController();
 $registroPublicoController = new RegistroPublicoController($db);
+$facturaController = new FacturaController($db);
 
 function verifyAuth(): array {
     $headers = getallheaders();
@@ -766,6 +768,30 @@ switch ($resource) {
             default:
                 http_response_code(405);
                 break;
+        }
+        break;
+
+    // --- Facturación electrónica AFIP ---
+
+    case 'facturar-venta':
+        verifyAuth();
+        if ($method === 'POST') {
+            $facturaController->facturarVenta();
+        } else {
+            http_response_code(405);
+        }
+        break;
+
+    case 'facturas':
+        verifyAuth();
+        if ($method === 'GET' && $id) {
+            $_GET['id'] = $id;
+            $facturaController->getById();
+        } elseif ($method === 'PUT' && $id) {
+            $_GET['id'] = $id;
+            $facturaController->updateReceptor();
+        } else {
+            http_response_code(405);
         }
         break;
 

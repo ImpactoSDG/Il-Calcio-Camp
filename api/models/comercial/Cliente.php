@@ -17,7 +17,7 @@ class Cliente
      */
     public function getAll(): array
     {
-        $sql = "SELECT c.id, c.nombre_cliente, c.condicion_iva, c.id_condicion_iva_receptor, 
+        $sql = "SELECT c.id, c.nombre_cliente, c.cuit_dni, c.condicion_iva, c.id_condicion_iva_receptor, 
                        c.direccion, c.id_provinica,
                        cir.descripcion_condicion AS condicion_iva_descripcion,
                        p.provincia AS provincia_nombre,
@@ -65,7 +65,7 @@ class Cliente
      */
     public function getById(int $id): ?array
     {
-        $sql = "SELECT c.id, c.nombre_cliente, c.condicion_iva, c.id_condicion_iva_receptor, 
+        $sql = "SELECT c.id, c.nombre_cliente, c.cuit_dni, c.condicion_iva, c.id_condicion_iva_receptor, 
                        c.direccion, c.id_provinica,
                        cir.descripcion_condicion AS condicion_iva_descripcion,
                        p.provincia AS provincia_nombre,
@@ -87,7 +87,7 @@ class Cliente
      */
     public function getByProvincia(int $idProvincia): array
     {
-        $sql = "SELECT c.id, c.nombre_cliente, c.condicion_iva, c.id_condicion_iva_receptor, 
+        $sql = "SELECT c.id, c.nombre_cliente, c.cuit_dni, c.condicion_iva, c.id_condicion_iva_receptor, 
                        c.direccion, c.id_provinica,
                        cir.descripcion_condicion AS condicion_iva_descripcion,
                        p.provincia AS provincia_nombre
