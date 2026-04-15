@@ -33,68 +33,26 @@
               :min="fechaDesde"
             />
           </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label small fw-semibold text-secondary mb-1">Buscar artículo</label>
+            <input
+              v-model="busqueda"
+              type="text"
+              class="form-control form-control-sm"
+              placeholder="Ingresá el nombre..."
+            />
+          </div>
           <div class="col-12 col-md-2">
             <button
-              @click="cargar"
-              class="btn btn-primary-modern w-100"
-              :disabled="cargando"
+              @click="resetFiltros"
+              class="btn btn-outline-secondary w-100 shadow-sm"
+              title="Limpiar filtros"
             >
-              <span v-if="cargando" class="spinner-border spinner-border-sm me-1" role="status"></span>
-              <i v-else class="bi bi-search me-1"></i>
-              Consultar
+              <i class="bi bi-arrow-counterclockwise me-1"></i> Limpiar filtros
             </button>
           </div>
-          <div class="col-12 col-md-4 d-flex align-items-end">
-            <span v-if="consultado" class="text-muted small">
-              <i class="bi bi-info-circle me-1"></i>
-              Período: <strong>{{ formatFecha(fechaDesde) }}</strong> al <strong>{{ formatFecha(fechaHasta) }}</strong>
-            </span>
-          </div>
         </div>
       </div>
-    </div>
-
-    <!-- Tarjetas resumen -->
-    <div v-if="consultado" class="row g-3 mb-4">
-      <div class="col-6 col-md-3">
-        <div class="resumen-card resumen-card--primary">
-          <div class="resumen-card__icon"><i class="bi bi-box-seam"></i></div>
-          <div class="resumen-card__value">{{ stats.totalArticulos }}</div>
-          <div class="resumen-card__label">Artículos activos</div>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="resumen-card resumen-card--success">
-          <div class="resumen-card__icon"><i class="bi bi-cart-check"></i></div>
-          <div class="resumen-card__value">{{ formatNum(stats.totalVendido) }}</div>
-          <div class="resumen-card__label">Unidades vendidas</div>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="resumen-card resumen-card--info">
-          <div class="resumen-card__icon"><i class="bi bi-boxes"></i></div>
-          <div class="resumen-card__value">{{ formatNum(stats.totalStock) }}</div>
-          <div class="resumen-card__label">Stock total hasta "hasta"</div>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="resumen-card resumen-card--warning">
-          <div class="resumen-card__icon"><i class="bi bi-exclamation-triangle"></i></div>
-          <div class="resumen-card__value">{{ stats.sinStock }}</div>
-          <div class="resumen-card__label">Sin stock al cierre</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Barra de búsqueda -->
-    <div v-if="consultado" class="mb-3">
-      <input
-        v-model="busqueda"
-        type="text"
-        class="form-control form-control-sm w-auto"
-        placeholder="Buscar artículo..."
-        style="min-width: 260px;"
-      />
     </div>
 
     <!-- Cargando -->
@@ -120,24 +78,20 @@
     <div v-else class="card border-0 shadow-sm rounded-4">
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th class="ps-4 py-3 fw-semibold text-secondary small">ARTÍCULO</th>
-              <th class="py-3 text-end fw-semibold text-secondary small" style="min-width:140px;">
-                VENDIDO EN PERÍODO
-              </th>
-              <th class="py-3 pe-4 text-end fw-semibold text-secondary small" style="min-width:160px;">
-                STOCK AL CIERRE
-              </th>
-            </tr>
-          </thead>
+          <SortableTableHead
+            :columns="columnas"
+            :sort-key="sortKey"
+            :sort-dir="sortDir"
+            @sort="handleSort"
+          />
           <tbody>
-            <tr
-              v-for="item in filasFiltradas"
-              :key="item.id"
-              :class="{ 'table-danger': item.stock_disponible <= 0 }"
-            >
-              <!-- Artículo -->
+              <tr
+                v-for="item in filasFiltradas"
+                :key="item.id"
+                @click="verDetalle(item)"
+                class="cursor-pointer"
+              >
+                <!-- Artículo -->
               <td class="ps-4 py-2">
                 <div class="d-flex align-items-center gap-2">
                   <img
@@ -183,13 +137,61 @@
       </div>
     </div>
 
+    <!-- Modal Detalle de Ventas -->
+    <div v-if="artSeleccionado" class="modal-backdrop fade show"></div>
+    <div v-if="artSeleccionado" class="modal fade show d-block" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+          <div class="modal-header border-0 pb-0">
+            <h6 class="modal-title fw-bold text-secondary">DETALLE DE VENTAS</h6>
+            <button type="button" class="btn-close" @click="artSeleccionado = null"></button>
+          </div>
+          <div class="modal-body">
+            <div class="text-center mb-3">
+              <span class="badge bg-primary-subtle text-primary rounded-pill px-3">{{ artSeleccionado.nombre }}</span>
+            </div>
+            
+            <div v-if="cargandoDetalle" class="text-center py-4">
+              <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+            </div>
+            
+            <div v-else-if="detalleVentas.length === 0" class="text-center py-4 text-muted small">
+              No hay registros detallados.
+            </div>
+            
+            <div v-else class="table-responsive" style="max-height: 300px;">
+              <table class="table table-sm table-borderless align-middle mb-0">
+                <thead class="bg-light sticky-top">
+                  <tr>
+                    <th class="small fw-semibold text-secondary">FECHA</th>
+                    <th class="small fw-semibold text-secondary text-end">CANT.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(v, idx) in detalleVentas" :key="idx" class="border-bottom-custom">
+                    <td class="small py-2">{{ formatFecha(v.fecha) }}</td>
+                    <td class="small py-2 text-end fw-bold text-success">{{ formatNum(v.cantidad) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer border-0 pt-0">
+            <button type="button" class="btn btn-light btn-sm w-100 rounded-3" @click="artSeleccionado = null">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
 import articulosService from '@/services/inventario/articulosService';
 import { useToastStore } from '@/stores/toastStore';
+import { fusionSearch } from '@/utils/searchUtils';
 
 const toast = useToastStore();
 
@@ -203,6 +205,21 @@ const consultado = ref(false);
 const busqueda   = ref('');
 const datos      = ref([]);
 
+// Detalle modal
+const artSeleccionado = ref(null);
+const detalleVentas   = ref([]);
+const cargandoDetalle = ref(false);
+
+// ── Ordenamiento ─────────────────────────────────────────────────────────────
+
+const { sortKey, sortDir, handleSort, sortItems } = useSorting('cantidad_vendida', 'desc');
+
+const columnas = [
+  { key: 'nombre', label: 'ARTÍCULO', sortable: true, thClass: 'ps-4' },
+  { key: 'cantidad_vendida', label: 'VENDIDO EN PERÍODO', sortable: true, thClass: 'text-end', thStyle: 'min-width:140px;' },
+  { key: 'stock_disponible', label: 'STOCK AL CIERRE', sortable: true, thClass: 'pe-4 text-end', thStyle: 'min-width:160px;' },
+];
+
 // ── Carga ────────────────────────────────────────────────────────────────────
 
 const cargar = async () => {
@@ -211,7 +228,7 @@ const cargar = async () => {
   try {
     datos.value = await articulosService.getArticulosVendidos(fechaDesde.value, fechaHasta.value);
     consultado.value = true;
-    busqueda.value = '';
+    // busqueda.value = ''; // Se elimina para que persista el texto buscado
   } catch (e) {
     toast.error(e?.response?.data?.message ?? 'Error al consultar artículos vendidos.');
   } finally {
@@ -219,25 +236,71 @@ const cargar = async () => {
   }
 };
 
+const verDetalle = async (item) => {
+  artSeleccionado.value = item;
+  cargandoDetalle.value = true;
+  detalleVentas.value = [];
+  try {
+    const data = await articulosService.getDetalleVentaArticulo(
+      item.id,
+      fechaDesde.value,
+      fechaHasta.value
+    );
+    
+    console.log('Detalle de ventas recibido:', data);
+    
+    // Asegurar que los datos tienen el formato correcto
+    if (Array.isArray(data)) {
+      detalleVentas.value = data.map(v => ({
+        fecha: v.fecha || '',
+        cantidad: parseFloat(v.cantidad_total) || parseFloat(v.cantidad) || 0
+      }));
+    } else {
+      detalleVentas.value = [];
+    }
+  } catch (e) {
+    console.error('Error en verDetalle:', e);
+    toast.error('No se pudo cargar el detalle de ventas.');
+    detalleVentas.value = [];
+  } finally {
+    cargandoDetalle.value = false;
+  }
+};
+
+const resetFiltros = () => {
+  const hoy = new Date().toISOString().slice(0, 10);
+  fechaDesde.value = hoy;
+  fechaHasta.value = hoy;
+  busqueda.value = '';
+};
+
+// ── Observadores ─────────────────────────────────────────────────────────────
+
+watch([fechaDesde, fechaHasta], () => {
+  cargar();
+});
+
+onMounted(() => {
+  cargar();
+});
+
 // ── Computed ──────────────────────────────────────────────────────────────────
 
 const filasFiltradas = computed(() => {
-  const q = busqueda.value.trim().toLowerCase();
-  if (!q) return datos.value;
-  return datos.value.filter(i => i.nombre.toLowerCase().includes(q));
+  const q = busqueda.value.trim();
+  const filtrados = q 
+    ? fusionSearch(datos.value, q, ['nombre'])
+    : datos.value;
+    
+  return sortItems(filtrados);
 });
-
-const stats = computed(() => ({
-  totalArticulos: datos.value.length,
-  totalVendido:   datos.value.reduce((s, i) => s + i.cantidad_vendida, 0),
-  totalStock:     datos.value.reduce((s, i) => s + i.stock_disponible, 0),
-  sinStock:       datos.value.filter(i => i.stock_disponible <= 0).length,
-}));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const formatNum = (n) => {
+  if (n === null || n === undefined || n === '') return '0';
   const num = Number(n);
+  if (isNaN(num)) return '0';
   return Number.isInteger(num) ? num.toString() : num.toFixed(2);
 };
 
@@ -286,24 +349,21 @@ const stockClass = (stock) => {
   opacity: 0.65;
 }
 
-/* Tarjetas resumen */
-.resumen-card {
-  border-radius: 1rem;
-  padding: 1.1rem 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
-  text-align: center;
-}
-.resumen-card__icon { font-size: 1.5rem; }
-.resumen-card__value { font-size: 1.6rem; font-weight: 700; line-height: 1; }
-.resumen-card__label { font-size: 0.75rem; color: #6c757d; }
-
-.resumen-card--primary  { background: #eef2ff; color: #4361ee; }
-.resumen-card--success  { background: #d1fae5; color: #065f46; }
-.resumen-card--info     { background: #e0f2fe; color: #0369a1; }
-.resumen-card--warning  { background: #fef9c3; color: #854d0e; }
-
 .fs-xs { font-size: 0.8rem; }
+
+.cursor-pointer { cursor: pointer; }
+.border-bottom-custom { border-bottom: 1px solid #f1f3f5; }
+
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 1040;
+}
+.modal {
+  z-index: 1050;
+}
 </style>

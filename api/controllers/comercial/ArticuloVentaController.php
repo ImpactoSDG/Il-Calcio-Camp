@@ -16,16 +16,28 @@ class ArticuloVentaController extends BaseController
     }
 
     /**
-     * Obtiene todos los artículos de ventas o por venta
+     * Obtiene todos los artículos de ventas o por venta/artículo/período
      */
     public function getAll(): void
     {
         try {
             $venta = $_GET['venta'] ?? null;
+            $idArticulo = $_GET['id_articulo'] ?? null;
+            $fechaDesde = $_GET['fecha_desde'] ?? null;
+            $fechaHasta = $_GET['fecha_hasta'] ?? null;
             
-            if ($venta) {
+            if ($idArticulo && $fechaDesde && $fechaHasta) {
+                // Obtener ventas de un artículo en un período
+                $result = $this->model->getByArticuloYPeriodo(
+                    (int)$idArticulo,
+                    $fechaDesde,
+                    $fechaHasta
+                );
+            } elseif ($venta) {
+                // Obtener artículos de una venta específica
                 $result = $this->model->getByVenta((int)$venta);
             } else {
+                // Obtener todos
                 $result = $this->model->getAll();
             }
             

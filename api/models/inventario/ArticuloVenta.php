@@ -69,6 +69,27 @@ class ArticuloVenta
     }
 
     /**
+     * Obtiene ventas de un artículo específico en un rango de fechas
+     * Retorna resumen agrupado por fecha con cantidad total vendida en cada día
+     */
+    public function getByArticuloYPeriodo(int $idArticulo, string $fechaDesde, string $fechaHasta): array
+    {
+        $sql = "SELECT v.fecha, SUM(av.cantidad) AS cantidad_total
+                FROM {$this->table} av
+                INNER JOIN venta v ON av.id_venta = v.id
+                WHERE av.id_articulo = :id_articulo
+                  AND v.fecha BETWEEN :fecha_desde AND :fecha_hasta
+                GROUP BY v.fecha
+                ORDER BY v.fecha ASC";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':id_articulo', $idArticulo, PDO::PARAM_INT);
+        $stmt->bindValue(':fecha_desde', $fechaDesde);
+        $stmt->bindValue(':fecha_hasta', $fechaHasta);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
      * Crea un nuevo artículo de venta
      */
     public function create(int $idArticulo, int $idVenta, float $cantidad, float $precioUnitario, float $total): int|false

@@ -26,6 +26,9 @@ const articulosService = {
   getArticulosVendidos: (fechaDesde, fechaHasta) =>
     api.get('/articulos-vendidos', { params: { fecha_desde: fechaDesde, fecha_hasta: fechaHasta } }).then(r => r.data),
 
+  getDetalleVentaArticulo: (idArticulo, fechaDesde, fechaHasta) =>
+    api.get('/articulos-venta', { params: { id_articulo: idArticulo, fecha_desde: fechaDesde, fecha_hasta: fechaHasta } }).then(r => r.data),
+
   // --- Ingresos de Artículo (/ingresos-articulo) ---
   getIngresos: () => api.get('/ingresos-articulo').then(r => r.data),
   getIngresoById: (id) => api.get(`/ingresos-articulo/${id}`).then(r => r.data),
