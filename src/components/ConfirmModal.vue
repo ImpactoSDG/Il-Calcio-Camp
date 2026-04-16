@@ -15,8 +15,8 @@
             </slot>
           </div>
           <div class="modal-footer justify-content-center">
-            <button type="button" class="btn btn-light px-4" @click="closeModal" :disabled="isLoading">
-              Cancelar
+            <button type="button" class="btn btn-light px-4" @click="onCancel" :disabled="isLoading">
+              {{ cancelButtonText }}
             </button>
             <button type="button" class="btn" :class="confirmButtonClass" @click="onConfirm" :disabled="isLoading">
               <span v-if="isLoading" class="spinner-border spinner-border-sm me-2"></span>
@@ -50,6 +50,10 @@ const props = defineProps({
     type: String,
     default: 'Confirmar',
   },
+  cancelButtonText: {
+    type: String,
+    default: 'Cancelar',
+  },
   variant: { 
     type: String,
     default: 'danger',
@@ -60,7 +64,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['update:modelValue', 'confirm']);
+const emit = defineEmits(['update:modelValue', 'confirm', 'cancel']);
 
 const modalElement = ref(null);
 const bsModal = ref(null);
@@ -83,8 +87,14 @@ const closeModal = () => {
   emit('update:modelValue', false);
 };
 
+const onCancel = () => {
+  emit('cancel');
+  closeModal();
+};
+
 const onConfirm = () => {
   emit('confirm');
+  closeModal();
 };
 
 const headerClass = computed(() => `variant-${props.variant}`);

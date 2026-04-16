@@ -193,7 +193,7 @@
                       <span class="text-secondary fw-medium">{{ isAjuste ? 'Items a ajustar' : 'Subtotal' }}</span>
                       <span class="text-dark fw-bold">{{ isAjuste ? articulosCarrito.length : ('$' + formatMoney(subtotal.toFixed(2))) }}</span>
                     </div>
-                    <div v-if="!isAjuste" class="d-flex justify-content-between align-items-center mb-2" :class="{ 'opacity-50': !facturar }">
+                <div v-if="!isAjuste" class="d-flex justify-content-between align-items-center mb-2">
                       <span class="text-secondary fw-medium">IVA (21%)</span>
                       <span class="text-dark fw-bold">${{ formatMoney(totalIVA) }}</span>        
                     </div>
@@ -288,6 +288,7 @@
                         />
                         <div v-if="!isAjuste" class="text-end ms-2">
                           <div class="fw-black text-primary fs-5">${{ formatMoney(res.precio_actual || 0) }}</div>
+                          <div v-if="facturar" class="text-muted small" style="font-size: 0.7rem;">+IVA ${{ formatMoney((Number(res.precio_actual || 0) * 0.21).toFixed(2)) }}</div>
                         </div>
                       </div>
                     </button>
@@ -300,7 +301,7 @@
                     <tbody class="divide-y divide-gray-100">
                       <tr v-for="(item, index) in articulosCarrito" :key="index" class="animate-row-in border-bottom bg-white">
 
-                        <td class="py-2 ps-3" :style="{ width: isAjuste ? '80%' : '65%' }">
+                        <td class="py-2 ps-3" :style="{ width: isAjuste ? '80%' : '74%' }">
                           <div class="d-flex align-items-center gap-2">    
                             <div class="bg-primary-subtle rounded-3 overflow-hidden d-flex align-items-center justify-content-center border shadow-sm" style="width: 32px; height: 32px; flex-shrink: 0;">
                               <img v-if="item.imagen || item.url_imagen" :src="`${apiBaseUrl}/${item.imagen || item.url_imagen}`" class="w-100 h-100 object-fit-cover" />
@@ -330,8 +331,11 @@
                           />
                         </td>
                       
-                        <td v-if="!isAjuste" class="text-end py-2 fw-black text-dark px-1" style="width: 18%; font-size: 0.8rem;">
-                          ${{ formatMoney(item.total) }}
+                        <td v-if="!isAjuste" class="text-end py-2 px-1" style="width: 26%;">
+                          <div class="text-end">
+                            <div class="fw-black text-dark" style="font-size: 0.85rem;">${{ formatMoney(item.total) }}</div>
+                            <div v-if="item.iva" class="text-muted small" style="font-size: 0.7rem;">(IVA ${{ formatMoney((Number(item.total) * 0.21).toFixed(2)) }})</div>
+                          </div>
                         </td>
                       
                         <td class="pe-3 text-end" style="width: 5%;">      
@@ -343,7 +347,7 @@
                       </tr>
                     
                       <tr v-if="articulosCarrito.length === 0">
-                        <td :colspan="isAjuste ? 3 : 4" class="text-center py-5">
+                        <td :colspan="isAjuste ? 3 : 3" class="text-center py-5">
                           <div class="container-empty-state opacity-50">   
                             <i class="bi bi-cart-x border rounded-circle p-4 fs-1 d-inline-block mb-3 text-muted"></i>
                             <h5 class="fw-bold text-muted">Aún no hay artículos {{ isAjuste ? 'agregados' : 'en la venta' }}</h5>
@@ -494,9 +498,13 @@ const handleQuickTeamConfirm = (equipo) => {
   });
 };
 
-const clienteSeleccionado = computed(() => {
-  if (!form.value.id_cliente) return null;
-  return props.clientes.find(c => c.id === form.value.id_cliente);
+watch(() => facturar.value, (isFacturar) => {
+  if (isFacturar && !props.isAjuste) {
+    articulosCarrito.value.forEach((item, index) => {
+      item.iva = true;
+      actualizarTotalItem(index);
+    });
+  }
 });
 
 watch(() => form.value.id_cliente, (newVal) => {
@@ -535,6 +543,13 @@ watch(() => props.modelValue, (isOpen) => {
       if (!form.value.fecha) {
         form.value.fecha = new Date().toISOString().split('T')[0];
       }
+    }
+    
+    // Sincronizar estado de facturación basándose en el campo estado_factura de la BD
+    if (props.isEditing) {
+      facturar.value = form.value.estado_factura !== null;
+    } else {
+      facturar.value = false;
     }
     
     // Si es cierre forzado, asegurar el foco
@@ -587,6 +602,13 @@ watch(() => props.initialForm, (newVal) => {
   form.value = { ...newVal };
   articulosCarrito.value = newVal.articulos ? [...newVal.articulos] : [];
   
+  // Sincronizar estado de facturación basándose en el campo estado_factura de la BD
+  if (props.isEditing) {
+    facturar.value = newVal.estado_factura !== null;
+  } else {
+    facturar.value = false;
+  }
+  
   if (props.modelValue && newVal.forceCierre) {
     nextTick(() => {
       montoEntregadoRef.value?.focus();
@@ -628,17 +650,13 @@ const subtotal = computed(() =>
 );
 
 const totalIVA = computed(() => {
-  if (facturar.value && !props.isAjuste) {
-    return (subtotal.value * 0.21).toFixed(2);
-  }
-  return '0.00';
+  return articulosCarrito.value
+    .reduce((acc, i) => acc + (i.iva ? (Number(i.total || 0) * 0.21) : 0), 0)
+    .toFixed(2);
 });
 
 const totalCarrito = computed(() => {
-  if (facturar.value && !props.isAjuste) {
-    return (subtotal.value + Number(totalIVA.value)).toFixed(2);
-  }
-  return subtotal.value.toFixed(2);
+  return (subtotal.value + Number(totalIVA.value)).toFixed(2);
 });
 
 // esAbierto mantiene compatibilidad: true cuando NO está cerrada (incluye pausa y abierta)
@@ -692,14 +710,17 @@ const puedeGuardar = computed(() => {
   return cabeceraOK && itemsOK && stockOK && pagoOK && clienteOK;
 });
 
+const clienteSeleccionado = computed(() =>
+  props.clientes?.find(c => c.id === form.value.id_cliente) || null
+);
+
 const puedeFacturar = computed(() => {
   if (props.isAjuste) return false;
   if (!esCerrada.value) return false;
   const cliente = clienteSeleccionado.value;
   if (!cliente) return false;
-  const tieneDNI = !!cliente.cuit_dni || !!cliente.dni_cliente;
-  const tieneCondicionIva = !!cliente.id_condicion_iva_receptor;
-  return tieneDNI && tieneCondicionIva;
+  // Solo requiere condición IVA; el DNI es opcional para Consumidor Final
+  return !!cliente.id_condicion_iva_receptor;
 });
 
 const mensajeFacturacion = computed(() => {
@@ -707,8 +728,6 @@ const mensajeFacturacion = computed(() => {
   if (!esCerrada.value) return 'Solo en ventas cerradas';
   const cliente = clienteSeleccionado.value;
   if (!cliente) return 'Requiere cliente';
-  const tieneDNI = !!cliente.cuit_dni || !!cliente.dni_cliente;
-  if (!tieneDNI) return 'Cliente sin DNI/CUIT';
   if (!cliente.id_condicion_iva_receptor) return 'Cliente sin condición IVA';
   return '';
 });
@@ -735,7 +754,8 @@ const seleccionarArticuloDeSearch = (art) => {
   
   if (existente) {
     existente.cantidad = Number((Number(existente.cantidad) + cantidadAAgregar).toFixed(2));
-    existente.total = (existente.cantidad * existente.precio_unitario).toFixed(2);
+    const base = existente.cantidad * existente.precio_unitario;
+    existente.total = (existente.iva ? base * 1.21 : base).toFixed(2);
   } else {
     // Agregar al principio del array (Unshift) para que el último producto aparezca arriba
     articulosCarrito.value.unshift({
@@ -829,7 +849,8 @@ const cambiarCantidad = (index, delta) => {
 
 const actualizarTotalItem = (index) => {
   const item = articulosCarrito.value[index];
-  item.total = ((Number(item.cantidad) || 0) * (Number(item.precio_unitario) || 0)).toFixed(2);
+  const base = (Number(item.cantidad) || 0) * (Number(item.precio_unitario) || 0);
+  item.total = (item.iva ? base * 1.21 : base).toFixed(2);
   validarStockMasivo();
 };
 

@@ -68,6 +68,26 @@ class FacturaController extends BaseController
         }
     }
 
+    public function getByVentaId(): void
+    {
+        try {
+            $idVenta = isset($_GET['id_venta']) ? (int)$_GET['id_venta'] : 0;
+            if (!$idVenta) {
+                $this->respond(400, ['message' => 'ID de venta requerido.']);
+            }
+
+            $factura = $this->facturaModel->getByVentaId($idVenta);
+
+            if ($factura) {
+                $this->respond(200, $factura);
+            } else {
+                $this->respond(404, ['message' => 'No se encontró factura para esta venta.']);
+            }
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al obtener factura por venta');
+        }
+    }
+
     // =========================================================================
     // ENDPOINT PÚBLICO: PUT /facturas/{id}/receptor
     // =========================================================================
@@ -202,8 +222,13 @@ class FacturaController extends BaseController
         if ($receptor) {
             $erroresReceptor = [];
             if (empty($receptor['nombre_cliente'])) $erroresReceptor[] = 'nombre del cliente';
-            if (empty($receptor['cuit_dni'])) $erroresReceptor[] = 'DNI/CUIT';
             if (empty($receptor['id_condicion_iva_receptor'])) $erroresReceptor[] = 'condición IVA del cliente';
+
+            // El DNI/CUIT es obligatorio SOLO si NO es Consumidor Final (id_condicion_iva_receptor != 2)
+            $esConsumidorFinal = (int)($receptor['id_condicion_iva_receptor'] ?? 0) === 2;
+            if (!$esConsumidorFinal && empty($receptor['cuit_dni'])) {
+                $erroresReceptor[] = 'DNI/CUIT (requerido para clientes no Consumidor Final)';
+            }
 
             if (!empty($erroresReceptor)) {
                 return [
@@ -223,6 +248,8 @@ class FacturaController extends BaseController
         $afipResponse = $this->callAfipService($payload);
 
         if (!$afipResponse['success']) {
+            // No es necesario llamar a marcarPendienteAfip aquí porque el frontend lo hará
+            // o el estado 'error' ya fue persistido inicialmente por Venta.php
             return ['success' => false, 'error' => $afipResponse['error'] ?? 'Error desconocido al comunicarse con AFIP.'];
         }
 
@@ -264,8 +291,8 @@ class FacturaController extends BaseController
         // 10. Vincular la venta con la factura recién creada
         $updVenta = $this->db->prepare("
             UPDATE venta
-            SET id_factura = ?,
-                facturada  = 1
+            SET id_factura    = ?,
+                estado_factura = 'facturada'
             WHERE id = ?
         ");
         $updVenta->execute([$idFactura, $idVenta]);
@@ -276,6 +303,44 @@ class FacturaController extends BaseController
             'cae'        => $afipResponse['cae'],
             'factura'    => $this->facturaModel->getById($idFactura),
         ];
+    }
+
+    // =========================================================================
+    // ENDPOINT PÚBLICO: POST /facturas/marcar-pendiente
+    // =========================================================================
+
+    /**
+     * Marca una venta con estado 'error' luego de un fallo al facturar.
+     * Recibe { id_venta, error_msg } en el body JSON.
+     */
+    public function marcarPendienteAfip(): void
+    {
+        try {
+            $data   = json_decode(file_get_contents("php://input"), true) ?? [];
+            $idVenta = isset($data['id_venta']) ? (int)$data['id_venta'] : 0;
+            $errorMsg = $data['error_msg'] ?? '';
+
+            if (!$idVenta) {
+                $this->respond(400, ['message' => 'ID de venta requerido.']);
+                return;
+            }
+
+            $stmt = $this->db->prepare("
+                UPDATE venta
+                SET estado_factura = 'error'
+                WHERE id = ?
+            ");
+            $stmt->execute([$idVenta]);
+
+            // Log del error en error_log del servidor para trazabilidad
+            if ($errorMsg) {
+                error_log("[AFIP][Venta #{$idVenta}] Fallo al facturar: {$errorMsg}");
+            }
+
+            $this->respond(200, ['message' => 'Estado actualizado a error.']);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al marcar fallo AFIP');
+        }
     }
 
     // =========================================================================

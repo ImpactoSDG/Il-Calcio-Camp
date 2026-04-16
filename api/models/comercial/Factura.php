@@ -66,7 +66,7 @@ class Factura
     }
 
     /**
-     * Obtiene una factura por ID, enriquecida con datos de venta, cliente y catálogos.
+     * Obtiene una factura por ID, enriquecida con datos de venta, cliente, catálogos y emisor.
      */
     public function getById(int $id): ?array
     {
@@ -76,14 +76,25 @@ class Factura
                     tc.tipo_letra,
                     tc.tipo_comp               AS codigo_afip_comprobante,
                     tco.descripcion_concepto   AS concepto_nombre,
+                    cir.descripcion_condicion  AS condicion_iva_receptor_nombre,
                     v.fecha                    AS fecha_venta,
                     v.descripcion_cliente,
-                    c.nombre_cliente           AS cliente_nombre
+                    c.nombre_cliente           AS cliente_nombre,
+                    e.nombre_empresa           AS emisor_nombre,
+                    e.CUIT                     AS emisor_cuit,
+                    e.cond_iva                 AS emisor_condicion_iva,
+                    e.cond_IIBB                AS emisor_condicion_iibb,
+                    e.pto_vta                  AS emisor_pto_vta,
+                    e.fecha_inicio_de_acts     AS emisor_fecha_inicio_acts,
+                    e.direccion_cliente        AS emisor_direccion,
+                    e.ciudad_cliente           AS emisor_ciudad
                 FROM {$this->table} f
-                LEFT JOIN tipo_comprobante tc  ON tc.Id_tipo_comp       = f.id_tipo_comprobante
-                LEFT JOIN tipo_concepto    tco ON tco.Id_tipo_concepto  = f.Id_tipo_concepto
-                LEFT JOIN venta            v   ON v.id                  = f.Id_maestro
-                LEFT JOIN cliente          c   ON c.id                  = v.id_cliente
+                LEFT JOIN tipo_comprobante tc      ON tc.Id_tipo_comp      = f.id_tipo_comprobante
+                LEFT JOIN tipo_concepto    tco     ON tco.Id_tipo_concepto = f.Id_tipo_concepto
+                LEFT JOIN condicion_iva_receptor cir ON cir.id            = f.Id_condicion_IVA_comprador
+                LEFT JOIN venta            v        ON v.id               = f.Id_maestro
+                LEFT JOIN cliente          c        ON c.id               = v.id_cliente
+                CROSS JOIN (SELECT nombre_empresa, CUIT, cond_iva, cond_IIBB, pto_vta, fecha_inicio_de_acts, direccion_cliente, ciudad_cliente FROM facturacion_datos_emisor LIMIT 1) e
                 WHERE f.Id_factura = :id
                 LIMIT 1";
 
@@ -91,6 +102,20 @@ class Factura
         $stmt->execute([':id' => $id]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         return $result ?: null;
+    }
+
+    /**
+     * Busca la factura asociada a una venta (por Id_maestro).
+     */
+    public function getByVentaId(int $idVenta): ?array
+    {
+        $stmt = $this->conn->prepare(
+            "SELECT Id_factura FROM {$this->table} WHERE Id_maestro = ? ORDER BY Id_factura DESC LIMIT 1"
+        );
+        $stmt->execute([$idVenta]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) return null;
+        return $this->getById((int)$row['Id_factura']);
     }
 
     /**

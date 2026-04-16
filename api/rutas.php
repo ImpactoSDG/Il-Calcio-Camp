@@ -782,9 +782,21 @@ switch ($resource) {
         }
         break;
 
+    case 'facturas-marcar-pendiente':
+        verifyAuth();
+        if ($method === 'POST') {
+            $facturaController->marcarPendienteAfip();
+        } else {
+            http_response_code(405);
+        }
+        break;
+
     case 'facturas':
         verifyAuth();
-        if ($method === 'GET' && $id) {
+        if ($method === 'GET' && $id === 'venta') {
+            $_GET['id_venta'] = $parts[2] ?? null;
+            $facturaController->getByVentaId();
+        } elseif ($method === 'GET' && $id) {
             $_GET['id'] = $id;
             $facturaController->getById();
         } elseif ($method === 'PUT' && $id) {

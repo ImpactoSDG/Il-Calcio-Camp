@@ -317,7 +317,7 @@ export function generarHtmlTicket({ venta, articulos, nombreLocal = 'IL CALCIO C
       <title>Ticket Venta ${venta.id}</title>
       <style>
         * { margin: 0; padding: 0; }
-        body { 
+        body {
           font-family: 'Courier New', monospace; 
           width: 80mm;
           padding: 5mm;
@@ -398,25 +398,382 @@ export function generarHtmlTicket({ venta, articulos, nombreLocal = 'IL CALCIO C
 }
 
 /**
- * Imprime ticket respetando el modo configurado (QZ Tray o PDF)
+ * Formatea fecha del CAE desde formato genérico
+ * Maneja: "YYYYMMDD", "DD/MM/YYYY", etc.
+ * Retorna: "DD/MM/YYYY"
  */
-export async function imprimirTicketConModo({ venta, articulos, nombreLocal = 'IL CALCIO CAMP' }) {
+function formatearFechaCAE(f) {
+  if (!f) return '--';
+  const s = String(f).replace(/\D/g, '');
+  if (s.length === 8) return `${s.slice(6)}/${s.slice(4, 6)}/${s.slice(0, 4)}`;
+  return String(f);
+}
+
+/**
+ * Formatea CUIT en formato XX-XXXXXXXX-X
+ */
+function formatearCuit(cuit) {
+  if (!cuit) return '--';
+  const solo_numeros = String(cuit).replace(/\D/g, '').padStart(11, '0');
+  return `${solo_numeros.slice(0, 2)}-${solo_numeros.slice(2, 10)}-${solo_numeros.slice(10)}`;
+}
+
+/**
+ * Formatea fecha desde múltiples formatos posibles
+ * Maneja: "YYYY-MM-DD", "DD HH:MM:SS/MM/YYYY", "DD/MM/YYYY", etc.
+ * Retorna: "DD/MM/YYYY"
+ */
+function formatearFechaSimple(f) {
+  if (!f) return '--';
+  const str = String(f).trim();
+  
+  // Si tiene barra pero empieza con dígito y espacio (formato "DD HH:MM:SS/MM/YYYY")
+  if (/^\d{1,2}\s+\d{2}:\d{2}:\d{2}\/\d{1,2}\/\d{4}$/.test(str)) {
+    const match = str.match(/^(\d{1,2})\s+\d{2}:\d{2}:\d{2}\/(\d{1,2})\/(\d{4})$/);
+    if (match) {
+      const [, dd, mm, yyyy] = match;
+      return `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${yyyy}`;
+    }
+  }
+  
+  // Formato ISO: "YYYY-MM-DD" o "YYYY-MM-DDTHH:MM:SS"
+  if (str.includes('T')) {
+    const [datePart] = str.split('T');
+    const [yyyy, mm, dd] = datePart.split('-');
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  
+  if (str.includes('-') && str.length >= 10) {
+    const [yyyy, mm, dd] = str.substring(0, 10).split('-');
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  
+  // Formato "DD/MM/YYYY" ya está correcto
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
+    const [dd, mm, yyyy] = str.split('/');
+    return `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${yyyy}`;
+  }
+  
+  return '--';
+}
+
+/**
+ * Formatea fecha y hora desde múltiples formatos
+ * Retorna: "DD/MM/YYYY HH:MM:SS"
+ */
+function formatearFechaHora(f) {
+  if (!f) return '--';
+  const str = String(f).trim();
+  
+  // Formato "DD HH:MM:SS/MM/YYYY"
+  if (/^\d{1,2}\s+\d{2}:\d{2}:\d{2}\/\d{1,2}\/\d{4}$/.test(str)) {
+    const match = str.match(/^(\d{1,2})\s+(\d{2}:\d{2}:\d{2})\/(\d{1,2})\/(\d{4})$/);
+    if (match) {
+      const [, dd, hora, mm, yyyy] = match;
+      return `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${yyyy} ${hora}`;
+    }
+  }
+  
+  // Formato ISO: "YYYY-MM-DDTHH:MM:SS"
+  if (str.includes('T')) {
+    const [datePart, timePart] = str.split('T');
+    const [yyyy, mm, dd] = datePart.split('-');
+    const hora = timePart.substring(0, 8); // HH:MM:SS
+    return `${dd}/${mm}/${yyyy} ${hora}`;
+  }
+  
+  return formatearFechaSimple(f);
+}
+
+/**
+ * Imprime la factura electrónica AFIP completa vía ESC/POS (QZ Tray).
+ * Incluye emisor, receptor, artículos, IVA, CAE y URL QR.
+ */
+export async function imprimirTicketDetalleFactura({ venta, articulos, factura, nombreLocal = 'IL CALCIO CAMP' }) {
+  const printerName = getPrinterName();
+  if (!printerName) {
+    throw new Error('No hay impresora configurada. Ir a Configuraciones > Impresora.');
+  }
+
+  await ensureQzConnected();
+
+  const config = qz.configs.create(printerName);
+  const feed   = '\x1B\x64' + String.fromCharCode(getFeedLines());
+  const cut    = getCutCmd();
+
+  const fmt = (v) => parseFloat(v || 0).toFixed(2);
+
+  const SEP = '------------------------------------------------\x0A';
+  const B   = '\x1B\x45\x01'; // bold on
+  const NB  = '\x1B\x45\x00'; // bold off
+  const CTR = '\x1B\x61\x01'; // center
+  const LFT = '\x1B\x61\x00'; // left
+  const RGT = '\x1B\x61\x02'; // right
+  const BIG = '\x1B\x21\x30'; // double height+width
+  const NRM = '\x1B\x21\x00'; // normal
+
+  const nroCbte = factura?.nro_comprobante ? String(factura.nro_comprobante).padStart(8, '0') : '--------';
+  const pto     = factura?.pto_venta ? String(factura.pto_venta).padStart(4, '0') : '----';
+  const tipoLetra = (factura?.tipo_letra || '?').toUpperCase();
+
+  // Calcular total sumando artículos (a.total ya incluye IVA si corresponde)
+  const total = articulos.reduce((sum, a) => sum + Number(a.total || 0), 0);
+
+  const lineasDetalle = articulos.map(a => {
+    const cant = String(a.cantidad).padEnd(6, ' ');
+    const desc = String(a.articulo_nombre).substring(0, 22).padEnd(23, ' ');
+    const total = `$${Number(a.total).toFixed(2)}`.padStart(17, ' ');
+    return `${cant}${desc}${total}\x0A`;
+  });
+
+  const qrData = JSON.stringify({
+    ver: 1,
+    fecha: (factura?.fecha_emision || venta.fecha || '').split('T')[0],
+    cuit: parseInt(String(factura?.emisor_cuit || '0').replace(/\D/g, ''), 10),
+    ptoVta: parseInt(factura?.pto_venta || 1, 10),
+    tipoCmp: parseInt(factura?.codigo_afip_comprobante || 0, 10),
+    nroCmp: parseInt(factura?.nro_comprobante || 0, 10),
+    importe: total,
+    moneda: 'PES', ctz: 1, tipoDocRec: 96,
+    nroDocRec: parseInt(String(factura?.cuit_dni_receptor || '0').replace(/\D/g, ''), 10),
+    tipoCodAut: 'E',
+    codAut: parseInt(factura?.cae || 0, 10),
+  });
+  const qrUrl = `https://www.afip.gob.ar/fe/qr/?p=${btoa(qrData)}`;
+
+  const data = [
+    '\x1B\x40',            // Init
+    CTR, BIG,
+    `${factura?.emisor_nombre || nombreLocal}\x0A`,
+    NRM,
+    `CUIT: ${formatearCuit(factura?.emisor_cuit)}\x0A`,
+    `IVA: ${factura?.emisor_condicion_iva || ''}\x0A`,
+    SEP,
+    LFT, `Ingresos Brutos: ${factura?.emisor_condicion_iibb || ''}\x0A`,
+    `Inicio de actividades: ${formatearFechaSimple(factura?.emisor_fecha_inicio_acts)}\x0A`,
+    `Domicilio:\x0A${factura?.emisor_direccion || ''}\x0A`,
+    SEP,
+    CTR, B, `FACTURA ELECTRONICA ${tipoLetra}\x0A`, NB,
+    `N\xF8 ${pto}-${nroCbte}\x0A`,
+    `Fecha: ${formatearFechaHora(factura?.fecha_emision || venta.fecha)}\x0A`,
+    SEP,
+    LFT,
+    `Sres: ${factura?.nombre_receptor || factura?.cliente_nombre || 'Consumidor Final'}\x0A`,
+    `DNI/CUIT: ${factura?.cuit_dni_receptor || '--'}\x0A`,
+    `Cond.IVA: ${factura?.condicion_iva_receptor_nombre || '--'}\x0A`,
+    SEP,
+    LFT,
+    'CANT  DESCRIPCION             TOTAL\x0A',
+    SEP,
+    ...lineasDetalle,
+    SEP,
+    RGT, B, `\x1B\x21\x18TOTAL: $${fmt(total)}\x0A`, NRM, NB,
+    LFT,
+    SEP,
+    B, `CAE: ${factura?.cae || '--'}\x0A`, NB,
+    `Vto. CAE: ${formatearFechaCAE(factura?.vto_cae)}\x0A`,
+    CTR,
+    `QR: ${qrUrl}\x0A`,
+    SEP,
+    LFT,
+    `A los fines de la Ley de IVA, el impuesto\x0A`,
+    `se encuentra incluido en el precio.\x0A`,
+    SEP,
+    CTR,
+    `Representacion impresa factura electronica\x0A`,
+    `Gracias por su preferencia\x0A`,
+    feed,
+    cut,
+  ];
+
+  await qz.print(config, data);
+}
+
+/**
+ * Genera HTML de la factura electrónica AFIP para visualización/impresión manual.
+ * Incluye: datos del emisor, receptor, detalle de artículos, IVA, CAE y QR.
+ */
+export function generarHtmlDetalleFactura({ factura, articulos }) {
+  const fmt = (v) => parseFloat(v || 0).toFixed(2);
+
+  // Tipo de comprobante y número formateado
+  const tipoLetra = (factura.tipo_letra || '').toUpperCase();
+  const nroCbte = factura.nro_comprobante
+    ? String(factura.nro_comprobante).padStart(8, '0')
+    : '00000000';
+  const pto = factura.pto_venta
+    ? String(factura.pto_venta).padStart(4, '0')
+    : '0001';
+  const nroCompleto = `${pto}-${nroCbte}`;
+
+  // QR AFIP: https://www.afip.gob.ar/fe/qr/?p=BASE64_JSON
+  const fechaSimple = formatearFechaSimple(factura.fecha_emision || factura.fecha_venta);
+  const [dd, mm, yyyy] = fechaSimple.split('/');
+  const qrData = {
+    ver: 1,
+    fecha: `${yyyy}-${mm}-${dd}`,
+    cuit: parseInt(String(factura.emisor_cuit || '0').replace(/\D/g, ''), 10),
+    ptoVta: parseInt(factura.pto_venta || 1, 10),
+    tipoCmp: parseInt(factura.codigo_afip_comprobante || 0, 10),
+    nroCmp: parseInt(factura.nro_comprobante || 0, 10),
+    importe: parseFloat(factura.importe_total || 0),
+    moneda: 'PES',
+    ctz: 1,
+    tipoDocRec: 96,
+    nroDocRec: parseInt(String(factura.cuit_dni_receptor || '0').replace(/\D/g, ''), 10),
+    tipoCodAut: 'E',
+    codAut: parseInt(factura.cae || 0, 10),
+  };
+  const qrBase64 = btoa(JSON.stringify(qrData));
+  const qrUrl = `https://www.afip.gob.ar/fe/qr/?p=${qrBase64}`;
+  const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(qrUrl)}`;
+
+  // Detalle artículos - mostrar total tal como viene (ya incluye IVA si corresponde)
+  const lineasHtml = articulos.map(a => `
+    <tr>
+      <td class="c">${a.cantidad}</td>
+      <td>${a.articulo_nombre}</td>
+      <td class="r">$${fmt(a.total)}</td>
+    </tr>`).join('');
+
+  // Calcular total sumando artículos (a.total ya incluye IVA si corresponde)
+  const total = articulos.reduce((sum, a) => sum + Number(a.total || 0), 0);
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Factura Nº ${nroCompleto}</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: 'Courier New', monospace; font-size: 11px; width: 80mm; padding: 4mm; }
+    .center { text-align: center; }
+    .right { text-align: right; }
+    .bold { font-weight: bold; }
+    .sep { border-top: 1px dashed #000; margin: 4px 0; }
+    .sep-solid { border-top: 1px solid #000; margin: 4px 0; }
+    .tipo-badge {
+      display: inline-block; border: 2px solid #000;
+      font-size: 18px; font-weight: 900; width: 26px; height: 26px;
+      line-height: 22px; text-align: center; margin: 2px 0;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 10px; margin: 4px 0; }
+    th { border-bottom: 1px solid #000; padding: 2px 0; font-size: 9px; text-align: left; }
+    td { padding: 2px 0; vertical-align: top; }
+    td.c { text-align: center; }
+    td.r { text-align: right; }
+    .totales td { padding: 1px 0; }
+    .total-final { font-size: 13px; font-weight: 900; }
+    .cae-block { font-size: 10px; margin-top: 4px; }
+    .footer-legal { font-size: 9px; color: #333; text-align: center; margin-top: 4px; }
+    .qr-wrap { text-align: center; margin-top: 6px; }
+    @media print { body { width: 80mm; margin: 0; padding: 0; } }
+  </style>
+</head>
+<body>
+
+  <div class="center bold" style="font-size:13px;">${factura.emisor_nombre || 'IL CALCIO CAMP'}</div>
+  <div class="center">CUIT: ${formatearCuit(factura.emisor_cuit)}</div>
+  <div class="center">IVA: ${factura.emisor_condicion_iva || '—'}</div>
+  <div class="center" style="font-size: 10px; margin-top: 2px;">
+    Ingresos Brutos: ${factura.emisor_condicion_iibb || '—'}<br>
+    Inicio de actividades: ${formatearFechaSimple(factura.emisor_fecha_inicio_acts)}
+  </div>
+  <div class="center" style="font-size: 10px; margin-top: 2px;">
+    <strong>Domicilio:</strong><br>
+    ${factura.emisor_direccion || '—'}<br>
+    ${factura.emisor_ciudad || ''}
+  </div>
+
+  <div class="sep-solid"></div>
+
+  <div class="center">
+    <span class="tipo-badge">${tipoLetra}</span>
+  </div>
+  <div class="center bold" style="font-size:12px;">FACTURA ELECTRÓNICA</div>
+  <div class="center">Nº ${nroCompleto}</div>
+  <div class="center">Fecha: ${formatearFechaHora(factura.fecha_emision || factura.fecha_venta)}</div>
+
+  <div class="sep"></div>
+
+  <div><strong>Cliente:</strong> ${factura.nombre_receptor || factura.cliente_nombre || 'Consumidor Final'}</div>
+  <div><strong>DNI/CUIT:</strong> ${factura.cuit_dni_receptor || '—'}</div>
+  <div><strong>Cond. IVA:</strong> ${factura.condicion_iva_receptor_nombre || '—'}</div>
+  ${factura.Direccion_receptor ? `<div><strong>Dirección:</strong> ${factura.Direccion_receptor}</div>` : ''}
+
+  <div class="sep"></div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:8%; text-align:center;">Cant</th>
+        <th style="width:60%;">Descripción</th>
+        <th style="width:32%; text-align:right;">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${lineasHtml}
+    </tbody>
+  </table>
+
+  <div class="sep-solid"></div>
+  <table class="totales">
+    <tr class="total-final"><td>TOTAL VENTA</td><td class="r">$${fmt(total)}</td></tr>
+  </table>
+
+  <div class="sep"></div>
+
+  <div class="cae-block">
+    <div><strong>CAE:</strong> ${factura.cae || '—'}</div>
+    <div><strong>Vto. CAE:</strong> ${formatearFechaCAE(factura.vto_cae)}</div>
+  </div>
+
+  <div class="qr-wrap">
+    <img src="${qrImgUrl}" width="100" height="100" alt="QR AFIP" />
+  </div>
+
+  <div class="footer-legal" style="margin-top: 6px; padding-top: 4px; border-top: 1px dashed #000; font-size: 8px;">
+    <div style="margin-bottom: 3px; font-weight: bold;">
+      A los fines de la Ley de IVA, el impuesto<br>
+      se encuentra incluido en el precio.
+    </div>
+  </div>
+
+</body>
+</html>`;
+}
+
+/**
+ * Imprime ticket respetando el modo configurado (QZ Tray o PDF)
+ * tipo: 'COMUN' | 'DETALLE_FACTURA'
+ * factura: datos completos de la factura (solo para DETALLE_FACTURA)
+ */
+export async function imprimirTicketConModo({ venta, articulos, nombreLocal = 'IL CALCIO CAMP', tipo = 'COMUN', factura = null }) {
   const { usePrintModeStore } = await import('@/stores/printModeStore');
   const printStore = usePrintModeStore();
+  const esModoImpresion = printStore.isPrintMode();
 
-  if (printStore.isPrintMode()) {
-    // Modo impresión: usar QZ Tray
-    await imprimirTicketEscPos({ venta, articulos, nombreLocal });
+  if (tipo === 'DETALLE_FACTURA') {
+    if (esModoImpresion) {
+      await imprimirTicketDetalleFactura({ venta, articulos, factura, nombreLocal });
+    } else {
+      const html = generarHtmlDetalleFactura({ venta, articulos, factura, nombreLocal });
+      const ventana = window.open('', '', 'height=700,width=500');
+      ventana.document.write(html);
+      ventana.document.close();
+      ventana.onload = () => ventana.print();
+    }
   } else {
-    // Modo descarga: generar HTML e intentar descargar como PDF
-    const html = generarHtmlTicket({ venta, articulos, nombreLocal });
-    const ventanaImpresion = window.open('', '', 'height=600,width=800');
-    ventanaImpresion.document.write(html);
-    ventanaImpresion.document.close();
-    
-    // Esperar a que el contenido se cargue y luego abrir el diálogo de impresión
-    ventanaImpresion.onload = () => {
-      ventanaImpresion.print();
-    };
+    // TICKET COMUN
+    if (esModoImpresion) {
+      await imprimirTicketEscPos({ venta, articulos, nombreLocal });
+    } else {
+      const html = generarHtmlTicket({ venta, articulos, nombreLocal });
+      const ventana = window.open('', '', 'height=600,width=800');
+      ventana.document.write(html);
+      ventana.document.close();
+      ventana.onload = () => ventana.print();
+    }
   }
 }
+

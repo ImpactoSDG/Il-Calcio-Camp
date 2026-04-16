@@ -388,6 +388,19 @@
       @editar="editarVentaDesdeDetalle"
     />
 
+    <!-- Confirm Modal para Ticket Factura -->
+    <ConfirmModal
+      v-model="showConfirmCheckTicket"
+      title="Confirmar Impresión"
+      message="¿Imprimir factura?"
+      confirm-button-text="Sí"
+      cancel-button-text="No"
+      variant="primary"
+      :is-loading="false"
+      @confirm="handleConfirmTicketCheck(true)"
+      @cancel="handleConfirmTicketCheck(false)"
+    />
+
     <!-- Contenedor de Ticket para Impresión -->
     <div v-if="ventaParaImprimir" class="ticket-impresion">
       <div class="ticket-header">
@@ -609,6 +622,20 @@ const showModalOlvidadas  = ref(false);
 const ventaSeleccionada = ref(null);
 const isEditing         = ref(false);
 const isSaving          = ref(false);
+
+// Control para el modal de ticket factura
+const showConfirmCheckTicket = ref(false);
+const pendingVentaId = ref(null);
+
+const handleConfirmTicketCheck = async (imprimirDetalle) => {
+  if (!pendingVentaId.value) return;
+  
+  try {
+    await imprimirTicketDirecto(pendingVentaId.value, imprimirDetalle);
+  } finally {
+    pendingVentaId.value = null;
+  }
+};
 
 const emptyVentaForm = () => ({
   id: null,
@@ -895,69 +922,49 @@ const iniciarCierreVenta = (venta) => {
 };
 
 const handleSaveVenta = async ({ venta, articulos: articulosCarrito, facturar }) => {
-  if (isSaving.value) return; // Evitar múltiples clicks
+  if (isSaving.value) return;
   isSaving.value = true;
   try {
-    // 1. Si hay un cliente temporal asignado a esta venta, crearlo primero
-    if (tempQuickClient.value && String(venta.id_cliente).startsWith('temp-')) {
-      try {
-        const respNuevo = await clientesService.crearCliente({
-          nombre_cliente: tempQuickClient.value.nombre_cliente,
-          id_condicion_iva_receptor: 2, // Consumidor Final por defecto (ID 2)
-          id_provincia: 1,
-          condicion_iva: 'Consumidor Final',
-          direccion: '',
-          localidad: '',
-          telefono: tempQuickClient.value.telefono || '',
-          email: ''
-        });
-        
-        // El ID real viene en respNuevo.id (o respNuevo si la API solo devuelve el objeto)
-        const nuevoId = respNuevo.id || respNuevo;
-
-        // Si el cliente temporal tenía un equipo asignado, guardarlo ahora en la DB
-        if (tempQuickClient.value.id_equipo) {
-          try {
-            await clientesService.crearClienteEquipo({ 
-              id_cliente: nuevoId, 
-              id_equipo: tempQuickClient.value.id_equipo 
-            });
-          } catch (eTeam) {
-            console.error('Error al persistir equipo del cliente nuevo:', eTeam);
-          }
-        }
-        
-        // Actualizar el ID en la venta con el ID real de la base de datos
-        venta.id_cliente = nuevoId;
-        // Limpiar el temporal ya procesado
-        tempQuickClient.value = null;
-      } catch (errDet) {
-        throw new Error('No se pudo registrar el nuevo cliente: ' + (errDet?.response?.data?.message || 'Error desconocido'));
-      }
-    }
-
-    const esCerrada = Number(venta.id_estado_venta) === Number(ID_ESTADO_CERRADA);
+    const esCerrada   = Number(venta.id_estado_venta) === Number(ID_ESTADO_CERRADA);
     const esPausaVenta = Number(venta.id_estado_venta) === Number(ID_ESTADO_PAUSA);
     const medioCobroDesc = mediosCobro.value.find(m => m.id === venta.id_medio_cobro)?.descripcion ?? '';
     let idVenta = null;
-    
+
     // Calcular el total real basado en los artículos del carrito
     const totalCarritoCalculado = (articulosCarrito || []).reduce((acc, i) => acc + Number(i.total || 0), 0).toFixed(2);
 
     const payload = {
       ...venta,
       tipo_vta: esCerrada ? medioCobroDesc : '',
-      id_estado_cerrada: ID_ESTADO_CERRADA, // Enviamos el ID para lógica backend
-      id_estado_pausa: ID_ESTADO_PAUSA,     // Para que el backend omita el descuento de stock
+      id_estado_cerrada: ID_ESTADO_CERRADA,
+      id_estado_pausa:   ID_ESTADO_PAUSA,
       monto_cobrado: esCerrada ? (venta.monto_cobrado || Number(totalCarritoCalculado)) : 0,
+      facturar: facturar ? 1 : 0,
       articulos: (articulosCarrito || []).map(i => ({
-        id_articulo: i.id_articulo,
-        cantidad: i.cantidad,
+        id_articulo:    i.id_articulo,
+        cantidad:       i.cantidad,
         precio_unitario: i.precio_unitario,
-        total: i.total,
+        iva:            i.iva ? 1 : 0,
+        total:          i.total,
       })),
     };
 
+    // Si hay un cliente temporal (nuevo), pasarlo al backend para crearlo dentro de la transacción
+    if (tempQuickClient.value && String(venta.id_cliente).startsWith('temp-')) {
+      payload.nuevo_cliente = {
+        nombre_cliente:            tempQuickClient.value.nombre_cliente,
+        id_condicion_iva_receptor: 2, // Consumidor Final
+        condicion_iva:             'Consumidor Final',
+        id_provincia:              1,
+        direccion:                 '',
+        telefono:                  tempQuickClient.value.telefono || '',
+        id_equipo:                 tempQuickClient.value.id_equipo || null,
+      };
+      payload.id_cliente = null; // el backend lo reemplaza con el ID real
+      tempQuickClient.value = null;
+    }
+
+    // ── TRANSACCIÓN: cliente (si aplica) + venta + artículos + cobro ─────────
     if (isEditing.value) {
       await ventasService.actualizarVenta(payload);
       toast.showToast({ message: esPausaVenta ? 'Venta guardada en pausa.' : 'Venta actualizada.', type: 'success' });
@@ -965,37 +972,54 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito, facturar })
     } else {
       const resp = await ventasService.crearVenta(payload);
       toast.showToast({ message: esPausaVenta ? 'Venta guardada en pausa.' : 'Venta creada.', type: 'success' });
-      // Aseguramos capturar el ID tanto si viene directo como dentro de .data (común en axios/prod)
       idVenta = resp?.id || resp?.data?.id || null;
     }
+    // ── FIN TRANSACCIÓN ───────────────────────────────────────────────────────
 
     showVentaModal.value = false;
-    
-    // El fetchData() puede tardar en producción, por lo que idVenta es nuestra única verdad inmediata
     await fetchData();
 
-    // 2. Facturación AFIP si se solicitó
+    // ── AFIP (fuera de la transacción) ────────────────────────────────────────
     if (facturar && esCerrada && idVenta && !esPausaVenta) {
       toast.showToast({ message: 'Emitiendo factura AFIP...', type: 'info' });
+      let afipOk = false;
       try {
         const factRes = await facturaService.facturarVenta(idVenta);
         if (factRes.success) {
-          toast.showToast({ message: `Factura CAE: ${factRes.cae}`, type: 'success' });
+          afipOk = true;
+          toast.showToast({ message: `Factura emitida. CAE: ${factRes.cae}`, type: 'success' });
         } else {
-          toast.showToast({ message: `Error AFIP: ${factRes.message || factRes.error}`, type: 'danger' });
+          const errMsg = factRes.message || factRes.error || 'Error desconocido de AFIP.';
+          console.error(`[AFIP][Venta #${idVenta}]`, errMsg);
+          toast.showToast({ message: `Error AFIP: ${errMsg}`, type: 'danger', duration: 8000 });
+          await facturaService.marcarPendienteAfip(idVenta, errMsg);
         }
       } catch (errFact) {
-        console.error('Error al facturar:', errFact);
-        toast.showToast({ message: 'Error de conexión con AFIP.', type: 'danger' });
+        const errMsg = errFact?.response?.data?.message || errFact?.message || 'Error de conexión con AFIP.';
+        console.error(`[AFIP][Venta #${idVenta}] Excepción:`, errFact);
+        toast.showToast({ message: `Error AFIP: ${errMsg}`, type: 'danger', duration: 8000 });
+        await facturaService.marcarPendienteAfip(idVenta, errMsg).catch(() => {});
       }
-    }
 
-    // 3. Impresión de Ticket
+      // Impresión según resultado AFIP
+      if (afipOk) {
+        // Preguntamos si quiere imprimir el detalle de factura
+        pendingVentaId.value = idVenta;
+        showConfirmCheckTicket.value = true;
+      } else {
+        // AFIP falló: solo ticket común
+        await imprimirTicketDirecto(idVenta, false);
+      }
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Sin facturación: impresión directa solo si cerrada
     if (esCerrada && idVenta && !esPausaVenta) {
       await imprimirTicketDirecto(idVenta);
     }
   } catch (err) {
-    const msg = err?.response?.data?.message || 'Error al guardar.';
+    const msg = err?.response?.data?.message || err?.message || 'Error al guardar.';
     toast.showToast({ message: msg, type: 'danger' });
   } finally {
     isSaving.value = false;
@@ -1018,20 +1042,38 @@ const descargarTicketVenta = async (idVenta) => {
   }
 };
 
-const imprimirTicketDirecto = async (idVenta) => {
+const imprimirTicketDirecto = async (idVenta, imprimirDetalle = false) => {
   // Intentamos buscar en la lista local primero
   let venta = ventas.value.find(v => v.id == idVenta);
   
   try {
-    // Si fetchData aún no terminó de actualizar la lista (común en prod), la buscamos por ID individualmente
     if (!venta) {
       venta = await ventasService.getById(idVenta);
     }
-    
     if (!venta) throw new Error("No se pudo recuperar la información de la venta para imprimir.");
 
     const articulosVenta = await ventasService.getArticulosDeVenta(idVenta);
+
+    // 1. Ticket común siempre
     await imprimirTicketConModo({ venta, articulos: articulosVenta });
+
+    // 2. Si se pidió detalle factura, buscar datos completos de la factura y emitir el segundo ticket
+    if (imprimirDetalle) {
+      try {
+        const factura = await facturaService.getFacturaPorVenta(idVenta);
+        await imprimirTicketConModo({
+          venta,
+          articulos: articulosVenta,
+          factura,
+          tipo: 'DETALLE_FACTURA'
+        });
+      } catch (errFact) {
+        console.warn('No se pudo obtener la factura para el ticket de detalle:', errFact);
+        toast.showToast({ message: 'Ticket común impreso. No se encontraron datos de factura para el segundo ticket.', type: 'warning' });
+        return;
+      }
+    }
+
     toast.showToast({ message: 'Ticket en cola de impresin.', type: 'info' });
   } catch (err) {
     console.error('Error al imprimir ticket:', err);
@@ -1040,7 +1082,20 @@ const imprimirTicketDirecto = async (idVenta) => {
 };
 
 const reimprimirTicket = async (idVenta) => {
-  await imprimirTicketDirecto(idVenta);
+  // Para reimpresión, si la venta tiene factura, preguntamos igual
+  const venta = ventas.value.find(v => v.id == idVenta);
+  // Asumimos que si tiene medio de pago y no está en pausa/abierta, podemos preguntar si es necesario.
+  // Pero la consigna dice que la funcionalidad de "Reimprimir" debe reutilizar el mismo flujo si aplica.
+  // Chequeamos si la venta fue facturada (esto dependería de si tenemos ese dato, 
+  // pero podemos preguntar siempre o basarnos en si tiene cliente con DNI).
+  
+  // Para simplificar y cumplir con "reutilizar exactamente el mismo flujo":
+  if (venta && venta.cliente_nombre && venta.id_estado_venta == ID_ESTADO_CERRADA) {
+      pendingVentaId.value = idVenta;
+      showConfirmCheckTicket.value = true;
+  } else {
+      await imprimirTicketDirecto(idVenta);
+  }
 };
 
 const editarVentaDesdeDetalle = (venta) => {

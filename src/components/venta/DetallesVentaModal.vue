@@ -51,6 +51,23 @@
                   </span>
                   <span v-else class="text-muted ms-2">—</span>
                 </div>
+                <!-- Estado Facturación AFIP -->
+                <div v-if="venta?.estado_factura" class="mt-2 pt-2 border-top border-light-subtle">
+                  <span class="text-muted small">Facturación AFIP:</span>
+                  <div v-if="venta.estado_factura === 'facturada'" class="d-inline-flex align-items-center gap-1 ms-2 py-1 px-2 rounded-2 bg-success-subtle text-success border border-success-subtle shadow-xs animate-fade-in" style="font-size: 0.75rem;">
+                    <i class="bi bi-check-circle-fill"></i>
+                    <span class="fw-bold">Facturada correctamente</span>
+                  </div>
+                  <div v-else-if="venta.estado_factura === 'error'" class="d-inline-flex flex-column gap-1 ms-2 w-100 mt-1">
+                    <div class="d-inline-flex align-items-center gap-1 py-1 px-2 rounded-2 bg-danger-subtle text-danger border border-danger-subtle shadow-xs animate-shake" style="font-size: 0.75rem; align-self: flex-start;">
+                      <i class="bi bi-exclamation-triangle-fill"></i>
+                      <span class="fw-bold">Error en facturación</span>
+                    </div>
+                    <p class="mb-0 text-danger opacity-75 fw-medium" style="font-size: 0.7rem; line-height: 1.2;">
+                      Hubo un error al facturar. Verifique en ARCA si la factura fue emitida correctamente.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -18,7 +18,7 @@ class Venta
     public function getAll(): array
     {
         $sql = "SELECT v.id, v.fecha, v.id_equipo, v.descripcion_cliente, v.id_estado_venta, 
-                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste, v.facturada,
+                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste, v.estado_factura,
                        ev.descripcion AS estado_descripcion,
                        c.nombre_cliente AS cliente_nombre,
                        e.nombre AS equipo_nombre,
@@ -28,21 +28,9 @@ class Venta
                        (
                            SELECT GROUP_CONCAT(CONCAT(av.cantidad, 'x ', a.nombre) SEPARATOR '||')
                            FROM articulo_venta av
-                           INNER JOIN articulo a ON av.id_articulo = a.id
+                           LEFT JOIN articulo a ON av.id_articulo = a.id
                            WHERE av.id_venta = v.id
-                       ) AS articulos_list,
-                       (
-                           SELECT a.url_imagen 
-                           FROM articulo_venta av 
-                           INNER JOIN articulo a ON av.id_articulo = a.id 
-                           WHERE av.id_venta = v.id 
-                           LIMIT 1
-                       ) AS url_imagen_principal,
-                       (
-                           SELECT SUM(av.total)
-                           FROM articulo_venta av
-                           WHERE av.id_venta = v.id
-                       ) AS total_venta
+                       ) AS articulos_resumen
                 FROM {$this->table} v
                 LEFT JOIN estado_venta ev ON v.id_estado_venta = ev.id
                 LEFT JOIN cliente c ON v.id_cliente = c.id
@@ -65,7 +53,7 @@ class Venta
     public function getById(int $id): ?array
     {
         $sql = "SELECT v.id, v.fecha, v.id_equipo, v.descripcion_cliente, v.id_estado_venta, 
-                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste, v.facturada,
+                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste, v.estado_factura,
                        ev.descripcion AS estado_descripcion,
                        c.nombre_cliente AS cliente_nombre,
                        e.nombre AS equipo_nombre,
@@ -148,7 +136,7 @@ class Venta
     public function getByFechas(string $fechaDesde, string $fechaHasta): array
     {
         $sql = "SELECT v.id, v.fecha, v.id_equipo, v.descripcion_cliente, v.id_estado_venta, 
-                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste,
+                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste, v.estado_factura,
                        ev.descripcion AS estado_descripcion,
                        c.nombre_cliente AS cliente_nombre,
                        vc.id_medio_pago AS id_medio_cobro,
@@ -177,7 +165,7 @@ class Venta
      */
     public function getArticulos(int $idVenta): array
     {
-        $sql = "SELECT av.id_articulo_venta, av.id_articulo, av.cantidad, av.precio_unitario, av.total,
+        $sql = "SELECT av.id_articulo_venta, av.id_articulo, av.cantidad, av.precio_unitario, av.iva, av.total,
                        a.nombre AS articulo_nombre, a.cod_barra, a.url_imagen
                 FROM articulo_venta av
                 INNER JOIN articulo a ON av.id_articulo = a.id
@@ -197,9 +185,39 @@ class Venta
         try {
             $this->conn->beginTransaction();
 
-            // 1. Crear la cabecera de la venta
-            $sql = "INSERT INTO {$this->table} (fecha, id_equipo, descripcion_cliente, id_estado_venta, simbolo, id_cliente, tipo_vta, es_ajuste) 
-                    VALUES (:fecha, :id_equipo, :descripcion_cliente, :id_estado_venta, :simbolo, :id_cliente, :tipo_vta, :es_ajuste)";
+            // 1. Crear cliente si viene como nuevo_cliente en el payload (dentro de la transacción)
+            $nuevoCliente = $data['nuevo_cliente'] ?? null;
+            if ($nuevoCliente && !empty($nuevoCliente['nombre_cliente'])) {
+                require_once __DIR__ . '/Cliente.php';
+                $clienteModel = new Cliente($this->conn);
+                $idClienteNuevo = $clienteModel->create(
+                    null,
+                    $nuevoCliente['nombre_cliente'],
+                    $nuevoCliente['condicion_iva'] ?? 'Consumidor Final',
+                    $nuevoCliente['id_condicion_iva_receptor'] ?? 2,
+                    $nuevoCliente['direccion'] ?? null,
+                    isset($nuevoCliente['id_provincia']) ? (int)$nuevoCliente['id_provincia'] : null
+                );
+                if (!$idClienteNuevo) {
+                    throw new Exception('No se pudo crear el cliente.');
+                }
+                // Asociar equipo si corresponde
+                if (!empty($nuevoCliente['id_equipo'])) {
+                    $sqlCE = "INSERT INTO cliente_equipo (id_cliente, id_equipo) VALUES (:id_cliente, :id_equipo)";
+                    $stmtCE = $this->conn->prepare($sqlCE);
+                    $stmtCE->bindValue(':id_cliente', $idClienteNuevo, PDO::PARAM_INT);
+                    $stmtCE->bindValue(':id_equipo', (int)$nuevoCliente['id_equipo'], PDO::PARAM_INT);
+                    $stmtCE->execute();
+                }
+                $data['id_cliente'] = $idClienteNuevo;
+            }
+
+            // 2. Crear la cabecera de la venta
+            // Si facturar es true, iniciamos en 'error' para transaccionalidad con AFIP
+            $estadoFactura = (!empty($data['facturar']) && $data['facturar']) ? 'error' : null;
+
+            $sql = "INSERT INTO {$this->table} (fecha, id_equipo, descripcion_cliente, id_estado_venta, simbolo, id_cliente, tipo_vta, es_ajuste, estado_factura) 
+                    VALUES (:fecha, :id_equipo, :descripcion_cliente, :id_estado_venta, :simbolo, :id_cliente, :tipo_vta, :es_ajuste, :estado_factura)";
             $stmt = $this->conn->prepare($sql);
             $stmt->bindValue(':fecha', $data['fecha']);
             $stmt->bindValue(':id_equipo', $data['id_equipo'] ?? null, PDO::PARAM_INT);
@@ -211,6 +229,7 @@ class Venta
             $tipoVtaInt = (int)($data['id_estado_venta'] == ($data['id_estado_cerrada'] ?? 2) ? 1 : 0);
             $stmt->bindValue(':tipo_vta', $tipoVtaInt, PDO::PARAM_INT);
             $stmt->bindValue(':es_ajuste', $data['es_ajuste'] ?? 0, PDO::PARAM_INT);
+            $stmt->bindValue(':estado_factura', $estadoFactura);
             $stmt->execute();
             $idVenta = (int)$this->conn->lastInsertId();
 
@@ -224,13 +243,14 @@ class Venta
 
             foreach ($articulos as $art) {
                 // a. Crear el registro en articulo_venta
-                $sqlAV = "INSERT INTO articulo_venta (id_articulo, id_venta, cantidad, precio_unitario, total) 
-                         VALUES (:id_articulo, :id_venta, :cantidad, :precio_unitario, :total)";
+                $sqlAV = "INSERT INTO articulo_venta (id_articulo, id_venta, cantidad, precio_unitario, iva, total) 
+                         VALUES (:id_articulo, :id_venta, :cantidad, :precio_unitario, :iva, :total)";
                 $stmtAV = $this->conn->prepare($sqlAV);
                 $stmtAV->bindValue(':id_articulo', $art['id_articulo'], PDO::PARAM_INT);
                 $stmtAV->bindValue(':id_venta', $idVenta, PDO::PARAM_INT);
                 $stmtAV->bindValue(':cantidad', $art['cantidad']);
                 $stmtAV->bindValue(':precio_unitario', $art['precio_unitario']);
+                $stmtAV->bindValue(':iva', $art['iva'] ?? 0, PDO::PARAM_INT);
                 $stmtAV->bindValue(':total', $art['total']);
                 $stmtAV->execute();
                 $idArticuloVenta = (int)$this->conn->lastInsertId();
@@ -297,7 +317,7 @@ class Venta
             }
 
             $this->conn->commit();
-            return ['success' => true, 'id' => $idVenta];
+            return ['success' => true, 'id' => $idVenta, 'id_cliente' => $data['id_cliente'] ?? null];
         } catch (Exception $e) {
             if ($this->conn->inTransaction()) {
                 $this->conn->rollBack();
@@ -417,6 +437,9 @@ class Venta
             $idVenta = (int)$data['id'];
 
             // 1. Actualizar la cabecera de la venta
+            // Si facturar es true, aseguramos que el estado sea 'error' (a menos que ya esté facturada)
+            $estadoFactura = (!empty($data['facturar']) && $data['facturar']) ? 'error' : ($data['estado_factura'] ?? null);
+
             $sql = "UPDATE {$this->table} 
                     SET fecha = :fecha, 
                         id_equipo = :id_equipo, 
@@ -424,7 +447,8 @@ class Venta
                         id_estado_venta = :id_estado_venta, 
                         simbolo = :simbolo, 
                         id_cliente = :id_cliente, 
-                        tipo_vta = :tipo_vta 
+                        tipo_vta = :tipo_vta,
+                        estado_factura = :estado_factura
                     WHERE id = :id";
             $stmt = $this->conn->prepare($sql);
             $stmt->bindValue(':fecha', $data['fecha']);
@@ -435,6 +459,7 @@ class Venta
             $stmt->bindValue(':id_cliente', $data['id_cliente'] ?? null, PDO::PARAM_INT);
             $tipoVtaUpdate = (int)($data['id_estado_venta'] == ($data['id_estado_cerrada'] ?? 2) ? 1 : 0);
             $stmt->bindValue(':tipo_vta', $tipoVtaUpdate, PDO::PARAM_INT);
+            $stmt->bindValue(':estado_factura', $estadoFactura);
             $stmt->bindValue(':id', $idVenta, PDO::PARAM_INT);
             $stmt->execute();
 
