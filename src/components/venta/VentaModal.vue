@@ -181,11 +181,11 @@
                         type="checkbox" 
                         class="form-check-input cursor-pointer" 
                         style="width: 1.5em; height: 1.5em;"
-                        :disabled="!puedeFacturar"
-                        :title="mensajeFacturacion"
+                        :disabled="!puedeFacturar || (isEditing && !!form.estado_factura)"
+                        :title="isEditing && !!form.estado_factura ? 'Esta venta ya fue procesada por AFIP' : mensajeFacturacion"
                       />
-                      <label class="form-check-label fw-semibold text-secondary small ms-2 cursor-pointer" for="chkFacturar" :class="{ 'opacity-50': !puedeFacturar }">
-                        Emitir factura AFIP
+                      <label class="form-check-label fw-semibold text-secondary small ms-2 cursor-pointer" for="chkFacturar" :class="{ 'opacity-50': !puedeFacturar || (isEditing && !!form.estado_factura) }">
+                        Emitir factura AFIP {{ isEditing && !!form.estado_factura ? '(Procesada)' : '' }}
                       </label>
                     </div>
 

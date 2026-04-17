@@ -31,6 +31,7 @@ class ArticuloResumenVenta
                         INNER JOIN venta v ON av.id_venta = v.id
                         WHERE av.id_articulo = a.id
                           AND v.fecha BETWEEN :fecha_desde AND :fecha_hasta_periodo
+                          AND v.activo = 1
                     ), 0) AS cantidad_vendida,
                     COALESCE((
                         SELECT SUM(ia.cantidad)
@@ -47,6 +48,7 @@ class ArticuloResumenVenta
                         INNER JOIN venta v2 ON av2.id_venta = v2.id
                         WHERE av2.id_articulo = a.id
                           AND v2.fecha <= :fecha_hasta_ventas
+                          AND v2.activo = 1
                     ), 0) AS stock_disponible
                 FROM articulo a
                 WHERE a.activo = 1

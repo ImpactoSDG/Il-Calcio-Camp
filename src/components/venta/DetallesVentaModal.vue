@@ -12,7 +12,12 @@
               <h5 class="modal-title fw-bold text-dark mb-0 d-flex align-items-center gap-2">
                 Detalle de Venta #{{ venta?.id }}-{{ venta?.simbolo }}
               </h5>
-              <p class="text-muted small mb-0">{{ formatFecha(venta?.fecha) }}</p>
+              <div class="d-flex align-items-center gap-2">
+                <p class="text-muted small mb-0">{{ formatFecha(venta?.fecha) }}</p>
+                <span v-if="venta?.fecha_edicion" class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size: 0.65rem;" :title="'Editado: ' + formatFechaHora(venta.fecha_edicion)">
+                  EDITADO
+                </span>
+              </div>
             </div>
             <button type="button" class="btn-close ms-auto" @click="close"></button>
           </div>
@@ -53,7 +58,7 @@
                 </div>
                 <!-- Estado Facturación AFIP -->
                 <div v-if="venta?.estado_factura" class="mt-2 pt-2 border-top border-light-subtle">
-                  <span class="text-muted small">Facturación AFIP:</span>
+                  <span class="text-muted small">Facturación ARCA:</span>
                   <div v-if="venta.estado_factura === 'facturada'" class="d-inline-flex align-items-center gap-1 ms-2 py-1 px-2 rounded-2 bg-success-subtle text-success border border-success-subtle shadow-xs animate-fade-in" style="font-size: 0.75rem;">
                     <i class="bi bi-check-circle-fill"></i>
                     <span class="fw-bold">Facturada correctamente</span>
@@ -124,6 +129,22 @@
               <i class="bi bi-info-circle me-1"></i> <strong>Nota:</strong> {{ venta.descripcion_cliente }}
             </p>
           </div>
+
+          <!-- Mensaje de Advertencia por Edición Post-Facturación -->
+          <div v-if="mostrarAdvertenciaEdicion" class="mt-3 p-3 bg-warning-subtle rounded-3 border border-warning-subtle shadow-sm animate__animated animate__shakeX">
+            <div class="d-flex gap-3">
+              <i class="bi bi-exclamation-triangle-fill text-warning fs-4 mt-1"></i>
+              <div>
+                <p class="fw-bold text-warning mb-1">Venta facturada modificada</p>
+                <p class="small mb-0 text-warning-emphasis">
+                  Esta venta fue modificada después de emitir la factura. Los datos actuales pueden no coincidir con la factura registrada en ARCA.
+                </p>
+                <p class="text-muted mt-2" style="font-size: 0.7rem;">
+                  Última edición: {{ formatFechaHora(venta.fecha_edicion) }}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="modal-footer border-top-0 bg-light-subtle gap-2">
@@ -168,8 +189,20 @@ const formatFecha = (fecha) => {
   return `${d}/${m}/${y}`;
 };
 
+const formatFechaHora = (fecha) => {
+  if (!fecha) return '—';
+  const d = new Date(fecha);
+  return d.toLocaleString('es-AR');
+};
+
 const totalVenta = computed(() => {
   return formatMoney(props.articulos.reduce((acc, av) => acc + Number(av.total || 0), 0));
+});
+
+const mostrarAdvertenciaEdicion = computed(() => {
+  // Si la venta tiene estado (facturada o error) y además tiene fecha_edicion
+  return (props.venta?.estado_factura === 'facturada' || props.venta?.estado_factura === 'error') && 
+         props.venta?.fecha_edicion;
 });
 
 const imprimirTicket = async () => {

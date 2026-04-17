@@ -79,6 +79,7 @@ class ArticuloVenta
                 INNER JOIN venta v ON av.id_venta = v.id
                 WHERE av.id_articulo = :id_articulo
                   AND v.fecha BETWEEN :fecha_desde AND :fecha_hasta
+                  AND v.activo = 1
                 GROUP BY v.fecha
                 ORDER BY v.fecha ASC";
         $stmt = $this->conn->prepare($sql);

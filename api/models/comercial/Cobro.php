@@ -21,6 +21,7 @@ class Cobro
                        cl.nombre_cliente AS cliente_nombre
                 FROM {$this->table} c
                 LEFT JOIN cliente cl ON c.cliente_id = cl.id
+                WHERE c.activo = 1
                 ORDER BY c.fecha DESC, c.id DESC";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
@@ -33,7 +34,7 @@ class Cobro
      */
     public function getSinCliente(array $filtros = []): array
     {
-        $conditions = ["c.cliente_id IS NULL"];
+        $conditions = ["c.cliente_id IS NULL", "c.activo = 1"];
         $params = [];
 
         if (!empty($filtros['fecha_desde'])) {
@@ -75,7 +76,7 @@ class Cobro
      */
     public function getConCliente(array $filtros = []): array
     {
-        $conditions = ["c.cliente_id IS NOT NULL"];
+        $conditions = ["c.cliente_id IS NOT NULL", "c.activo = 1"];
         $params = [];
 
         if (!empty($filtros['fecha_desde'])) {
@@ -247,11 +248,11 @@ class Cobro
     }
 
     /**
-     * Elimina un cobro
+     * Elimina un cobro (BORRADO LÓGICO)
      */
     public function delete(int $id): bool
     {
-        $sql = "DELETE FROM {$this->table} WHERE id = :id";
+        $sql = "UPDATE {$this->table} SET activo = 0 WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         return $stmt->execute();
@@ -274,7 +275,7 @@ class Cobro
                 LEFT JOIN usuario u ON c.id_usuario = u.id
                 INNER JOIN venta_cobro vc ON vc.id_cobro = c.id
                 INNER JOIN medio_cobro mc ON vc.id_medio_pago = mc.id
-                WHERE DATE(c.fecha) = :fecha
+                WHERE DATE(c.fecha) = :fecha AND c.activo = 1
                 GROUP BY
                     COALESCE(c.id_usuario, 0),
                     COALESCE(u.nombre, 'Sin usuario'),

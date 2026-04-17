@@ -18,7 +18,7 @@ class Venta
     public function getAll(): array
     {
         $sql = "SELECT v.id, v.fecha, v.id_equipo, v.descripcion_cliente, v.id_estado_venta, 
-                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste, v.estado_factura,
+                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste, v.estado_factura, v.fecha_edicion,
                        ev.descripcion AS estado_descripcion,
                        c.nombre_cliente AS cliente_nombre,
                        e.nombre AS equipo_nombre,
@@ -41,6 +41,7 @@ class Venta
                     GROUP BY id_venta
                 ) vc ON v.id = vc.id_venta
                 LEFT JOIN medio_cobro mc ON vc.id_medio_pago = mc.id
+                WHERE v.activo = 1
                 ORDER BY v.fecha DESC, v.id DESC";
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
@@ -53,7 +54,7 @@ class Venta
     public function getById(int $id): ?array
     {
         $sql = "SELECT v.id, v.fecha, v.id_equipo, v.descripcion_cliente, v.id_estado_venta, 
-                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste, v.estado_factura,
+                       v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste, v.estado_factura, v.fecha_edicion,
                        ev.descripcion AS estado_descripcion,
                        c.nombre_cliente AS cliente_nombre,
                        e.nombre AS equipo_nombre,
@@ -437,8 +438,21 @@ class Venta
             $idVenta = (int)$data['id'];
 
             // 1. Actualizar la cabecera de la venta
-            // Si facturar es true, aseguramos que el estado sea 'error' (a menos que ya esté facturada)
-            $estadoFactura = (!empty($data['facturar']) && $data['facturar']) ? 'error' : ($data['estado_factura'] ?? null);
+            // Recuperamos el estado actual antes de actualizar
+            $sqlCurrent = "SELECT estado_factura FROM {$this->table} WHERE id = :id";
+            $stmtCurrent = $this->conn->prepare($sqlCurrent);
+            $stmtCurrent->bindValue(':id', $idVenta, PDO::PARAM_INT);
+            $stmtCurrent->execute();
+            $currentData = $stmtCurrent->fetch(PDO::FETCH_ASSOC);
+            $estadoFacturaOriginal = $currentData['estado_factura'] ?? null;
+
+            // PROTECCIÓN: Si ya está facturada o tuvo error, NO permitimos cambiar el estado_factura ni volver a activarlo para facturar.
+            if ($estadoFacturaOriginal !== null) {
+                $estadoFactura = $estadoFacturaOriginal;
+            } else {
+                // Solo permitimos poner en 'error' (intento de facturación) si era NULL
+                $estadoFactura = (!empty($data['facturar']) && $data['facturar']) ? 'error' : null;
+            }
 
             $sql = "UPDATE {$this->table} 
                     SET fecha = :fecha, 
@@ -448,7 +462,8 @@ class Venta
                         simbolo = :simbolo, 
                         id_cliente = :id_cliente, 
                         tipo_vta = :tipo_vta,
-                        estado_factura = :estado_factura
+                        estado_factura = :estado_factura,
+                        fecha_edicion = NOW()
                     WHERE id = :id";
             $stmt = $this->conn->prepare($sql);
             $stmt->bindValue(':fecha', $data['fecha']);
@@ -563,7 +578,7 @@ class Venta
     }
 
     /**
-     * Elimina una venta y sus detalles de manera transaccional
+     * Elimina una venta y sus detalles de manera transaccional (BORRADO LÓGICO)
      */
     public function delete(int $id): bool
     {
@@ -572,7 +587,9 @@ class Venta
                 $this->conn->beginTransaction();
             }
 
-            // 1. Obtener IDs de articulo_venta para borrar relaciones con lotes
+            // 1. Obtener IDs de articulo_venta para revertir el stock (BORRADO FÍSICO de la relación de stock)
+            // Mantener la relación de stock abierta causaría problemas si queremos recuperar la venta,
+            // pero para el flujo actual, lo mejor es que el stock se libere.
             $sqlAV = "SELECT id_articulo_venta FROM articulo_venta WHERE id_venta = :id_v";
             $stmtAV = $this->conn->prepare($sqlAV);
             $stmtAV->bindValue(':id_v', $id, PDO::PARAM_INT);
@@ -582,19 +599,13 @@ class Venta
             if (!empty($avIds)) {
                 $placeholders = implode(',', array_fill(0, count($avIds), '?'));
                 
-                // 2. Borrar relaciones de stock (esto devuelve el stock al cálculo de 'getActivos')
+                // Borrar relaciones de stock para liberar los artículos
                 $sqlDelAVIA = "DELETE FROM articulo_venta_ingreso_articulo WHERE articulo_venta_id_articulo_venta IN ($placeholders)";
                 $stmtDelAVIA = $this->conn->prepare($sqlDelAVIA);
                 $stmtDelAVIA->execute($avIds);
-
-                // 3. Borrar detalles de venta
-                $sqlDelAV = "DELETE FROM articulo_venta WHERE id_venta = :id_v";
-                $stmtDelAV = $this->conn->prepare($sqlDelAV);
-                $stmtDelAV->bindValue(':id_v', $id, PDO::PARAM_INT);
-                $stmtDelAV->execute();
             }
 
-            // 4. Borrar cobros asociados (venta_cobro -> cobro)
+            // 2. Borrado lógico de los cobros asociados
             $sqlVC = "SELECT id_cobro FROM venta_cobro WHERE id_venta = :id_v";
             $stmtVC = $this->conn->prepare($sqlVC);
             $stmtVC->bindValue(':id_v', $id, PDO::PARAM_INT);
@@ -602,19 +613,14 @@ class Venta
             $cobroIds = $stmtVC->fetchAll(PDO::FETCH_COLUMN);
 
             if (!empty($cobroIds)) {
-                $sqlDelVC = "DELETE FROM venta_cobro WHERE id_venta = :id_v";
-                $stmtDelVC = $this->conn->prepare($sqlDelVC);
-                $stmtDelVC->bindValue(':id_v', $id, PDO::PARAM_INT);
-                $stmtDelVC->execute();
-
                 $placeholdersC = implode(',', array_fill(0, count($cobroIds), '?'));
-                $sqlDelC = "DELETE FROM cobro WHERE id IN ($placeholdersC)";
-                $stmtDelC = $this->conn->prepare($sqlDelC);
-                $stmtDelC->execute($cobroIds);
+                $sqlUpdC = "UPDATE cobro SET activo = 0 WHERE id IN ($placeholdersC)";
+                $stmtUpdC = $this->conn->prepare($sqlUpdC);
+                $stmtUpdC->execute($cobroIds);
             }
 
-            // 5. Por último borrar la cabecera de la venta
-            $sqlV = "DELETE FROM {$this->table} WHERE id = :id";
+            // 3. Borrado lógico de la cabecera de la venta
+            $sqlV = "UPDATE {$this->table} SET activo = 0 WHERE id = :id";
             $stmtV = $this->conn->prepare($sqlV);
             $stmtV->bindValue(':id', $id, PDO::PARAM_INT);
             $stmtV->execute();

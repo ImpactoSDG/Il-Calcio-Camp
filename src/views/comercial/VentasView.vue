@@ -980,7 +980,10 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito, facturar })
     await fetchData();
 
     // ── AFIP (fuera de la transacción) ────────────────────────────────────────
-    if (facturar && esCerrada && idVenta && !esPausaVenta) {
+    // Solo facturar si es una venta nueva O si al editar no tenía intento previo (estado_factura null)
+    const yaSometidaAfip = isEditing.value && venta.estado_factura;
+    
+    if (facturar && esCerrada && idVenta && !esPausaVenta && !yaSometidaAfip) {
       toast.showToast({ message: 'Emitiendo factura AFIP...', type: 'info' });
       let afipOk = false;
       try {
