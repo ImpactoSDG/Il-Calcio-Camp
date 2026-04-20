@@ -95,15 +95,13 @@
           <form @submit.prevent="saveConfig">
             <div class="modal-body">
               <div class="mb-3">
-                <label class="form-label">Clave (Snake case sin espacios)</label>
+                <label class="form-label">Clave</label>
                 <input 
                   v-model.trim="form.clave" 
                   type="text" 
                   class="form-control" 
                   :disabled="isEditing"
-                  placeholder="ej: ruta_servidor_logos"
                 />
-                <div class="form-text">Ejemplo: nombre_de_variable</div>
               </div>
               <div class="mb-3">
                 <label class="form-label">Valor</label>

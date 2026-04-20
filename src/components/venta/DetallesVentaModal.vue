@@ -72,6 +72,22 @@
                       Hubo un error al facturar. Verifique en ARCA si la factura fue emitida correctamente.
                     </p>
                   </div>
+                  <div v-else-if="venta.estado_factura === 'rechazada'" class="d-inline-flex flex-column gap-1 ms-2 w-100 mt-1">
+                    <div class="d-inline-flex align-items-center gap-1 py-1 px-2 rounded-2 bg-secondary-subtle text-secondary border border-secondary-subtle shadow-xs" style="font-size: 0.75rem; align-self: flex-start;">
+                      <i class="bi bi-x-circle-fill"></i>
+                      <span class="fw-bold">Factura Rechazada</span>
+                    </div>
+                    <p class="mb-0 text-muted fw-medium" style="font-size: 0.7rem; line-height: 1.2;">
+                      La solicitud fue rechazada por ARCA. No se generó comprobante válido.
+                    </p>
+                  </div>
+                  <!-- Botón Ver Factura -->
+                  <div class="mt-2 d-flex gap-2">
+                    <button @click="verFacturaPdf" class="btn btn-sm btn-outline-info d-flex align-items-center gap-1 px-2 py-1 shadow-sm" style="font-size: 0.7rem;">
+                      <i class="bi bi-file-earmark-pdf"></i>
+                      Ver Factura/Ticket
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -137,7 +153,7 @@
               <div>
                 <p class="fw-bold text-warning mb-1">Venta facturada modificada</p>
                 <p class="small mb-0 text-warning-emphasis">
-                  Esta venta fue modificada después de emitir la factura. Los datos actuales pueden no coincidir con la factura registrada en ARCA.
+                  Esta venta fue modificada después de emitir la factura. El detalle puede no coincidir con lo que se facturó.
                 </p>
                 <p class="text-muted mt-2" style="font-size: 0.7rem;">
                   Última edición: {{ formatFechaHora(venta.fecha_edicion) }}
@@ -161,11 +177,19 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal Factura Electrónica -->
+  <FacturaPreviewModal
+    v-model="showFacturaModal"
+    :venta="venta"
+    :articulos="articulos"
+  />
 </template>
 
 <script setup>
 import { computed, ref } from 'vue';
 import { formatMoney } from '@/utils/formatters';
+import FacturaPreviewModal from '@/components/venta/FacturaPreviewModal.vue';
 
 const props = defineProps({
   modelValue: Boolean,
@@ -177,9 +201,14 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'imprimir', 'editar']);
 
 const isPrinting = ref(false);
+const showFacturaModal = ref(false);
 
 const close = () => {
   emit('update:modelValue', false);
+};
+
+const verFacturaPdf = () => {
+  showFacturaModal.value = true;
 };
 
 const formatFecha = (fecha) => {

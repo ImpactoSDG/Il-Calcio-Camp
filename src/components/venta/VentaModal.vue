@@ -717,18 +717,13 @@ const clienteSeleccionado = computed(() =>
 const puedeFacturar = computed(() => {
   if (props.isAjuste) return false;
   if (!esCerrada.value) return false;
-  const cliente = clienteSeleccionado.value;
-  if (!cliente) return false;
-  // Solo requiere condición IVA; el DNI es opcional para Consumidor Final
-  return !!cliente.id_condicion_iva_receptor;
+  // Permitimos facturar aunque no haya cliente (Consumidor Final anónimo)
+  return true;
 });
 
 const mensajeFacturacion = computed(() => {
   if (props.isAjuste) return 'No aplica a ajustes';
   if (!esCerrada.value) return 'Solo en ventas cerradas';
-  const cliente = clienteSeleccionado.value;
-  if (!cliente) return 'Requiere cliente';
-  if (!cliente.id_condicion_iva_receptor) return 'Cliente sin condición IVA';
   return '';
 });
 

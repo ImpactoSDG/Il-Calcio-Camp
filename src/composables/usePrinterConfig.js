@@ -636,9 +636,6 @@ export function generarHtmlDetalleFactura({ factura, articulos }) {
       <td class="r">$${fmt(a.total)}</td>
     </tr>`).join('');
 
-  // Calcular total sumando artículos (a.total ya incluye IVA si corresponde)
-  const total = articulos.reduce((sum, a) => sum + Number(a.total || 0), 0);
-
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -718,7 +715,7 @@ export function generarHtmlDetalleFactura({ factura, articulos }) {
 
   <div class="sep-solid"></div>
   <table class="totales">
-    <tr class="total-final"><td>TOTAL VENTA</td><td class="r">$${fmt(total)}</td></tr>
+    <tr class="total-final"><td>TOTAL VENTA</td><td class="r">$${fmt(factura.importe_total)}</td></tr>
   </table>
 
   <div class="sep"></div>

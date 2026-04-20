@@ -507,6 +507,15 @@
       </div>
     </Teleport>
 
+    <!-- Modal de Previsualización de PDF Global -->
+    <PdfPreviewModal
+      v-model="showPreviewModalGlobal"
+      :url="previewUrlGlobal"
+      :title="previewTitleGlobal"
+      :loading="isPrintingGlobal"
+      @imprimir="handlePrintFromPreview"
+    />
+
   </div>
 </template>
 
@@ -522,6 +531,7 @@ import FuzzySearch from '@/components/FuzzySearch.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
 import VentaModal from "@/components/venta/VentaModal.vue";
 import DetallesVentaModal from "@/components/venta/DetallesVentaModal.vue";
+import PdfPreviewModal from '@/components/PdfPreviewModal.vue';
 import ventasService from '@/services/comercial/ventasService';
 import clientesService from '@/services/comercial/clientesService';
 import articulosService from '@/services/inventario/articulosService';
@@ -710,6 +720,31 @@ const showDeleteAvModal    = ref(false);
 const isDeletingAv         = ref(false);
 const idAvToDelete         = ref(null);
 
+// Estados para el PDF Preview Modal Global
+const showPreviewModalGlobal = ref(false);
+const previewUrlGlobal = ref('');
+const previewTitleGlobal = ref('');
+const isPrintingGlobal = ref(false);
+const currentVentaIdForPreview = ref(null);
+
+const handlePrintFromPreview = async () => {
+  if (!currentVentaIdForPreview.value) return;
+  isPrintingGlobal.value = true;
+  try {
+    await imprimirTicketDirecto(currentVentaIdForPreview.value);
+  } finally {
+    isPrintingGlobal.value = false;
+  }
+};
+
+const openPdfPreview = (idVenta) => {
+  const token = userStore.token;
+  currentVentaIdForPreview.value = idVenta;
+  previewUrlGlobal.value = `${apiBaseUrl}/ticket-venta?id=${idVenta}&token=${token}`;
+  previewTitleGlobal.value = `Ticket de Venta #${idVenta}`;
+  showPreviewModalGlobal.value = true;
+};
+
 const totalDetalleVenta = computed(() =>
   formatMoney(articulosDeVenta.value.reduce((acc, av) => acc + Number(av.total || 0), 0))
 );
@@ -816,7 +851,7 @@ const esVentaAntigua = (fechaVenta) => {
 const fetchData = async () => {
   loading.value = true;
   try {
-    const [ventasRes, clientesRes, equiposRes, estadosRes, mediosRes, articulosRes] = await Promise.all([
+    const results = await Promise.allSettled([
       ventasService.getVentas(),
       clientesService.getClientes(),
       datosMaestrosService.getEquipos(),
@@ -824,12 +859,18 @@ const fetchData = async () => {
       datosMaestrosService.getMediosCobro(),
       articulosService.getAllActivos(),
     ]);
-    ventas.value = ventasRes;
-    clientes.value = clientesRes;
-    equipos.value = equiposRes;
-    estadosVenta.value = estadosRes;
-    mediosCobro.value = mediosRes;
-    articulos.value = articulosRes;
+    const toArray = (r) => (r.status === 'fulfilled' && Array.isArray(r.value)) ? r.value : [];
+    ventas.value      = toArray(results[0]);
+    clientes.value    = toArray(results[1]);
+    equipos.value     = toArray(results[2]);
+    estadosVenta.value = toArray(results[3]);
+    mediosCobro.value = toArray(results[4]);
+    articulos.value   = toArray(results[5]);
+
+    // Si alguno falló, notificamos pero no bloqueamos
+    if (results.some(r => r.status === 'rejected')) {
+      toast.showToast({ message: 'Algunos datos no pudieron cargarse.', type: 'warning' });
+    }
   } catch {
     toast.showToast({ message: 'Error al cargar datos.', type: 'danger' });
   } finally {
@@ -984,6 +1025,30 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito, facturar })
     const yaSometidaAfip = isEditing.value && venta.estado_factura;
     
     if (facturar && esCerrada && idVenta && !esPausaVenta && !yaSometidaAfip) {
+
+      // ── Verificar límite diario ANTES de tocar AFIP ───────────────────────
+      try {
+        const estadoDiario = await facturaService.getEstadoDiario();
+        if (!estadoDiario.puede_facturar) {
+          const acumFmt  = formatMoney(estadoDiario.acumulado);
+          const limFmt   = formatMoney(estadoDiario.limite);
+          toast.showToast({
+            message: `Límite diario de facturación alcanzado ($${acumFmt} acumulado de $${limFmt}). La venta se registró sin enviar a ARCA.`,
+            type: 'warning',
+            duration: 12000,
+          });
+          // Registrar la operación como si hubiera sido bloqueada (no error técnico)
+          await facturaService.marcarPendienteAfip(idVenta, 'Límite diario de facturación alcanzado.', false);
+          await fetchData();
+          await imprimirTicketDirecto(idVenta, false);
+          return;
+        }
+      } catch {
+        // Si no podemos consultar el límite, continuamos con AFIP (no bloqueamos por error de red)
+        console.warn('[AFIP] No se pudo verificar límite diario, continuando...');
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       toast.showToast({ message: 'Emitiendo factura AFIP...', type: 'info' });
       let afipOk = false;
       try {
@@ -992,16 +1057,22 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito, facturar })
           afipOk = true;
           toast.showToast({ message: `Factura emitida. CAE: ${factRes.cae}`, type: 'success' });
         } else {
-          const errMsg = factRes.message || factRes.error || 'Error desconocido de AFIP.';
+          const errMsg = factRes.message || factRes.error || 'Error de AFIP.';
+          const esRechazada = errMsg.toLowerCase().includes('rechazad') || errMsg.toLowerCase().includes('validación');
+          
           console.error(`[AFIP][Venta #${idVenta}]`, errMsg);
           toast.showToast({ message: `Error AFIP: ${errMsg}`, type: 'danger', duration: 8000 });
-          await facturaService.marcarPendienteAfip(idVenta, errMsg);
+          
+          await facturaService.marcarPendienteAfip(idVenta, errMsg, esRechazada);
         }
       } catch (errFact) {
         const errMsg = errFact?.response?.data?.message || errFact?.message || 'Error de conexión con AFIP.';
+        const esRechazada = errMsg.toLowerCase().includes('rechazad') || errMsg.toLowerCase().includes('validación');
+        
         console.error(`[AFIP][Venta #${idVenta}] Excepción:`, errFact);
         toast.showToast({ message: `Error AFIP: ${errMsg}`, type: 'danger', duration: 8000 });
-        await facturaService.marcarPendienteAfip(idVenta, errMsg).catch(() => {});
+        
+        await facturaService.marcarPendienteAfip(idVenta, errMsg, esRechazada).catch(() => {});
       }
 
       // Impresión según resultado AFIP
@@ -1019,7 +1090,11 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito, facturar })
 
     // Sin facturación: impresión directa solo si cerrada
     if (esCerrada && idVenta && !esPausaVenta) {
-      await imprimirTicketDirecto(idVenta);
+      if (usePrintModeStore().mode === 'descargar_pdf') {
+        openPdfPreview(idVenta);
+      } else {
+        await imprimirTicketDirecto(idVenta);
+      }
     }
   } catch (err) {
     const msg = err?.response?.data?.message || err?.message || 'Error al guardar.';

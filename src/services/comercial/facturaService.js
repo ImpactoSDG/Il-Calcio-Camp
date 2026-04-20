@@ -31,11 +31,23 @@ const facturaService = {
     api.put(`/facturas/${idFactura}`, datos).then(r => r.data),
 
   /**
-   * Marca una venta como pendiente_afip tras un fallo al facturar.
-   * POST /facturas-marcar-pendiente  { id_venta, error_msg }
+   * Marca una venta como error o rechazada tras un fallo al facturar.
+   * POST /facturas-marcar-pendiente  { id_venta, error_msg, rechazar }
    */
-  marcarPendienteAfip: (idVenta, errorMsg = '') =>
-    api.post('/facturas-marcar-pendiente', { id_venta: idVenta, error_msg: errorMsg }).then(r => r.data),
+  marcarPendienteAfip: (idVenta, errorMsg = '', rechazar = false) =>
+    api.post('/facturas-marcar-pendiente', { 
+      id_venta: idVenta, 
+      error_msg: errorMsg,
+      rechazar: rechazar 
+    }).then(r => r.data),
+
+  /**
+   * Consulta el acumulado facturado hoy y si aún es posible emitir comprobantes.
+   * GET /facturacion-estado-diario
+   * Retorna { acumulado, limite, puede_facturar }
+   */
+  getEstadoDiario: () =>
+    api.get('/facturacion-estado-diario').then(r => r.data),
 };
 
 export default facturaService;

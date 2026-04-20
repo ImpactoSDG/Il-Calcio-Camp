@@ -152,6 +152,20 @@ class FacturaController extends BaseController
             return ['success' => false, 'error' => 'La venta debe tener al menos un artículo.'];
         }
 
+        // 1b. Verificar límite diario de facturación
+        $estadoDiario = $this->getEstadoDiarioData();
+        if (!$estadoDiario['puede_facturar']) {
+            return [
+                'success'       => false,
+                'limite_diario' => true,
+                'error'         => sprintf(
+                    'Límite diario de facturación alcanzado ($%s acumulado / $%s límite). La venta se registró sin factura electrónica.',
+                    number_format($estadoDiario['acumulado'], 2, '.', ','),
+                    number_format($estadoDiario['limite'], 2, '.', ',')
+                ),
+            ];
+        }
+
         // Idempotencia: si ya tiene factura con CAE, devolver la existente
         if (!empty($venta['id_factura'])) {
             $factExistente = $this->facturaModel->getById((int)$venta['id_factura']);
@@ -218,7 +232,7 @@ class FacturaController extends BaseController
             $receptor = $stmtCliente->fetch(PDO::FETCH_ASSOC);
         }
 
-        // 4. Validar datos del receptor si no es anónimo
+        // 4. Validar datos del receptor (Opcional para Consumidor Final)
         if ($receptor) {
             $erroresReceptor = [];
             if (empty($receptor['nombre_cliente'])) $erroresReceptor[] = 'nombre del cliente';
@@ -237,8 +251,14 @@ class FacturaController extends BaseController
                 ];
             }
         } else {
-            // Si es anónimo/sin cliente, no permitimos facturación
-            return ['success' => false, 'error' => 'No se puede facturar una venta sin cliente asignado.'];
+            // Si es anónimo/sin cliente, definimos los datos por defecto para Consumidor Final
+            $receptor = [
+                'nombre_cliente' => 'Consumidor Final',
+                'id_condicion_iva_receptor' => 2, // ID 2 = Consumidor Final
+                'cuit_dni' => '0',
+                'direccion' => null,
+                'nombre_provincia' => null
+            ];
         }
 
         // 5. Preparar payload para el afip-service
@@ -310,34 +330,37 @@ class FacturaController extends BaseController
     // =========================================================================
 
     /**
-     * Marca una venta con estado 'error' luego de un fallo al facturar.
-     * Recibe { id_venta, error_msg } en el body JSON.
+     * Marca una venta con estado 'error' o 'rechazada' luego de un fallo al facturar.
+     * Recibe { id_venta, error_msg, rechazar } en el body JSON.
      */
     public function marcarPendienteAfip(): void
     {
         try {
-            $data   = json_decode(file_get_contents("php://input"), true) ?? [];
-            $idVenta = isset($data['id_venta']) ? (int)$data['id_venta'] : 0;
+            $data     = json_decode(file_get_contents("php://input"), true) ?? [];
+            $idVenta  = isset($data['id_venta']) ? (int)$data['id_venta'] : 0;
             $errorMsg = $data['error_msg'] ?? '';
+            $rechazar = isset($data['rechazar']) ? (bool)$data['rechazar'] : false;
 
             if (!$idVenta) {
                 $this->respond(400, ['message' => 'ID de venta requerido.']);
                 return;
             }
 
+            $nuevoEstado = $rechazar ? 'rechazada' : 'error';
+
             $stmt = $this->db->prepare("
                 UPDATE venta
-                SET estado_factura = 'error'
+                SET estado_factura = ?
                 WHERE id = ?
             ");
-            $stmt->execute([$idVenta]);
+            $stmt->execute([$nuevoEstado, $idVenta]);
 
             // Log del error en error_log del servidor para trazabilidad
             if ($errorMsg) {
-                error_log("[AFIP][Venta #{$idVenta}] Fallo al facturar: {$errorMsg}");
+                error_log("[AFIP][Venta #{$idVenta}] Fallo al facturar ({$nuevoEstado}): {$errorMsg}");
             }
 
-            $this->respond(200, ['message' => 'Estado actualizado a error.']);
+            $this->respond(200, ['message' => "Estado actualizado a {$nuevoEstado}."]);
         } catch (Throwable $e) {
             $this->handleError($e, 'Error al marcar fallo AFIP');
         }
@@ -346,6 +369,53 @@ class FacturaController extends BaseController
     // =========================================================================
     // HELPERS PRIVADOS
     // =========================================================================
+
+    /**
+     * Calcula el estado de la facturación diaria: acumulado del día vs. límite configurado.
+     * Retorna un array con { acumulado, limite, puede_facturar }.
+     * Si no existe configuración de límite, siempre devuelve puede_facturar = true.
+     */
+    private function getEstadoDiarioData(): array
+    {
+        $stmtLimite = $this->db->query(
+            "SELECT valor FROM configuraciones WHERE clave = 'monto_limite' LIMIT 1"
+        );
+        $rowLimite = $stmtLimite->fetch(PDO::FETCH_ASSOC);
+
+        // Si no hay límite configurado, no hay restricción
+        if (!$rowLimite || $rowLimite['valor'] === null || $rowLimite['valor'] === '') {
+            return ['acumulado' => 0.0, 'limite' => null, 'puede_facturar' => true];
+        }
+
+        $limite = (float)$rowLimite['valor'];
+
+        $stmtAcum = $this->db->query(
+            "SELECT COALESCE(SUM(importe_total + IVA), 0) AS acumulado
+             FROM factura
+             WHERE DATE(fecha_hora_creacion) = DATE(NOW())"
+        );
+        $acumulado = (float)$stmtAcum->fetchColumn();
+
+        return [
+            'acumulado'      => $acumulado,
+            'limite'         => $limite,
+            'puede_facturar' => $acumulado < $limite,
+        ];
+    }
+
+    /**
+     * Endpoint público: GET /facturacion-estado-diario
+     * Devuelve el acumulado facturado hoy, el límite y si aún se puede facturar.
+     */
+    public function getEstadoDiario(): void
+    {
+        try {
+            $data = $this->getEstadoDiarioData();
+            $this->respond(200, $data);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al calcular estado de facturación diaria');
+        }
+    }
 
     /**
      * Construye el payload que espera el script Node.js de afip-service.

@@ -110,6 +110,11 @@ function verifyAuth(): array {
     $headers = getallheaders();
     $authHeader = $headers['Authorization'] ?? '';
 
+    // Si no hay cabecera Authorization, buscamos el token en los parámetros GET (para previsualización de PDFs en iframes)
+    if (empty($authHeader) && !empty($_GET['token'])) {
+        $authHeader = 'Bearer ' . $_GET['token'];
+    }
+
     if (!str_starts_with($authHeader, 'Bearer ')) {
         http_response_code(401);
         echo json_encode(['message' => 'No autorizado: Cabecera Authorization no encontrada.']);
@@ -777,6 +782,15 @@ switch ($resource) {
         verifyAuth();
         if ($method === 'POST') {
             $facturaController->facturarVenta();
+        } else {
+            http_response_code(405);
+        }
+        break;
+
+    case 'facturacion-estado-diario':
+        verifyAuth();
+        if ($method === 'GET') {
+            $facturaController->getEstadoDiario();
         } else {
             http_response_code(405);
         }
