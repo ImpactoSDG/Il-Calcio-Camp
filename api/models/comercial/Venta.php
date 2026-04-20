@@ -25,6 +25,11 @@ class Venta
                        vc.id_medio_pago AS id_medio_cobro,
                        vc.monto AS monto_cobrado,
                        mc.descripcion AS medio_cobro_nombre,
+                       COALESCE((
+                           SELECT SUM(av.total)
+                           FROM articulo_venta av
+                           WHERE av.id_venta = v.id
+                       ), 0) AS total_venta,
                        (
                            SELECT GROUP_CONCAT(CONCAT(av.cantidad, 'x ', a.nombre) SEPARATOR '||')
                            FROM articulo_venta av
@@ -60,7 +65,12 @@ class Venta
                        e.nombre AS equipo_nombre,
                        vc.id_medio_pago AS id_medio_cobro,
                        vc.monto AS monto_cobrado,
-                       mc.descripcion AS medio_cobro_nombre
+                       mc.descripcion AS medio_cobro_nombre,
+                       COALESCE((
+                           SELECT SUM(av.total)
+                           FROM articulo_venta av
+                           WHERE av.id_venta = v.id
+                       ), 0) AS total_venta
                 FROM {$this->table} v
                 LEFT JOIN estado_venta ev ON v.id_estado_venta = ev.id
                 LEFT JOIN cliente c ON v.id_cliente = c.id
@@ -88,7 +98,12 @@ class Venta
                        v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste,
                        ev.descripcion AS estado_descripcion,
                        vc.id_medio_pago AS id_medio_cobro,
-                       mc.descripcion AS medio_cobro_nombre
+                       mc.descripcion AS medio_cobro_nombre,
+                       COALESCE((
+                           SELECT SUM(av.total)
+                           FROM articulo_venta av
+                           WHERE av.id_venta = v.id
+                       ), 0) AS total_venta
                 FROM {$this->table} v
                 LEFT JOIN estado_venta ev ON v.id_estado_venta = ev.id
                 LEFT JOIN (
@@ -114,7 +129,12 @@ class Venta
                        v.simbolo, v.id_cliente, v.tipo_vta, v.es_ajuste,
                        c.nombre_cliente AS cliente_nombre,
                        vc.id_medio_pago AS id_medio_cobro,
-                       mc.descripcion AS medio_cobro_nombre
+                       mc.descripcion AS medio_cobro_nombre,
+                       COALESCE((
+                           SELECT SUM(av.total)
+                           FROM articulo_venta av
+                           WHERE av.id_venta = v.id
+                       ), 0) AS total_venta
                 FROM {$this->table} v
                 LEFT JOIN cliente c ON v.id_cliente = c.id
                 LEFT JOIN (
@@ -142,7 +162,12 @@ class Venta
                        c.nombre_cliente AS cliente_nombre,
                        vc.id_medio_pago AS id_medio_cobro,
                        vc.monto AS monto_cobrado,
-                       mc.descripcion AS medio_cobro_nombre
+                       mc.descripcion AS medio_cobro_nombre,
+                       COALESCE((
+                           SELECT SUM(av.total)
+                           FROM articulo_venta av
+                           WHERE av.id_venta = v.id
+                       ), 0) AS total_venta
                 FROM {$this->table} v
                 LEFT JOIN estado_venta ev ON v.id_estado_venta = ev.id
                 LEFT JOIN cliente c ON v.id_cliente = c.id
@@ -466,17 +491,6 @@ class Venta
                         fecha_edicion = NOW()
                     WHERE id = :id";
             $stmt = $this->conn->prepare($sql);
-            $stmt->bindValue(':fecha', $data['fecha']);
-            $stmt->bindValue(':id_equipo', $data['id_equipo'] ?? null, PDO::PARAM_INT);
-            $stmt->bindValue(':descripcion_cliente', $data['descripcion_cliente'] ?? null);
-            $stmt->bindValue(':id_estado_venta', $data['id_estado_venta'], PDO::PARAM_INT);
-            $stmt->bindValue(':simbolo', $data['simbolo']);
-            $stmt->bindValue(':id_cliente', $data['id_cliente'] ?? null, PDO::PARAM_INT);
-            $tipoVtaUpdate = (int)($data['id_estado_venta'] == ($data['id_estado_cerrada'] ?? 2) ? 1 : 0);
-            $stmt->bindValue(':tipo_vta', $tipoVtaUpdate, PDO::PARAM_INT);
-            $stmt->bindValue(':estado_factura', $estadoFactura);
-            $stmt->bindValue(':id', $idVenta, PDO::PARAM_INT);
-            $stmt->execute();
 
             // 2. Manejo de artículos: Eliminar antiguos y agregar nuevos (Simplificado)
             // Nota: En un sistema real, se debería revertir el stock de los eliminados

@@ -401,6 +401,17 @@
       @cancel="handleConfirmTicketCheck(false)"
     />
 
+    <!-- Advertencia Límite Diario Alcanzado -->
+    <ConfirmModal
+      v-model="showLimiteModal"
+      title="Límite Diario Alcanzado"
+      :message="mensajeLimiteModal"
+      confirm-button-text="Entendido"
+      variant="warning"
+      hide-cancel
+      @confirm="showLimiteModal = false"
+    />
+
     <!-- Contenedor de Ticket para Impresión -->
     <div v-if="ventaParaImprimir" class="ticket-impresion">
       <div class="ticket-header">
@@ -629,6 +640,8 @@ const totalesVenta      = ref({});
 const showVentaModal      = ref(false);
 const showDetallesModal   = ref(false);
 const showModalOlvidadas  = ref(false);
+const showLimiteModal     = ref(false);
+const mensajeLimiteModal  = ref('');
 const ventaSeleccionada = ref(null);
 const isEditing         = ref(false);
 const isSaving          = ref(false);
@@ -974,13 +987,38 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito, facturar })
     // Calcular el total real basado en los artículos del carrito
     const totalCarritoCalculado = (articulosCarrito || []).reduce((acc, i) => acc + Number(i.total || 0), 0).toFixed(2);
 
+    // ── Verificar límite diario ANTES de guardar cualquier dato ──────────────
+    let facturarEfectivo = facturar;
+    const yaSometidaAfip = isEditing.value && venta.estado_factura;
+    if (facturar && esCerrada && !esPausaVenta && !yaSometidaAfip) {
+      try {
+        const estadoDiario = await facturaService.getEstadoDiario();
+        if (estadoDiario.limite !== null && estadoDiario.limite !== undefined) {
+          const montoActual = Number(totalCarritoCalculado);
+          if (estadoDiario.acumulado + montoActual > estadoDiario.limite) {
+            facturarEfectivo = false;
+            
+            const acumFmt = formatMoney(estadoDiario.acumulado);
+            const limFmt  = formatMoney(estadoDiario.limite);
+            const totalFmt = formatMoney(montoActual);
+            
+            mensajeLimiteModal.value = `Esta venta ($${totalFmt}) excede el límite diario configurado ($${limFmt}). Actualmente se han facturado $${acumFmt}. La venta se registrará correctamente, pero NO se enviará a ARCA ni se generará factura electrónica.`;
+            showLimiteModal.value = true;
+          }
+        }
+      } catch {
+        console.warn('[AFIP] No se pudo verificar límite diario, continuando...');
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const payload = {
       ...venta,
       tipo_vta: esCerrada ? medioCobroDesc : '',
       id_estado_cerrada: ID_ESTADO_CERRADA,
       id_estado_pausa:   ID_ESTADO_PAUSA,
       monto_cobrado: esCerrada ? (venta.monto_cobrado || Number(totalCarritoCalculado)) : 0,
-      facturar: facturar ? 1 : 0,
+      facturar: facturarEfectivo ? 1 : 0,
       articulos: (articulosCarrito || []).map(i => ({
         id_articulo:    i.id_articulo,
         cantidad:       i.cantidad,
@@ -1021,33 +1059,7 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito, facturar })
     await fetchData();
 
     // ── AFIP (fuera de la transacción) ────────────────────────────────────────
-    // Solo facturar si es una venta nueva O si al editar no tenía intento previo (estado_factura null)
-    const yaSometidaAfip = isEditing.value && venta.estado_factura;
-    
-    if (facturar && esCerrada && idVenta && !esPausaVenta && !yaSometidaAfip) {
-
-      // ── Verificar límite diario ANTES de tocar AFIP ───────────────────────
-      try {
-        const estadoDiario = await facturaService.getEstadoDiario();
-        if (!estadoDiario.puede_facturar) {
-          const acumFmt  = formatMoney(estadoDiario.acumulado);
-          const limFmt   = formatMoney(estadoDiario.limite);
-          toast.showToast({
-            message: `Límite diario de facturación alcanzado ($${acumFmt} acumulado de $${limFmt}). La venta se registró sin enviar a ARCA.`,
-            type: 'warning',
-            duration: 12000,
-          });
-          // Registrar la operación como si hubiera sido bloqueada (no error técnico)
-          await facturaService.marcarPendienteAfip(idVenta, 'Límite diario de facturación alcanzado.', false);
-          await fetchData();
-          await imprimirTicketDirecto(idVenta, false);
-          return;
-        }
-      } catch {
-        // Si no podemos consultar el límite, continuamos con AFIP (no bloqueamos por error de red)
-        console.warn('[AFIP] No se pudo verificar límite diario, continuando...');
-      }
-      // ─────────────────────────────────────────────────────────────────────
+    if (facturarEfectivo && esCerrada && idVenta && !esPausaVenta && !yaSometidaAfip) {
 
       toast.showToast({ message: 'Emitiendo factura AFIP...', type: 'info' });
       let afipOk = false;
@@ -1077,6 +1089,8 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito, facturar })
 
       // Impresión según resultado AFIP
       if (afipOk) {
+        // Recargar datos de la venta después de que AFIP actualice su estado
+        await fetchData();
         // Preguntamos si quiere imprimir el detalle de factura
         pendingVentaId.value = idVenta;
         showConfirmCheckTicket.value = true;

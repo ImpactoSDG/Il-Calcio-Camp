@@ -50,6 +50,7 @@ require_once __DIR__ . '/controllers/comercial/CobroController.php';
 require_once __DIR__ . '/controllers/comercial/VentaCobroController.php';
 require_once __DIR__ . '/controllers/comercial/TicketVentaController.php';
 require_once __DIR__ . '/controllers/comercial/FacturaController.php';
+require_once __DIR__ . '/controllers/comercial/ReporteVentaController.php';
 
 // --- Hardware ---
 require_once __DIR__ . '/controllers/hardware/ImpresoraTiqueteraController.php';
@@ -105,6 +106,7 @@ $articuloResumenVentaController = new ArticuloResumenVentaController($db);
 $simboloDiaController = new SimboloDiaController();
 $registroPublicoController = new RegistroPublicoController($db);
 $facturaController = new FacturaController($db);
+$reporteVentaController = new ReporteVentaController($db);
 
 function verifyAuth(): array {
     $headers = getallheaders();
@@ -773,6 +775,15 @@ switch ($resource) {
             default:
                 http_response_code(405);
                 break;
+        }
+        break;
+
+    case 'reportes-venta':
+        verifyAuth();
+        if ($method === 'GET') {
+            $reporteVentaController->getReporte();
+        } else {
+            http_response_code(405);
         }
         break;
 

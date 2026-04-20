@@ -193,14 +193,14 @@
                       <span class="text-secondary fw-medium">{{ isAjuste ? 'Items a ajustar' : 'Subtotal' }}</span>
                       <span class="text-dark fw-bold">{{ isAjuste ? articulosCarrito.length : ('$' + formatMoney(subtotal.toFixed(2))) }}</span>
                     </div>
-                <div v-if="!isAjuste" class="d-flex justify-content-between align-items-center mb-2">
-                      <span class="text-secondary fw-medium">IVA (21%)</span>
-                      <span class="text-dark fw-bold">${{ formatMoney(totalIVA) }}</span>        
-                    </div>
-                    <div :class="{ 'border-top border-2 pt-2 mt-2': true, 'd-flex justify-content-between align-items-center': true, 'opacity-50': isAjuste }">
-                      <span class="text-dark fw-black fs-5">{{ isAjuste ? 'AJUSTE' : 'TOTAL' }}</span>   
-                      <span class="text-primary fw-black fs-4">{{ isAjuste ? 'STOCK' : ('$' + formatMoney(totalCarrito)) }}</span>  
-                    </div>
+    <div v-if="!isAjuste" class="d-flex justify-content-between align-items-center mb-2">
+      <span class="text-secondary fw-medium">IVA (21%)</span>
+      <span class="text-dark fw-bold">${{ formatMoney(totalIVA) }}</span>        
+    </div>
+    <div :class="{ 'border-top border-2 pt-2 mt-2': true, 'd-flex justify-content-between align-items-center': true, 'opacity-50': isAjuste }">
+      <span class="text-dark fw-black fs-5">{{ isAjuste ? 'AJUSTE' : 'TOTAL' }}</span>   
+      <span class="text-primary fw-black fs-4">{{ isAjuste ? 'STOCK' : ('$' + formatMoney(totalCarrito)) }}</span>  
+    </div>
                   </div>
                 </div>
               </div>
@@ -333,8 +333,8 @@
                       
                         <td v-if="!isAjuste" class="text-end py-2 px-1" style="width: 26%;">
                           <div class="text-end">
-                            <div class="fw-black text-dark" style="font-size: 0.85rem;">${{ formatMoney(item.total) }}</div>
-                            <div v-if="item.iva" class="text-muted small" style="font-size: 0.7rem;">(IVA ${{ formatMoney((Number(item.total) * 0.21).toFixed(2)) }})</div>
+                            <div class="fw-black text-dark" style="font-size: 0.85rem;">${{ formatMoney(item.iva ? (Number(item.total) / 1.21).toFixed(2) : item.total) }}</div>
+                            <div v-if="item.iva" class="text-muted small" style="font-size: 0.7rem;">IVA ${{ formatMoney((Number(item.total) * (0.21 / 1.21)).toFixed(2)) }}</div>
                           </div>
                         </td>
                       
@@ -646,17 +646,21 @@ const esAbierta = computed(() => !esCerrada.value && !esPausa.value);
 const esCuentaCorriente = computed(() => form.value.tipo_vta === 0);
 
 const subtotal = computed(() =>
-  articulosCarrito.value.reduce((acc, i) => acc + Number(i.total || 0), 0)
+  articulosCarrito.value.reduce((acc, i) => {
+    const totalItem = Number(i.total || 0);
+    const gravado = i.iva ? (totalItem / 1.21) : totalItem;
+    return acc + gravado;
+  }, 0)
 );
 
 const totalIVA = computed(() => {
   return articulosCarrito.value
-    .reduce((acc, i) => acc + (i.iva ? (Number(i.total || 0) * 0.21) : 0), 0)
+    .reduce((acc, i) => acc + (i.iva ? (Number(i.total || 0) * (0.21 / 1.21)) : 0), 0)
     .toFixed(2);
 });
 
 const totalCarrito = computed(() => {
-  return (subtotal.value + Number(totalIVA.value)).toFixed(2);
+  return (articulosCarrito.value.reduce((acc, i) => acc + Number(i.total || 0), 0)).toFixed(2);
 });
 
 // esAbierto mantiene compatibilidad: true cuando NO está cerrada (incluye pausa y abierta)

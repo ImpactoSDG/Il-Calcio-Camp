@@ -152,8 +152,8 @@ class FacturaController extends BaseController
             return ['success' => false, 'error' => 'La venta debe tener al menos un artículo.'];
         }
 
-        // 1b. Verificar límite diario de facturación
-        $estadoDiario = $this->getEstadoDiarioData();
+        // 1b. Verificar límite diario de facturación (incluyendo el monto de esta venta)
+        $estadoDiario = $this->getEstadoDiarioData((float)$venta['importe_total']);
         if (!$estadoDiario['puede_facturar']) {
             return [
                 'success'       => false,
@@ -375,7 +375,7 @@ class FacturaController extends BaseController
      * Retorna un array con { acumulado, limite, puede_facturar }.
      * Si no existe configuración de límite, siempre devuelve puede_facturar = true.
      */
-    private function getEstadoDiarioData(): array
+    private function getEstadoDiarioData(float $montoActual = 0.0): array
     {
         $stmtLimite = $this->db->query(
             "SELECT valor FROM configuraciones WHERE clave = 'monto_limite' LIMIT 1"
@@ -396,10 +396,11 @@ class FacturaController extends BaseController
         );
         $acumulado = (float)$stmtAcum->fetchColumn();
 
+        // Bloquear si el acumulado del día más el monto de esta venta supera el límite
         return [
             'acumulado'      => $acumulado,
             'limite'         => $limite,
-            'puede_facturar' => $acumulado < $limite,
+            'puede_facturar' => ($acumulado + $montoActual) <= $limite,
         ];
     }
 
