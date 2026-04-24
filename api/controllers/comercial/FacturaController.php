@@ -482,8 +482,8 @@ class FacturaController extends BaseController
         
         $nodeBin = '/home/impactos/nodevenv/franconovara/afip-service/20/bin/node --tls-cipher-list="DEFAULT@SECLEVEL=1"';
         $posiblesRutas = [
-            '/home/impactos/franconovara/afip-service/afip-service/facturar.js',
-            '/home/impactos/franconovara/afip-service/facturar.js',
+            '/home/impactos/nodevenv/franconovara/afip-service/ilcalciocamp/facturar-ilcalciocamp.js',
+            '/home/impactos/franconovara/afip-service/ilcalciocamp/facturar-ilcalciocamp.js',
         ];
 
         $scriptPath = '';
@@ -507,20 +507,15 @@ class FacturaController extends BaseController
 
         error_log("AFIP-COMMAND [IlCalcio]: $command");
 
-        $outputString = shell_exec($command . ' 2>&1') ?? '';
+        $outputString = shell_exec($command) ?? '';
 
         error_log("AFIP-OUTPUT [IlCalcio]: $outputString");
 
-        // Limpiar la salida por si Node.js devolvió advertencias (warnings) antes del JSON
-        $jsonStart = strpos($outputString, '{');
-        $jsonEnd   = strrpos($outputString, '}');
-
-        if ($jsonStart !== false && $jsonEnd !== false) {
-            $response = json_decode(substr($outputString, $jsonStart, $jsonEnd - $jsonStart + 1), true);
-        } else {
-            error_log("AFIP-SERVICE [IlCalcio]: No se encontró JSON válido en la salida. Salida completa: $outputString");
-            $response = null;
-        }
+        // El script Node.js escribe los DEBUG a stderr y el JSON final a stdout.
+        // Tomamos la última línea no vacía, que siempre es el JSON de respuesta.
+        $lines    = array_filter(array_map('trim', explode("\n", $outputString)));
+        $lastLine = end($lines);
+        $response = $lastLine ? json_decode($lastLine, true) : null;
 
         if ($response && isset($response['success'])) {
             if ($response['success']) {
