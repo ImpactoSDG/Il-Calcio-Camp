@@ -92,7 +92,7 @@
                           </div>
                           <FuzzySearch
                             v-model="queryCliente"
-                            :data="clientes"
+                            :data="activeClients"
                             :keys="['nombre_cliente', 'dni_cliente']"
                             placeholder="Buscar cliente..."
                             @selected="onClienteSelected"
@@ -398,7 +398,7 @@
 
   <QuickClientModal
     v-model="showQuickClientModal"
-    :clientes-existentes="clientes"
+    :clientes-existentes="activeClients"
     @confirm="handleQuickClientConfirm"
   />
 
@@ -454,6 +454,8 @@ const onClienteSelected = (cliente) => {
   form.value.id_cliente = cliente?.id || null;
   queryCliente.value = cliente?.nombre_cliente || '';
 };
+
+const activeClients = computed(() => (props.clientes || []).filter(c => Number(c.activo) === 1));
 
 const showQuickClientModal = ref(false);
 const showQuickTeamModal = ref(false);

@@ -219,7 +219,6 @@ class Venta
                 $idClienteNuevo = $clienteModel->create(
                     null,
                     $nuevoCliente['nombre_cliente'],
-                    $nuevoCliente['condicion_iva'] ?? 'Consumidor Final',
                     $nuevoCliente['id_condicion_iva_receptor'] ?? 2,
                     $nuevoCliente['direccion'] ?? null,
                     isset($nuevoCliente['id_provincia']) ? (int)$nuevoCliente['id_provincia'] : null

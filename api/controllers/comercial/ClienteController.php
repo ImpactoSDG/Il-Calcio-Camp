@@ -96,7 +96,6 @@ class ClienteController extends BaseController
             }
 
             $id = !empty($data['id']) ? (int)$data['id'] : null;
-            $condicionIva = $data['condicion_iva'] ?? null;
             $idCondicionIvaReceptor = $data['id_condicion_iva_receptor'] ?? null;
             $direccion = $data['direccion'] ?? null;
             $idProvincia = $data['id_provinica'] ?? null;
@@ -104,7 +103,6 @@ class ClienteController extends BaseController
             $newId = $this->model->create(
                 $id,
                 $data['nombre_cliente'],
-                $condicionIva,
                 $idCondicionIvaReceptor,
                 $direccion,
                 $idProvincia
@@ -135,7 +133,6 @@ class ClienteController extends BaseController
                 $this->respond(400, ['message' => 'ID y nombre de cliente requeridos.']);
             }
 
-            $condicionIva = $data['condicion_iva'] ?? null;
             $idCondicionIvaReceptor = $data['id_condicion_iva_receptor'] ?? null;
             $direccion = $data['direccion'] ?? null;
             $idProvincia = $data['id_provinica'] ?? null;
@@ -143,7 +140,6 @@ class ClienteController extends BaseController
             if ($this->model->update(
                 (int)$data['id'],
                 $data['nombre_cliente'],
-                $condicionIva,
                 $idCondicionIvaReceptor,
                 $direccion,
                 $idProvincia
@@ -175,6 +171,33 @@ class ClienteController extends BaseController
             }
         } catch (Throwable $e) {
             $this->handleError($e, 'Error al eliminar cliente');
+        }
+    }
+
+    /**
+     * Actualiza el flag 'activo' de un cliente (activar/desactivar) — POST /clientes/activo
+     */
+    public function setActivo(): void
+    {
+        try {
+            $data = json_decode(file_get_contents("php://input"), true) ?? [];
+            $id = isset($data['id']) ? (int)$data['id'] : 0;
+            if (!$id) {
+                $this->respond(400, ['message' => 'ID de cliente requerido.']);
+            }
+            if (!isset($data['activo'])) {
+                $this->respond(400, ['message' => 'Valor activo requerido (0 o 1).']);
+            }
+            $activo = (int)$data['activo'] === 1 ? 1 : 0;
+
+            $ok = $this->model->setActivo($id, $activo);
+            if ($ok) {
+                $this->respond(200, ['message' => 'Estado actualizado.', 'activo' => $activo, 'id' => $id]);
+            } else {
+                $this->respond(500, ['message' => 'No se pudo actualizar estado.']);
+            }
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al actualizar estado activo');
         }
     }
 }

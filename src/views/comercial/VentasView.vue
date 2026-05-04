@@ -384,6 +384,7 @@
       :venta="ventaSeleccionada"
       :articulos="articulosDeVenta"
       :api-base-url="apiBaseUrl"
+      :is-loading="loadingDetalle"
       @imprimir="reimprimirTicket"
       @editar="editarVentaDesdeDetalle"
     />
@@ -680,7 +681,9 @@ const tempQuickClient = ref(null);
 const handleQuickClientCreated = (cliente) => {
   // Asignar condición IVA por defecto: ID 2 = Consumidor Final (AFIP 5)
   cliente.id_condicion_iva_receptor = 2;
-  
+  // Asegurar que el cliente rápido creado esté activo por defecto
+  cliente.activo = 1;
+
   tempQuickClient.value = cliente;
   // Agregarlo a la lista local para que aparezca en el select del modal
   clientes.value.push(cliente);
@@ -910,10 +913,17 @@ const toggleDetalle = async (idVenta) => {
 };
 
 const abrirDetalleVenta = async (venta) => {
+  // Abrir el modal inmediatamente con los datos cacheados
   ventaSeleccionada.value = venta;
   showDetallesModal.value = true;
   loadingDetalle.value = true;
+  
   try {
+    // GET fresco a la BD para obtener el estado actual de la venta
+    const ventaFresca = await ventasService.getVentaById(venta.id);
+    ventaSeleccionada.value = ventaFresca;
+    
+    // Cargar los artículos de la venta
     articulosDeVenta.value = await ventasService.getArticulosDeVenta(venta.id);
   } catch {
     toast.showToast({ message: 'Error al cargar el detalle de la venta.', type: 'danger' });

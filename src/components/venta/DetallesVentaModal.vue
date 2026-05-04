@@ -23,7 +23,14 @@
           </div>
         </div>
 
-        <div class="modal-body p-4">
+        <div class="modal-body p-4 position-relative">
+          <!-- Spinner de carga -->
+          <div v-if="props.isLoading" class="position-absolute top-0 start-0 end-0 bottom-0 d-flex align-items-center justify-content-center" style="background: rgba(255,255,255,0.85); border-radius: 16px; z-index: 10;">
+            <div class="spinner-border text-primary-custom" role="status" style="width: 3rem; height: 3rem;">
+              <span class="visually-hidden">Cargando...</span>
+            </div>
+          </div>
+
           <!-- Información General -->
           <div class="row g-4 mb-4">
             <div class="col-md-6">
@@ -195,7 +202,8 @@ const props = defineProps({
   modelValue: Boolean,
   venta: Object,
   articulos: Array,
-  apiBaseUrl: String
+  apiBaseUrl: String,
+  isLoading: Boolean
 });
 
 const emit = defineEmits(['update:modelValue', 'imprimir', 'editar']);

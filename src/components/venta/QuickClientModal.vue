@@ -28,16 +28,15 @@
           </div>
 
           <div class="mb-4">
-            <label class="form-label fw-semibold text-secondary small mb-1">DNI / CUIT <span class="text-danger">*</span></label>
+            <label class="form-label fw-semibold text-secondary small mb-1">DNI / CUIT (Opcional)</label>
             <input 
               ref="dniInputRef"
               v-model="dni_cuit" 
               type="text" 
               class="form-control border-2 py-2 px-3 rounded-3" 
-              placeholder="Ej: 23123456789 (CUIT) o 23456789 (DNI)"
+              placeholder="Ej: 23456789 (DNI)"
               @keydown.enter.prevent="nextPhoneInput"
             />
-            <small class="text-muted d-block mt-1">Requerido para emitir facturas electrónicas</small>
           </div>
 
           <div class="mb-4">
@@ -91,8 +90,8 @@
             @click="crearNuevo" 
             type="button" 
             class="btn btn-primary px-4 py-2 rounded-3 fw-bold flex-fill"
-            :disabled="!nombre.trim() || !dni_cuit.trim() || duplicados.length > 0"
-            :title="!nombre.trim() ? 'Ingrese nombre' : !dni_cuit.trim() ? 'Ingrese DNI/CUIT' : 'Crear cliente'"
+            :disabled="!nombre.trim() || duplicados.length > 0"
+            :title="!nombre.trim() ? 'Ingrese nombre' : 'Crear cliente'"
           >
             CONFIRMAR
           </button>
@@ -158,7 +157,7 @@ const seleccionarExistente = (cliente) => {
 };
 
 const crearNuevo = () => {
-  if (!nombre.value.trim() || !dni_cuit.value.trim()) return;
+  if (!nombre.value.trim()) return;
   emit('confirm', { 
     id: 'temp-' + Date.now(), 
     nombre_cliente: nombre.value.trim(),

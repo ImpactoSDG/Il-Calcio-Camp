@@ -8,6 +8,7 @@ const clientesService = {
   crearCliente: (data) => api.post('/clientes', data).then(r => r.data),
   actualizarCliente: (data) => api.put('/clientes', data).then(r => r.data),
   eliminarCliente: (id) => api.delete('/clientes', { data: { id } }).then(r => r.data),
+  setActivo: (id, activo) => api.post('/clientes/activo', { id, activo }).then(r => r.data),
 
   // --- Clientes-Equipos (/clientes-equipos) ---
   getClienteEquipos: () => api.get('/clientes-equipos').then(r => r.data),

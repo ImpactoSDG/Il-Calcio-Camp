@@ -32,7 +32,7 @@
             @sort="handleSort"
           />
           <tbody class="bg-white">
-            <tr v-for="item in clientesFiltrados" :key="item.id">
+            <tr v-for="item in clientesFiltrados" :key="item.id" :class="{ 'cliente-inactivo': Number(item.activo) === 0 }">
               <td class="ps-4 fw-medium text-dark">{{ item.nombre_cliente }}</td>
               <td class="text-muted">
                 <span v-if="item.condicion_iva_descripcion" class="badge bg-primary-subtle text-primary-custom rounded-pill px-3">
@@ -55,9 +55,11 @@
                     <i class="bi bi-pencil fs-6"></i>
                     <span class="small fw-bold">Editar</span>
                   </button>
-                  <button @click="prepareDelete(item.id)" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1" title="Eliminar">
-                    <i class="bi bi-trash3 fs-6"></i>
-                    <span class="small fw-bold">Eliminar</span>
+                  <button @click="toggleActivo(item)" :class="Number(item.activo) === 1 ? 'btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1' : 'btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 px-2 py-1'" :title="Number(item.activo) === 1 ? 'Desactivar' : 'Activar'">
+                    <span v-if="togglingId === item.id" class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    <i v-if="Number(item.activo) === 1" class="bi bi-person-dash fs-6"></i>
+                    <i v-else class="bi bi-person-check fs-6"></i>
+                    <span class="small fw-bold">{{ Number(item.activo) === 1 ? 'Desactivar' : 'Activar' }}</span>
                   </button>
                 </div>
               </td>
@@ -88,6 +90,10 @@
                 <div class="col-md-12">
                   <label class="form-label">Nombre del Cliente <span class="text-danger">*</span></label>
                   <input v-model.trim="form.nombre_cliente" type="text" class="form-control" placeholder="Ej: Juan Pérez" required />
+                </div>
+                <div class="col-md-12">
+                  <label class="form-label">DNI / CUIT</label>
+                  <input v-model.trim="form.cuit_dni" type="text" class="form-control" placeholder="Ej: 23456789 (DNI)" />
                 </div>
                 <div class="col-md-12">
                   <label class="form-label">Dirección</label>
@@ -175,21 +181,13 @@
       </div>
     </Teleport>
 
-    <ConfirmModal
-      v-model="showDeleteModal"
-      title="Eliminar Cliente"
-      message="¿Estás seguro de eliminar este cliente? Esta acción puede afectar ventas y equipos asociados."
-      confirm-button-text="Eliminar"
-      variant="danger"
-      :is-loading="isDeleting"
-      @confirm="confirmDelete"
-    />
+    <!-- Botón activar/desactivar maneja soft-delete; no se usa modal de eliminación aquí -->
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import ConfirmModal from '@/components/ConfirmModal.vue';
+// Import ConfirmModal removed — no physical deletes allowed; use activar/desactivar
 import FuzzySearch from '@/components/FuzzySearch.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
 import clientesService from '@/services/comercial/clientesService';
@@ -216,24 +214,23 @@ const provincias = ref([]);
 const loading = ref(false);
 const searchQuery = ref('');
 const showFormModal = ref(false);
-const showDeleteModal = ref(false);
+const togglingId = ref(null);
 const showSaldoModal = ref(false);
 const loadingMovimientos = ref(false);
 const clienteSeleccionado = ref(null);
 const movimientos = ref([]);
 const isEditing = ref(false);
 const isSaving = ref(false);
-const isDeleting = ref(false);
-const idToDelete = ref(null);
+// isDeleting/idToDelete removed (no hard deletes)
 
 const emptyForm = () => ({ 
   id: null, 
   nombre_cliente: '', 
-  condicion_iva: 'Consumidor final', 
-  id_condicion_iva_receptor: 1, 
+  id_condicion_iva_receptor: 2, 
   direccion: '', 
   id_provinica: 1,
-  telefono: ''
+  telefono: '',
+  cuit_dni: ''
 });
 const form = ref(emptyForm());
 const originalForm = ref({});
@@ -333,22 +330,20 @@ const save = async () => {
   }
 };
 
-const prepareDelete = (id) => {
-  idToDelete.value = id;
-  showDeleteModal.value = true;
-};
-
-const confirmDelete = async () => {
-  isDeleting.value = true;
+const toggleActivo = async (item) => {
+  const nuevo = Number(item.activo) === 1 ? 0 : 1;
+  togglingId.value = item.id;
   try {
-    await clientesService.eliminarCliente(idToDelete.value);
-    toast.showToast({ message: 'Cliente eliminado correctamente.', type: 'success' });
-    showDeleteModal.value = false;
-    fetchData();
-  } catch {
-    toast.showToast({ message: 'Error al eliminar el cliente.', type: 'danger' });
+    await clientesService.setActivo(item.id, nuevo);
+    // actualizar lista local
+    const idx = clientes.value.findIndex(c => c.id === item.id);
+    if (idx !== -1) clientes.value[idx].activo = nuevo;
+    toast.showToast({ message: nuevo === 1 ? 'Cliente activado.' : 'Cliente desactivado.', type: 'success' });
+  } catch (err) {
+    console.error(err);
+    toast.showToast({ message: 'Error al actualizar estado del cliente.', type: 'danger' });
   } finally {
-    isDeleting.value = false;
+    togglingId.value = null;
   }
 };
 
@@ -363,5 +358,23 @@ onMounted(fetchData);
   top: 0; left: 0; width: 100%; height: 100%;
   background-color: rgba(255, 255, 255, 0.85);
   z-index: 10;
+}
+/* Primero, le damos posicionamiento relativo a la fila */
+.cliente-inactivo {
+  position: relative;
+}
+
+/* Luego, creamos la película gris superpuesta */
+.cliente-inactivo::after {
+  content: ''; /* Requerido para pseudo-elementos */
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  /* Aquí definimos el color y la transparencia (alpha) de la película */
+  background-color: rgba(255, 255, 255, 0.5); 
+  pointer-events: none; /* ¡CRUCIAL! Esto permite que los clics pasen a través y los botones funcionen */
+  z-index: 1; /* Coloca la película sobre el contenido */
 }
 </style>

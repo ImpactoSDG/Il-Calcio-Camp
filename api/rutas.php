@@ -699,7 +699,11 @@ switch ($resource) {
                 }
                 break;
             case 'POST':
-                $clienteController->store();
+                if ($id === 'activo') {
+                    $clienteController->setActivo();
+                } else {
+                    $clienteController->store();
+                }
                 break;
             case 'PUT':
                 $clienteController->update();
