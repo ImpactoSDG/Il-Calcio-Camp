@@ -264,8 +264,18 @@ class FacturaController extends BaseController
         // 5. Preparar payload para el afip-service
         $payload = $this->prepareAfipPayload($venta, (float)$venta['importe_total'], $emisor, $receptor);
 
-        // 6. Llamar al servicio externo de AFIP (Node.js)
+        // 6. Liberar la conexión a BD antes de la llamada bloqueante a AFIP.
+        //    shell_exec(node) puede tardar 5-30 segundos. Mantener la conexión abierta
+        //    durante ese tiempo satura el pool de conexiones de MySQL bajo carga concurrente.
+        //    PDO cierra la conexión al anular la referencia; se reconecta abajo (paso 9).
+        $this->db = null;
+
         $afipResponse = $this->callAfipService($payload);
+
+        // Reconectar a la BD para persistir el resultado
+        $dbReconnect = new Database();
+        $this->db = $dbReconnect->connect();
+        $this->facturaModel = new Factura($this->db);
 
         if (!$afipResponse['success']) {
             // No es necesario llamar a marcarPendienteAfip aquí porque el frontend lo hará
@@ -507,7 +517,17 @@ class FacturaController extends BaseController
 
         error_log("AFIP-COMMAND [IlCalcio]: $command");
 
-        $outputString = shell_exec($command) ?? '';
+        // Ejecutar con timeout de 15 segundos (AFIP típicamente responde en 2-5 segundos)
+        $outputString = $this->shellExecWithTimeout($command, 15) ?? '';
+
+        // Si fue timeout (null), devolver error
+        if ($outputString === null) {
+            error_log("AFIP-SERVICE [IlCalcio] Timeout: no se obtuvo respuesta de AFIP en 15 segundos.");
+            return [
+                'success' => false,
+                'error'   => 'Timeout comunicándose con AFIP. Intente nuevamente en unos momentos.',
+            ];
+        }
 
         error_log("AFIP-OUTPUT [IlCalcio]: $outputString");
 
@@ -536,5 +556,75 @@ class FacturaController extends BaseController
             'success' => false,
             'error'   => 'Error de comunicación con AFIP. Consulte al administrador.',
         ];
+    }
+
+    /**
+     * Ejecuta un comando shell con timeout.
+     * Retorna stdout o null si se agota el tiempo.
+     * 
+     * @param string $command El comando a ejecutar
+     * @param int $timeoutSeconds Segundos antes de matar el proceso
+     * @return string|null La salida del comando o null si timeout
+     */
+    private function shellExecWithTimeout(string $command, int $timeoutSeconds = 15): ?string
+    {
+        $process = proc_open(
+            $command,
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $pipes
+        );
+
+        if (!is_resource($process)) {
+            error_log("[AFIP-TIMEOUT] No se pudo abrir el proceso: $command");
+            return null;
+        }
+
+        $startTime = time();
+        $output = '';
+        $stderr = '';
+
+        // Establecer pipes en no-bloqueante
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+
+        while (true) {
+            $status = proc_get_status($process);
+            
+            // Leer salida disponible
+            $output .= stream_get_contents($pipes[1]);
+            $stderr .= stream_get_contents($pipes[2]);
+
+            // Si el proceso terminó, retornar
+            if (!$status['running']) {
+                $output .= stream_get_contents($pipes[1]);
+                $stderr .= stream_get_contents($pipes[2]);
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                proc_close($process);
+                
+                if ($stderr) {
+                    error_log("[AFIP-STDERR] $stderr");
+                }
+                
+                return $output;
+            }
+
+            // Verificar timeout
+            if ((time() - $startTime) > $timeoutSeconds) {
+                error_log("[AFIP-TIMEOUT] Excedido límite de $timeoutSeconds segundos. Matando proceso.");
+                
+                // Matar el proceso
+                proc_terminate($process, 9);
+                usleep(100000); // 100ms
+                proc_close($process);
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                
+                return null;
+            }
+
+            // Pequeña pausa para no saturar CPU
+            usleep(50000); // 50ms
+        }
     }
 }

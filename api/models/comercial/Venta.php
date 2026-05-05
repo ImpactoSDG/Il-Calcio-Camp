@@ -25,17 +25,8 @@ class Venta
                        vc.id_medio_pago AS id_medio_cobro,
                        vc.monto AS monto_cobrado,
                        mc.descripcion AS medio_cobro_nombre,
-                       COALESCE((
-                           SELECT SUM(av.total)
-                           FROM articulo_venta av
-                           WHERE av.id_venta = v.id
-                       ), 0) AS total_venta,
-                       (
-                           SELECT GROUP_CONCAT(CONCAT(av.cantidad, 'x ', a.nombre) SEPARATOR '||')
-                           FROM articulo_venta av
-                           LEFT JOIN articulo a ON av.id_articulo = a.id
-                           WHERE av.id_venta = v.id
-                       ) AS articulos_resumen
+                       COALESCE(av_agg.total_venta, 0) AS total_venta,
+                       av_agg.articulos_resumen
                 FROM {$this->table} v
                 LEFT JOIN estado_venta ev ON v.id_estado_venta = ev.id
                 LEFT JOIN cliente c ON v.id_cliente = c.id
@@ -46,6 +37,14 @@ class Venta
                     GROUP BY id_venta
                 ) vc ON v.id = vc.id_venta
                 LEFT JOIN medio_cobro mc ON vc.id_medio_pago = mc.id
+                LEFT JOIN (
+                    SELECT av.id_venta,
+                           SUM(av.total) AS total_venta,
+                           GROUP_CONCAT(CONCAT(av.cantidad, 'x ', a.nombre) SEPARATOR '||') AS articulos_resumen
+                    FROM articulo_venta av
+                    LEFT JOIN articulo a ON av.id_articulo = a.id
+                    GROUP BY av.id_venta
+                ) av_agg ON av_agg.id_venta = v.id
                 WHERE v.activo = 1
                 ORDER BY v.fecha DESC, v.id DESC";
         $stmt = $this->conn->prepare($sql);

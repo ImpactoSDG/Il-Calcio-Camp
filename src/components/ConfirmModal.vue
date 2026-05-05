@@ -14,8 +14,8 @@
               <p class="mb-0 fs-5">{{ message }}</p>
             </slot>
           </div>
-          <div class="modal-footer justify-content-center">
-            <button type="button" class="btn btn-light px-4" @click="onCancel" :disabled="isLoading">
+          <div class="modal-footer" :class="hideCancel ? 'justify-content-center' : 'justify-content-center'">
+            <button v-if="!hideCancel" type="button" class="btn btn-light px-4" @click="onCancel" :disabled="isLoading">
               {{ cancelButtonText }}
             </button>
             <button type="button" class="btn" :class="confirmButtonClass" @click="onConfirm" :disabled="isLoading">
@@ -59,6 +59,10 @@ const props = defineProps({
     default: 'danger',
   },
   isLoading: {
+    type: Boolean,
+    default: false,
+  },
+  hideCancel: {
     type: Boolean,
     default: false,
   },
