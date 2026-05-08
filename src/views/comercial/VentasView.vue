@@ -1186,13 +1186,9 @@ const imprimirTicketDirecto = async (idVenta, imprimirDetalle = false) => {
 const reimprimirTicket = async (idVenta) => {
   // Para reimpresión, si la venta tiene factura, preguntamos igual
   const venta = ventas.value.find(v => v.id == idVenta);
-  // Asumimos que si tiene medio de pago y no está en pausa/abierta, podemos preguntar si es necesario.
-  // Pero la consigna dice que la funcionalidad de "Reimprimir" debe reutilizar el mismo flujo si aplica.
-  // Chequeamos si la venta fue facturada (esto dependería de si tenemos ese dato, 
-  // pero podemos preguntar siempre o basarnos en si tiene cliente con DNI).
   
-  // Para simplificar y cumplir con "reutilizar exactamente el mismo flujo":
-  if (venta && venta.cliente_nombre && venta.id_estado_venta == ID_ESTADO_CERRADA) {
+  // Solo se muestra el modal de "¿Imprimir factura?" si la venta está facturada
+  if (venta && venta.estado_factura === 'facturada' && venta.id_estado_venta == ID_ESTADO_CERRADA) {
       pendingVentaId.value = idVenta;
       showConfirmCheckTicket.value = true;
   } else {

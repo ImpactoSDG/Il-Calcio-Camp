@@ -89,7 +89,7 @@
                     </p>
                   </div>
                   <!-- Botón Ver Factura -->
-                  <div class="mt-2 d-flex gap-2">
+                  <div v-if="venta?.estado_factura === 'facturada'" class="mt-2 d-flex gap-2">
                     <button @click="verFacturaPdf" class="btn btn-sm btn-outline-info d-flex align-items-center gap-1 px-2 py-1 shadow-sm" style="font-size: 0.7rem;">
                       <i class="bi bi-file-earmark-pdf"></i>
                       Ver Factura/Ticket

@@ -753,11 +753,13 @@ const seleccionarArticuloDeSearch = (art) => {
   let cantidadAAgregar = Number(art.cantidad_previa) || 1;
   const existente = articulosCarrito.value.find(i => Number(i.id_articulo) === Number(art.id));
   
+  const aplicarIva = facturar.value && !props.isAjuste;
   if (existente) {
     existente.cantidad = Number((Number(existente.cantidad) + cantidadAAgregar).toFixed(2));
     const base = existente.cantidad * existente.precio_unitario;
     existente.total = (existente.iva ? base * 1.21 : base).toFixed(2);
   } else {
+    const baseNuevo = cantidadAAgregar * Number(art.precio_actual || 0);
     // Agregar al principio del array (Unshift) para que el último producto aparezca arriba
     articulosCarrito.value.unshift({
       id_articulo: art.id,
@@ -766,7 +768,8 @@ const seleccionarArticuloDeSearch = (art) => {
       stock_actual: art.stock_actual,
       cantidad: cantidadAAgregar,
       precio_unitario: Number(art.precio_actual || 0),
-      total: (cantidadAAgregar * Number(art.precio_actual || 0)).toFixed(2),
+      iva: aplicarIva,
+      total: (aplicarIva ? baseNuevo * 1.21 : baseNuevo).toFixed(2),
     });
   }
   // Resetear cantidad previa para la próxima búsqueda

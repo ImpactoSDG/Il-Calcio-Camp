@@ -126,6 +126,19 @@ class FacturaController extends BaseController
     // LÓGICA INTERNA
     // =========================================================================
 
+    protected function handleError(Throwable $e, string $message = 'Error interno del servidor'): void
+    {
+        error_log("[FacturaController] Exception: " . $e->getMessage());
+        error_log("[FacturaController] Stack Trace: " . $e->getTraceAsString());
+
+        $response = [
+            'message' => $message,
+            'error'   => ($_ENV['APP_DEBUG'] ?? 'false') === 'true' ? $e->getMessage() : 'Ocurrió un error inesperado.',
+        ];
+
+        $this->respond(500, $response);
+    }
+
     /**
      * Orquesta el proceso completo de facturación de una venta.
      * Valida que todos los datos obligatorios estén presentes.
@@ -264,18 +277,7 @@ class FacturaController extends BaseController
         // 5. Preparar payload para el afip-service
         $payload = $this->prepareAfipPayload($venta, (float)$venta['importe_total'], $emisor, $receptor);
 
-        // 6. Liberar la conexión a BD antes de la llamada bloqueante a AFIP.
-        //    shell_exec(node) puede tardar 5-30 segundos. Mantener la conexión abierta
-        //    durante ese tiempo satura el pool de conexiones de MySQL bajo carga concurrente.
-        //    PDO cierra la conexión al anular la referencia; se reconecta abajo (paso 9).
-        $this->db = null;
-
         $afipResponse = $this->callAfipService($payload);
-
-        // Reconectar a la BD para persistir el resultado
-        $dbReconnect = new Database();
-        $this->db = $dbReconnect->connect();
-        $this->facturaModel = new Factura($this->db);
 
         if (!$afipResponse['success']) {
             // No es necesario llamar a marcarPendienteAfip aquí porque el frontend lo hará
@@ -298,8 +300,8 @@ class FacturaController extends BaseController
             'Id_condicion_IVA_comprador' => $idCondIvaBD,
             'id_tipo_comprobante'       => $idTipoComprobanteBD,
             'fecha_emision'             => date('Y-m-d H:i:s'),
-            'fecha_desde'               => date('Y-m-01', strtotime($venta['fecha'])),
-            'fecha_hasta'               => date('Y-m-t',  strtotime($venta['fecha'])),
+            'fecha_desde'               => date('Y-m-01', strtotime((string)($venta['fecha'] ?? 'now'))),
+            'fecha_hasta'               => date('Y-m-t',  strtotime((string)($venta['fecha'] ?? 'now'))),
             'Id_tipo_concepto'          => $idTipoConceptoBD,
             'Id_alicuota_IVA'           => 5, // 5 = IVA exento / no corresponde (Monotributo)
             'IVA'                       => 0,
@@ -475,9 +477,9 @@ class FacturaController extends BaseController
             'condicionIva' => $condIvaAfip,
             'concepto'     => $tipoConsAfip,
             'cbteFch'      => date('Ymd'),
-            'fechaDesde'   => date('Ym01', strtotime($venta['fecha'])),
-            'fechaHasta'   => date('Ymt',  strtotime($venta['fecha'])),
-            'fechaVto'     => date('Ymd',  strtotime($venta['fecha'] . ' +10 days')),
+            'fechaDesde'   => date('Ym01', strtotime((string)($venta['fecha'] ?? 'now'))),
+            'fechaHasta'   => date('Ymt',  strtotime((string)($venta['fecha'] ?? 'now'))),
+            'fechaVto'     => date('Ymd',  strtotime((string)($venta['fecha'] ?? 'now') . ' +10 days')),
         ];
     }
 
@@ -487,9 +489,6 @@ class FacturaController extends BaseController
      */
     private function callAfipService(array $payload): array
     {
-        // Forzamos el uso de la configuración de producción/remota incluso en local
-        // ya que el entorno AFIP (certificados y script node) reside en el servidor.
-        
         $nodeBin = '/home/impactos/nodevenv/franconovara/afip-service/20/bin/node --tls-cipher-list="DEFAULT@SECLEVEL=1"';
         $posiblesRutas = [
             '/home/impactos/nodevenv/franconovara/afip-service/ilcalciocamp/facturar-ilcalciocamp.js',
@@ -518,7 +517,7 @@ class FacturaController extends BaseController
         error_log("AFIP-COMMAND [IlCalcio]: $command");
 
         // Ejecutar con timeout de 15 segundos (AFIP típicamente responde en 2-5 segundos)
-        $outputString = $this->shellExecWithTimeout($command, 15) ?? '';
+        $outputString = $this->shellExecWithTimeout($command, 15);
 
         // Si fue timeout (null), devolver error
         if ($outputString === null) {
@@ -612,14 +611,14 @@ class FacturaController extends BaseController
             // Verificar timeout
             if ((time() - $startTime) > $timeoutSeconds) {
                 error_log("[AFIP-TIMEOUT] Excedido límite de $timeoutSeconds segundos. Matando proceso.");
-                
-                // Matar el proceso
+
+                // Matar el proceso y cerrar pipes ANTES de proc_close para evitar deadlock
                 proc_terminate($process, 9);
                 usleep(100000); // 100ms
-                proc_close($process);
                 fclose($pipes[1]);
                 fclose($pipes[2]);
-                
+                proc_close($process);
+
                 return null;
             }
 

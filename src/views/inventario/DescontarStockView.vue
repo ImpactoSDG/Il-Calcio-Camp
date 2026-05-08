@@ -118,7 +118,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import api from '@/services/api';
 import { useToastStore } from '@/stores/toastStore';
 import FuzzySearch from '@/components/FuzzySearch.vue';
@@ -163,8 +163,12 @@ const form = ref({
 const fetchData = async () => {
   loading.value = true;
   try {
+    const params = {};
+    if (filterDateFrom.value) params.fecha_desde = filterDateFrom.value;
+    if (filterDateTo.value)   params.fecha_hasta = filterDateTo.value;
+
     const [asRes, artRes, evRes, mcRes] = await Promise.all([
-      api.get('/ventas'),
+      api.get('/ventas', { params }),
       api.get('/articulos?activos=1'),
       api.get('/estados-venta'),
       api.get('/medios-cobro')
@@ -194,16 +198,17 @@ const fetchData = async () => {
 };
 
 const ajustesFiltrados = computed(() => {
-  return ajustes.value.filter(a => {
-    const matchesSearch = !searchQuery.value || 
-      a.id.toString().includes(searchQuery.value) || 
-      (a.descripcion_cliente && a.descripcion_cliente.toLowerCase().includes(searchQuery.value.toLowerCase()));
-    
-    const matchesDateFrom = !filterDateFrom.value || a.fecha >= filterDateFrom.value;
-    const matchesDateTo = !filterDateTo.value || a.fecha <= filterDateTo.value;
-    
-    return matchesSearch && matchesDateFrom && matchesDateTo;
-  });
+  const q = searchQuery.value.toLowerCase().trim();
+  if (!q) return ajustes.value;
+  return ajustes.value.filter(a =>
+    a.id.toString().includes(q) ||
+    (a.descripcion_cliente && a.descripcion_cliente.toLowerCase().includes(q)) ||
+    (a.articulos_list && a.articulos_list.toLowerCase().includes(q))
+  );
+});
+
+watch([filterDateFrom, filterDateTo], () => {
+  fetchData();
 });
 
 const openAjusteModal = () => {
@@ -294,6 +299,7 @@ const resetFilters = () => {
   searchQuery.value = '';
   filterDateFrom.value = '';
   filterDateTo.value = '';
+  // El watch de [filterDateFrom, filterDateTo] disparará fetchData automáticamente
 };
 
 onMounted(fetchData);

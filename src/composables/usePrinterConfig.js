@@ -257,7 +257,8 @@ export async function imprimirTicketEscPos({ venta, articulos, nombreLocal = 'IL
   });
 
   const data = [
-    '\x1B\x40',          // Inicializar
+    '\x1B\x40',            // Inicializar
+    '\x1B\x74\x02',        // Seleccionar tabla PC850 (Latin-1) -> \x02 es común para 850 en muchos modelos
     '\x1B\x61\x01',      // Centrar
     '\x1B\x21\x30',      // Texto grande
     `${nombreLocal}\x0A`,
@@ -266,7 +267,7 @@ export async function imprimirTicketEscPos({ venta, articulos, nombreLocal = 'IL
     `Fecha: ${formatFechaLocal(venta.fecha)}\x0A`,
     SEP,
     '\x1B\x61\x00',      // Izquierda
-    'CANT  DESCRIPCION                     TOTAL\x0A',
+    'CANT  DESCRIPCI\xA2N                     TOTAL\x0A',
     SEP,
     ...lineasArticulos,
     SEP,
@@ -276,7 +277,7 @@ export async function imprimirTicketEscPos({ venta, articulos, nombreLocal = 'IL
     '\x1B\x21\x00',      // Normal
     `Pago: ${venta.medio_cobro_nombre || 'No registrado'}\x0A\x0A`,
     '\x1B\x61\x01',      // Centrar
-    '¡Gracias por su compra!\x0A',
+    '\xADGracias por su compra!\x0A',
     SEP,
     feed,                // Avance configurable
     cut,                 // Corte configurable
@@ -378,8 +379,8 @@ export function generarHtmlTicket({ venta, articulos, nombreLocal = 'IL CALCIO C
         
         <table>
           <tr>
-            <th style="text-align: center; width: 10%">CANT</th>
-            <th style="text-align: left; width: 60%">DESCRIPCIÓN</th>
+            <th style="text-align: center; width: 10%">CANT.</th>
+            <th style="text-align: left; width: 60%">DESCRIPCIÓ N</th>
             <th style="text-align: right; width: 30%">TOTAL</th>
           </tr>
           <tr><td colspan="3" style="border-bottom: 1px dashed #000; height: 2px;"></td></tr>
@@ -486,8 +487,27 @@ function formatearFechaHora(f) {
 }
 
 /**
+ * Genera los comandos ESC/POS para imprimir un QR nativo en impresoras térmicas.
+ * Usa GS ( k (Modelo 2), compatible con la mayoría de impresoras térmicas modernas.
+ */
+function generarQrEscPos(texto, tamano = 6) {
+  const bytes = Array.from(texto, c => c.charCodeAt(0));
+  const dataLen = bytes.length + 3; // +3 por cabecera (0x31 0x50 0x30)
+  const pL = dataLen & 0xFF;
+  const pH = (dataLen >> 8) & 0xFF;
+  const storeCmd = [0x1d, 0x28, 0x6b, pL, pH, 0x31, 0x50, 0x30, ...bytes];
+  return [
+    '\x1d\x28\x6b\x04\x00\x31\x41\x32\x00',                         // Modelo 2
+    `\x1d\x28\x6b\x03\x00\x31\x43${String.fromCharCode(tamano)}`,    // Tamaño
+    '\x1d\x28\x6b\x03\x00\x31\x45\x31',                              // Error correction M
+    String.fromCharCode(...storeCmd),                                  // Almacenar datos
+    '\x1d\x28\x6b\x03\x00\x31\x51\x30',                              // Imprimir
+  ];
+}
+
+/**
  * Imprime la factura electrónica AFIP completa vía ESC/POS (QZ Tray).
- * Incluye emisor, receptor, artículos, IVA, CAE y URL QR.
+ * Incluye emisor, receptor, artículos, IVA, CAE y QR nativo.
  */
 export async function imprimirTicketDetalleFactura({ venta, articulos, factura, nombreLocal = 'IL CALCIO CAMP' }) {
   const printerName = getPrinterName();
@@ -526,23 +546,38 @@ export async function imprimirTicketDetalleFactura({ venta, articulos, factura, 
     return `${cant}${desc}${total}\x0A`;
   });
 
-  const qrData = JSON.stringify({
+  const fechaAfip = (factura?.fecha_emision || venta.fecha || '');
+  let fechaFormateada = '';
+  if (fechaAfip.includes('T')) {
+    fechaFormateada = fechaAfip.split('T')[0];
+  } else if (fechaAfip.includes('-')) {
+    fechaFormateada = fechaAfip.substring(0, 10);
+  } else if (fechaAfip.includes('/')) {
+    const [d, m, y] = fechaAfip.split(' ')[0].split('/');
+    fechaFormateada = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+
+  const qrDataObj = {
     ver: 1,
-    fecha: (factura?.fecha_emision || venta.fecha || '').split('T')[0],
+    fecha: fechaFormateada,
     cuit: parseInt(String(factura?.emisor_cuit || '0').replace(/\D/g, ''), 10),
     ptoVta: parseInt(factura?.pto_venta || 1, 10),
     tipoCmp: parseInt(factura?.codigo_afip_comprobante || 0, 10),
     nroCmp: parseInt(factura?.nro_comprobante || 0, 10),
     importe: total,
-    moneda: 'PES', ctz: 1, tipoDocRec: 96,
+    moneda: 'PES',
+    ctz: 1,
+    tipoDocRec: 96,
     nroDocRec: parseInt(String(factura?.cuit_dni_receptor || '0').replace(/\D/g, ''), 10),
     tipoCodAut: 'E',
     codAut: parseInt(factura?.cae || 0, 10),
-  });
+  };
+  const qrData = JSON.stringify(qrDataObj);
   const qrUrl = `https://www.afip.gob.ar/fe/qr/?p=${btoa(qrData)}`;
 
   const data = [
     '\x1B\x40',            // Init
+    '\x1B\x74\x02',        // Seleccionar tabla PC850 (Latin-1)
     CTR, BIG,
     `${factura?.emisor_nombre || nombreLocal}\x0A`,
     NRM,
@@ -553,17 +588,17 @@ export async function imprimirTicketDetalleFactura({ venta, articulos, factura, 
     `Inicio de actividades: ${formatearFechaSimple(factura?.emisor_fecha_inicio_acts)}\x0A`,
     `Domicilio:\x0A${factura?.emisor_direccion || ''}\x0A`,
     SEP,
-    CTR, B, `FACTURA ELECTRONICA ${tipoLetra}\x0A`, NB,
+    CTR, B, `FACTURA ELECTR\xA2NICA ${tipoLetra}\x0A`, NB,
     `N\xF8 ${pto}-${nroCbte}\x0A`,
     `Fecha: ${formatearFechaHora(factura?.fecha_emision || venta.fecha)}\x0A`,
     SEP,
     LFT,
-    `Sres: ${factura?.nombre_receptor || factura?.cliente_nombre || 'Consumidor Final'}\x0A`,
+    `Sres.: ${factura?.nombre_receptor || factura?.cliente_nombre || 'Consumidor Final'}\x0A`,
     `DNI/CUIT: ${factura?.cuit_dni_receptor || '--'}\x0A`,
-    `Cond.IVA: ${factura?.condicion_iva_receptor_nombre || '--'}\x0A`,
+    `Cond. IVA: ${factura?.condicion_iva_receptor_nombre || '--'}\x0A`,
     SEP,
     LFT,
-    'CANT  DESCRIPCION             TOTAL\x0A',
+    'CANT  DESCRIPCI\xA2N             TOTAL\x0A',
     SEP,
     ...lineasDetalle,
     SEP,
@@ -573,15 +608,10 @@ export async function imprimirTicketDetalleFactura({ venta, articulos, factura, 
     B, `CAE: ${factura?.cae || '--'}\x0A`, NB,
     `Vto. CAE: ${formatearFechaCAE(factura?.vto_cae)}\x0A`,
     CTR,
-    `QR: ${qrUrl}\x0A`,
+    ...generarQrEscPos(qrUrl, 3),
+    '\x0A',
     SEP,
-    LFT,
-    `A los fines de la Ley de IVA, el impuesto\x0A`,
-    `se encuentra incluido en el precio.\x0A`,
-    SEP,
-    CTR,
-    `Representacion impresa factura electronica\x0A`,
-    `Gracias por su preferencia\x0A`,
+    '\xADGracias por su compra!\x0A',
     feed,
     cut,
   ];
@@ -729,12 +759,6 @@ export function generarHtmlDetalleFactura({ factura, articulos }) {
     <img src="${qrImgUrl}" width="100" height="100" alt="QR AFIP" />
   </div>
 
-  <div class="footer-legal" style="margin-top: 6px; padding-top: 4px; border-top: 1px dashed #000; font-size: 8px;">
-    <div style="margin-bottom: 3px; font-weight: bold;">
-      A los fines de la Ley de IVA, el impuesto<br>
-      se encuentra incluido en el precio.
-    </div>
-  </div>
 
 </body>
 </html>`;
