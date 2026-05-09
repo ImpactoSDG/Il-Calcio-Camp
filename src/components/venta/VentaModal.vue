@@ -501,9 +501,9 @@ const handleQuickTeamConfirm = (equipo) => {
 };
 
 watch(() => facturar.value, (isFacturar) => {
-  if (isFacturar && !props.isAjuste) {
+  if (!props.isAjuste) {
     articulosCarrito.value.forEach((item, index) => {
-      item.iva = true;
+      item.iva = isFacturar;
       actualizarTotalItem(index);
     });
   }
@@ -544,6 +544,11 @@ watch(() => props.modelValue, (isOpen) => {
       form.value.tipo_vta = 1; // Común
       if (!form.value.fecha) {
         form.value.fecha = new Date().toISOString().split('T')[0];
+      }
+    } else {
+      // Si estamos editando y el estado actual es ABIERTA, asegurarnos que se vea como cerrada por defecto si es una nueva sesión de edición que forzó a cerrar
+      if (form.value.forceCierre) {
+        form.value.id_estado_venta = VENTA_STATES.CERRADA;
       }
     }
     
@@ -644,7 +649,7 @@ onUnmounted(() => {
 
 const esCerrada = computed(() => form.value.id_estado_venta === VENTA_STATES.CERRADA);
 const esPausa = computed(() => form.value.id_estado_venta === VENTA_STATES.PAUSA);
-const esAbierta = computed(() => !esCerrada.value && !esPausa.value);
+const esAbierta = computed(() => form.value.id_estado_venta === VENTA_STATES.ABIERTA);
 const esCuentaCorriente = computed(() => form.value.tipo_vta === 0);
 
 const subtotal = computed(() =>
@@ -681,8 +686,11 @@ const toggleEstadoVenta = (abierto) => {
 
 const cambiarEstado = (id) => {
   if (id !== VENTA_STATES.CERRADA) {
-    // Si se selecciona abierta, forzar a "A Cuenta"
-    form.value.tipo_vta = 0; 
+    // Si se selecciona abierta o pausa, forzar a "A Cuenta" (si es abierta) y desactivar factura
+    if (id === VENTA_STATES.ABIERTA) {
+      form.value.tipo_vta = 0; 
+    }
+    facturar.value = false;
   }
   form.value.id_estado_venta = id;
 };
@@ -694,26 +702,25 @@ const cambiarTipoVta = (tipo) => {
 };
 
 const puedeGuardar = computed(() => {
-  if (props.isEditing) {
-    if (!esAbierto.value && !form.value.id_medio_cobro) return false;
-    // Cliente requerido solo para 'Abierta' (no para pausa ni cerrada)
-    const clienteOKEditing = esAbierta.value ? !!form.value.id_cliente : true;
-    if (!clienteOKEditing) return false;
-    
-    const itemsOKEditing = articulosCarrito.value.length > 0 &&
-      articulosCarrito.value.every(i => i.id_articulo && Number(i.cantidad) > 0);
-    return !!form.value.fecha && !!form.value.id_estado_venta && itemsOKEditing;
-  }
-  const cabeceraOK = !!form.value.fecha && !!form.value.id_estado_venta;     
-  const itemsOK = articulosCarrito.value.length > 0 &&
+  // Condiciones comunes
+  const tieneItems = articulosCarrito.value.length > 0 &&
     articulosCarrito.value.every(i => i.id_articulo && Number(i.cantidad) > 0);
-  const stockOK = !errorStock.value;
-  const pagoOK = esAbierto.value || !!form.value.id_medio_cobro;
-  
-  // Cliente obligatorio solo para 'Abierta'; pausa y cerrada no lo requieren
-  const clienteOK = esAbierta.value ? !!form.value.id_cliente : true;
-  
-  return cabeceraOK && itemsOK && stockOK && pagoOK && clienteOK;
+
+  if (!form.value.fecha || !form.value.id_estado_venta || !tieneItems) return false;
+  if (errorStock.value) return false;
+
+  if (esCerrada.value) {
+    // Cerrada: requiere medio de pago, cliente NO obligatorio
+    return !!form.value.id_medio_cobro;
+  }
+
+  if (esAbierta.value) {
+    // Abierta: requiere cliente, pago NO obligatorio
+    return !!form.value.id_cliente;
+  }
+
+  // Pausa: no requiere ni cliente ni pago
+  return true;
 });
 
 const clienteSeleccionado = computed(() =>

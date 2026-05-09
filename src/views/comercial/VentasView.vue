@@ -666,7 +666,7 @@ const emptyVentaForm = () => ({
   fecha: new Date().toISOString().split('T')[0],
   id_cliente: null,
   id_equipo: null,
-  id_estado_venta: 3,
+  id_estado_venta: VENTA_STATES.CERRADA,
   descripcion_cliente: '',
   tipo_vta: 1,
   simbolo: simboloDia.value,
@@ -958,7 +958,7 @@ const openVentaModal = async (item = null, forceCierre = false) => {
       };
       
       if (forceCierre) {
-        ventaForm.value.id_estado_venta = ID_ESTADO_CERRADA.value;
+        ventaForm.value.id_estado_venta = ID_ESTADO_CERRADA;
       }
     } catch (e) {
       toast.showToast({ message: 'Error al cargar detalles de la venta.', type: 'danger' });
@@ -971,7 +971,7 @@ const openVentaModal = async (item = null, forceCierre = false) => {
     isEditing.value = false;
     ventaForm.value = { 
       ...emptyVentaForm(), 
-      id_estado_venta: ID_ESTADO_CERRADA.value,
+      id_estado_venta: ID_ESTADO_CERRADA,
       simbolo: simboloDia.value,
       id_medio_cobro: 1, // Por defecto ID 1
       articulos: [],
