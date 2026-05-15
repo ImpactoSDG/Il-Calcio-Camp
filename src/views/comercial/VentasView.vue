@@ -954,12 +954,10 @@ const openVentaModal = async (item = null, forceCierre = false) => {
           total: av.total,
           stock_actual: av.stock_actual
         })),
-        forceCierre: forceCierre
+        forceCierre: forceCierre,
+        // Sobrescribir id_estado_venta directamente: si es cobrar, siempre CERRADA
+        id_estado_venta: forceCierre ? ID_ESTADO_CERRADA : item.id_estado_venta
       };
-      
-      if (forceCierre) {
-        ventaForm.value.id_estado_venta = ID_ESTADO_CERRADA;
-      }
     } catch (e) {
       toast.showToast({ message: 'Error al cargar detalles de la venta.', type: 'danger' });
       return;

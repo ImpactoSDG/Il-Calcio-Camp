@@ -528,6 +528,8 @@ watch(() => form.value.id_cliente, (newVal) => {
 // Sincronizar form y carrito cuando se abre el modal
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
+    // Reset the manual override so forceCierre takes effect on next open
+    userOverrodeState.value = false;
     form.value = { ...props.initialForm };
     articulosCarrito.value = props.initialForm?.articulos ? [...props.initialForm.articulos] : [];
     
@@ -607,6 +609,12 @@ if (!props.isEditing) {
 
 watch(() => props.initialForm, (newVal) => {
   form.value = { ...newVal };
+  
+  // Si viene con forceCierre, asegurar estado CERRADA independientemente del valor del API
+  if (newVal.forceCierre) {
+    form.value.id_estado_venta = VENTA_STATES.CERRADA;
+  }
+  
   articulosCarrito.value = newVal.articulos ? [...newVal.articulos] : [];
   
   // Sincronizar estado de facturación basándose en el campo estado_factura de la BD
@@ -647,9 +655,23 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydownGlobal);
 });
 
-const esCerrada = computed(() => form.value.id_estado_venta === VENTA_STATES.CERRADA);
-const esPausa = computed(() => form.value.id_estado_venta === VENTA_STATES.PAUSA);
-const esAbierta = computed(() => form.value.id_estado_venta === VENTA_STATES.ABIERTA);
+// Tracks if the user manually clicked a state button (overrides forceCierre)
+const userOverrodeState = ref(false);
+
+// When forceCierre=true and the user hasn't manually changed state → always CERRADA
+// This bypasses watcher timing issues entirely (reads props directly at computed time)
+const esCerrada = computed(() => {
+  if (!userOverrodeState.value && !!props.initialForm?.forceCierre) return true;
+  return Number(form.value.id_estado_venta) === VENTA_STATES.CERRADA;
+});
+const esPausa = computed(() => {
+  if (!userOverrodeState.value && props.initialForm?.forceCierre) return false;
+  return Number(form.value.id_estado_venta) === VENTA_STATES.PAUSA;
+});
+const esAbierta = computed(() => {
+  if (!userOverrodeState.value && props.initialForm?.forceCierre) return false;
+  return Number(form.value.id_estado_venta) === VENTA_STATES.ABIERTA;
+});
 const esCuentaCorriente = computed(() => form.value.tipo_vta === 0);
 
 const subtotal = computed(() =>
@@ -671,7 +693,7 @@ const totalCarrito = computed(() => {
 });
 
 // esAbierto mantiene compatibilidad: true cuando NO está cerrada (incluye pausa y abierta)
-const esAbierto = computed(() => form.value.id_estado_venta !== VENTA_STATES.CERRADA);
+const esAbierto = computed(() => !esCerrada.value);
 
 // Mantenido por compatibilidad legacy — ya no se usa con el nuevo selector de 3 estados
 const toggleEstadoVenta = (abierto) => {
@@ -685,6 +707,8 @@ const toggleEstadoVenta = (abierto) => {
 };
 
 const cambiarEstado = (id) => {
+  // Mark that the user explicitly selected a state, clearing the forceCierre override
+  userOverrodeState.value = true;
   if (id !== VENTA_STATES.CERRADA) {
     // Si se selecciona abierta o pausa, forzar a "A Cuenta" (si es abierta) y desactivar factura
     if (id === VENTA_STATES.ABIERTA) {
@@ -891,10 +915,16 @@ const handleKeydownGlobal = (e) => {
 };
 
 const handleSave = async () => {
+  // Ensure the effective displayed state is always what gets saved
+  // (guards against any watcher timing edge cases with forceCierre)
+  const ventaToSave = { ...form.value };
+  if (esCerrada.value && Number(ventaToSave.id_estado_venta) !== VENTA_STATES.CERRADA) {
+    ventaToSave.id_estado_venta = VENTA_STATES.CERRADA;
+  }
   // Emitir el evento de guardar venta al padre (VentasView.vue)
   // El padre se encarga de llamar al servicio y devolver el ID creado o editado
   emit('save', { 
-    venta: form.value, 
+    venta: ventaToSave, 
     articulos: articulosCarrito.value,
     facturar: facturar.value && !props.isAjuste // Pasamos la intención de facturar
   });

@@ -489,6 +489,18 @@ class Venta
                         fecha_edicion = NOW()
                     WHERE id = :id";
             $stmt = $this->conn->prepare($sql);
+            $stmt->bindValue(':fecha', $data['fecha']);
+            $stmt->bindValue(':id_equipo', $data['id_equipo'] ?? null, PDO::PARAM_INT);
+            $stmt->bindValue(':descripcion_cliente', $data['descripcion_cliente'] ?? null);
+            $stmt->bindValue(':id_estado_venta', (int)$data['id_estado_venta'], PDO::PARAM_INT);
+            $stmt->bindValue(':simbolo', $data['simbolo']);
+            $stmt->bindValue(':id_cliente', $data['id_cliente'] ?? null, PDO::PARAM_INT);
+            // tipo_vta: 1 = cerrada/pagada, 0 = a cuenta. Recalcular por seguridad.
+            $tipoVtaUpdate = ((int)$data['id_estado_venta'] === (int)($data['id_estado_cerrada'] ?? 3)) ? 1 : 0;
+            $stmt->bindValue(':tipo_vta', $tipoVtaUpdate, PDO::PARAM_INT);
+            $stmt->bindValue(':estado_factura', $estadoFactura);
+            $stmt->bindValue(':id', $idVenta, PDO::PARAM_INT);
+            $stmt->execute();
 
             // 2. Manejo de artículos: Eliminar antiguos y agregar nuevos (Simplificado)
             // Nota: En un sistema real, se debería revertir el stock de los eliminados
