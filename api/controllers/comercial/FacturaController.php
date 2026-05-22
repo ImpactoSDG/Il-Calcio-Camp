@@ -303,9 +303,9 @@ class FacturaController extends BaseController
             'fecha_desde'               => date('Y-m-01', strtotime((string)($venta['fecha'] ?? 'now'))),
             'fecha_hasta'               => date('Y-m-t',  strtotime((string)($venta['fecha'] ?? 'now'))),
             'Id_tipo_concepto'          => $idTipoConceptoBD,
-            'Id_alicuota_IVA'           => 5, // 5 = IVA exento / no corresponde (Monotributo)
-            'IVA'                       => 0,
-            'importe_total'             => $venta['importe_total'],
+            'Id_alicuota_IVA'           => 5, // 5 = 21% en tabla alicuota_iva de AFIP
+            'IVA'                       => $payload['importe_iva'],
+            'importe_total'             => $payload['importe_total'],
             'Direccion_receptor'        => $receptor['direccion']        ?? null,
             'Localidad_receptor'        => null,
             'Provincia_receptor'        => $receptor['nombre_provincia'] ?? null,
@@ -467,10 +467,20 @@ class FacturaController extends BaseController
 
         $cuitEmisor = preg_replace('/[^0-9]/', '', (string)($emisor['CUIT'] ?? ''));
 
+        // El precio ingresado es el PRECIO FINAL CON IVA INCLUIDO.
+        // Se descompone en neto + IVA para que AFIP reciba los valores correctos.
+        // Ejemplo: $100 ingresado → neto = 82.64, IVA = 17.36, total = 100.00
+        $importeTotal = round($total, 2);
+        $importeNeto  = round($total / 1.21, 2);
+        $importeIva   = round($importeTotal - $importeNeto, 2);
+
         return [
-            'cuit'         => $cuitEmisor,
-            'monto'        => $total,
-            'ptoVta'       => (int)($emisor['pto_vta'] ?? 1),
+            'cuit'          => $cuitEmisor,
+            'monto'         => $importeNeto,   // Neto gravado: el script Node lo usa como base imponible
+            'importe_neto'  => $importeNeto,
+            'importe_iva'   => $importeIva,
+            'importe_total' => $importeTotal,  // Precio final con IVA incluido (lo que pagó el cliente)
+            'ptoVta'        => (int)($emisor['pto_vta'] ?? 1),
             'tipoCbte'     => $tipoCbteAfip,
             'docTipo'      => $docTipo,
             'docNro'       => $docNro ?: '0',
@@ -489,6 +499,18 @@ class FacturaController extends BaseController
      */
     private function callAfipService(array $payload): array
     {
+        // SI ESTAMOS EN LOCAL (O MODO DEBUG), SIMULAR RESPUESTA EXITOSA PARA PRUEBAS
+        if (str_contains($_SERVER['HTTP_HOST'] ?? '', 'localhost') || ($_ENV['APP_DEBUG'] ?? 'false') === 'true') {
+            return [
+                'success'         => true,
+                'cae'             => '74123456789012', // CAE de prueba
+                'nro_comprobante' => 9999,
+                'pto_venta'       => $payload['ptoVta'],
+                'vto_cae'         => date('Y-m-d', strtotime('+10 days')),
+                'is_mock'         => true
+            ];
+        }
+
         $nodeBin = '/home/impactos/nodevenv/franconovara/afip-service/20/bin/node --tls-cipher-list="DEFAULT@SECLEVEL=1"';
         $posiblesRutas = [
             '/home/impactos/nodevenv/franconovara/afip-service/ilcalciocamp/facturar-ilcalciocamp.js',

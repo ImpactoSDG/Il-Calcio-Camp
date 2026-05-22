@@ -288,7 +288,7 @@
                         />
                         <div v-if="!isAjuste" class="text-end ms-2">
                           <div class="fw-black text-primary fs-5">${{ formatMoney(res.precio_actual || 0) }}</div>
-                          <div v-if="facturar" class="text-muted small" style="font-size: 0.7rem;">+IVA ${{ formatMoney((Number(res.precio_actual || 0) * 0.21).toFixed(2)) }}</div>
+                          <div v-if="facturar" class="text-muted small" style="font-size: 0.7rem;">IVA Incl. ${{ formatMoney((Number(res.precio_actual || 0) * (0.21 / 1.21)).toFixed(2)) }}</div>
                         </div>
                       </div>
                     </button>
@@ -333,7 +333,7 @@
                       
                         <td v-if="!isAjuste" class="text-end py-2 px-1" style="width: 26%;">
                           <div class="text-end">
-                            <div class="fw-black text-dark" style="font-size: 0.85rem;">${{ formatMoney(item.iva ? (Number(item.total) / 1.21).toFixed(2) : item.total) }}</div>
+                            <div class="fw-black text-dark" style="font-size: 0.85rem;">${{ formatMoney(item.total) }}</div>
                             <div v-if="item.iva" class="text-muted small" style="font-size: 0.7rem;">IVA ${{ formatMoney((Number(item.total) * (0.21 / 1.21)).toFixed(2)) }}</div>
                           </div>
                         </td>
@@ -788,7 +788,7 @@ const seleccionarArticuloDeSearch = (art) => {
   if (existente) {
     existente.cantidad = Number((Number(existente.cantidad) + cantidadAAgregar).toFixed(2));
     const base = existente.cantidad * existente.precio_unitario;
-    existente.total = (existente.iva ? base * 1.21 : base).toFixed(2);
+    existente.total = base.toFixed(2); // El precio ya incluye IVA
   } else {
     const baseNuevo = cantidadAAgregar * Number(art.precio_actual || 0);
     // Agregar al principio del array (Unshift) para que el último producto aparezca arriba
@@ -800,7 +800,7 @@ const seleccionarArticuloDeSearch = (art) => {
       cantidad: cantidadAAgregar,
       precio_unitario: Number(art.precio_actual || 0),
       iva: aplicarIva,
-      total: (aplicarIva ? baseNuevo * 1.21 : baseNuevo).toFixed(2),
+      total: baseNuevo.toFixed(2), // El precio ya incluye IVA
     });
   }
   // Resetear cantidad previa para la próxima búsqueda
@@ -885,7 +885,7 @@ const cambiarCantidad = (index, delta) => {
 const actualizarTotalItem = (index) => {
   const item = articulosCarrito.value[index];
   const base = (Number(item.cantidad) || 0) * (Number(item.precio_unitario) || 0);
-  item.total = (item.iva ? base * 1.21 : base).toFixed(2);
+  item.total = base.toFixed(2); // El precio ya incluye IVA
   validarStockMasivo();
 };
 
