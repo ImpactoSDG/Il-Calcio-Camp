@@ -96,16 +96,20 @@ class ClienteController extends BaseController
             }
 
             $id = !empty($data['id']) ? (int)$data['id'] : null;
-            $idCondicionIvaReceptor = $data['id_condicion_iva_receptor'] ?? null;
+            $idCondicionIvaReceptor = !empty($data['id_condicion_iva_receptor']) ? (int)$data['id_condicion_iva_receptor'] : null;
             $direccion = $data['direccion'] ?? null;
-            $idProvincia = $data['id_provinica'] ?? null;
+            $idProvincia = !empty($data['id_provinica']) ? (int)$data['id_provinica'] : null;
+            $cuitDni = $data['cuit_dni'] ?? $data['dni_cliente'] ?? null;
+            $telefono = $data['telefono'] ?? null;
 
             $newId = $this->model->create(
                 $id,
                 $data['nombre_cliente'],
                 $idCondicionIvaReceptor,
                 $direccion,
-                $idProvincia
+                $idProvincia,
+                $cuitDni,
+                $telefono
             );
 
             if ($newId) {
@@ -133,16 +137,20 @@ class ClienteController extends BaseController
                 $this->respond(400, ['message' => 'ID y nombre de cliente requeridos.']);
             }
 
-            $idCondicionIvaReceptor = $data['id_condicion_iva_receptor'] ?? null;
+            $idCondicionIvaReceptor = !empty($data['id_condicion_iva_receptor']) ? (int)$data['id_condicion_iva_receptor'] : null;
             $direccion = $data['direccion'] ?? null;
-            $idProvincia = $data['id_provinica'] ?? null;
+            $idProvincia = !empty($data['id_provinica']) ? (int)$data['id_provinica'] : null;
+            $cuitDni = $data['cuit_dni'] ?? $data['dni_cliente'] ?? null;
+            $telefono = $data['telefono'] ?? null;
 
             if ($this->model->update(
                 (int)$data['id'],
                 $data['nombre_cliente'],
                 $idCondicionIvaReceptor,
                 $direccion,
-                $idProvincia
+                $idProvincia,
+                $cuitDni,
+                $telefono
             )) {
                 $this->respond(200, ['message' => 'Cliente actualizado exitosamente.']);
             } else {

@@ -121,16 +121,18 @@ class Cliente
     /**
      * Crea un nuevo cliente
      */
-    public function create(?int $id, string $nombreCliente, ?int $idCondicionIvaReceptor, ?string $direccion, ?int $idProvincia): int|bool
+    public function create(?int $id, string $nombreCliente, ?int $idCondicionIvaReceptor, ?string $direccion, ?int $idProvincia, ?string $cuit_dni = null, ?string $telefono = null): int|bool
     {
-        $sql = "INSERT INTO {$this->table} (id, nombre_cliente, id_condicion_iva_receptor, direccion, id_provinica) 
-                VALUES (:id, :nombre_cliente, :id_condicion_iva_receptor, :direccion, :id_provinica)";
+        $sql = "INSERT INTO {$this->table} (id, nombre_cliente, cuit_dni, id_condicion_iva_receptor, direccion, id_provinica, telefono) 
+                VALUES (:id, :nombre_cliente, :cuit_dni, :id_condicion_iva_receptor, :direccion, :id_provinica, :telefono)";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id', $id, $id ? PDO::PARAM_INT : PDO::PARAM_NULL);
         $stmt->bindValue(':nombre_cliente', $nombreCliente);
+        $stmt->bindValue(':cuit_dni', $cuit_dni);
         $stmt->bindValue(':id_condicion_iva_receptor', $idCondicionIvaReceptor, $idCondicionIvaReceptor ? PDO::PARAM_INT : PDO::PARAM_NULL);
         $stmt->bindValue(':direccion', $direccion);
         $stmt->bindValue(':id_provinica', $idProvincia, $idProvincia ? PDO::PARAM_INT : PDO::PARAM_NULL);
+        $stmt->bindValue(':telefono', $telefono);
         
         if ($stmt->execute()) {
             return (int)$this->conn->lastInsertId();
@@ -141,19 +143,23 @@ class Cliente
     /**
      * Actualiza un cliente
      */
-    public function update(int $id, string $nombreCliente, ?int $idCondicionIvaReceptor, ?string $direccion, ?int $idProvincia): bool
+    public function update(int $id, string $nombreCliente, ?int $idCondicionIvaReceptor, ?string $direccion, ?int $idProvincia, ?string $cuit_dni = null, ?string $telefono = null): bool
     {
         $sql = "UPDATE {$this->table} 
                 SET nombre_cliente = :nombre_cliente, 
+                    cuit_dni = :cuit_dni,
                     id_condicion_iva_receptor = :id_condicion_iva_receptor, 
                     direccion = :direccion, 
-                    id_provinica = :id_provinica 
+                    id_provinica = :id_provinica,
+                    telefono = :telefono 
                 WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':nombre_cliente', $nombreCliente);
-        $stmt->bindValue(':id_condicion_iva_receptor', $idCondicionIvaReceptor, PDO::PARAM_INT);
+        $stmt->bindValue(':cuit_dni', $cuit_dni);
+        $stmt->bindValue(':id_condicion_iva_receptor', $idCondicionIvaReceptor, $idCondicionIvaReceptor !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
         $stmt->bindValue(':direccion', $direccion);
-        $stmt->bindValue(':id_provinica', $idProvincia, PDO::PARAM_INT);
+        $stmt->bindValue(':id_provinica', $idProvincia, $idProvincia !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
+        $stmt->bindValue(':telefono', $telefono);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         return $stmt->execute();
     }

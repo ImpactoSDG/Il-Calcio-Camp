@@ -368,6 +368,7 @@
       :estados-venta="estadosVenta"
       :medios-cobro="mediosCobro"
       :articulos="articulos"
+      :condiciones-iva="condicionesIva"
       :id-estado-cerrada="ID_ESTADO_CERRADA"
       :id-estado-pausa="ID_ESTADO_PAUSA"
       :id-estado-abierta="ID_ESTADO_ABIERTA"
@@ -602,6 +603,7 @@ const equipos         = ref([]);
 const estadosVenta    = ref([]);
 const mediosCobro     = ref([]);
 const articulos       = ref([]);
+const condicionesIva  = ref([]);
 const loading         = ref(false);
 const searchQuery     = ref('');
 const mostrarCerradas = ref(true);
@@ -678,17 +680,38 @@ const ventaForm = ref(emptyVentaForm());
 
 const tempQuickClient = ref(null);
 
-const handleQuickClientCreated = (cliente) => {
-  // Asignar condición IVA por defecto: ID 2 = Consumidor Final (AFIP 5)
-  cliente.id_condicion_iva_receptor = 2;
-  // Asegurar que el cliente rápido creado esté activo por defecto
-  cliente.activo = 1;
+const handleQuickClientCreated = async (cliente) => {
+  if (cliente.isUpdate) {
+    // Buscar en la lista local y actualizar
+    const idx = clientes.value.findIndex(c => c.id === cliente.id);
+    if (idx !== -1) {
+      clientes.value[idx] = { ...clientes.value[idx], ...cliente };
+      
+      // Si el cliente es REAL (no temporal), persistir el cambio inmediatamente
+      if (!String(cliente.id).startsWith('temp-')) {
+        try {
+          await clientesService.actualizarCliente(clientes.value[idx]);
+          toast.showToast({ message: 'Datos del cliente actualizados.', type: 'success' });
+        } catch (err) {
+          console.error('Error al actualizar cliente rápido:', err);
+          toast.showToast({ message: 'No se pudo persistir la actualización del cliente.', type: 'warning' });
+        }
+      } else {
+        // Si es temporal, actualizar el tempQuickClient
+        tempQuickClient.value = { ...tempQuickClient.value, ...cliente };
+      }
+    }
+  } else {
+    // Es un NUEVO cliente
+    // Asegurar que el cliente rápido creado esté activo por defecto
+    cliente.activo = 1;
 
-  tempQuickClient.value = cliente;
-  // Agregarlo a la lista local para que aparezca en el select del modal
-  clientes.value.push(cliente);
-  // Sincronizar el formulario del modal con el nuevo cliente
-  ventaForm.value.id_cliente = cliente.id;
+    tempQuickClient.value = cliente;
+    // Agregarlo a la lista local para que aparezca en el select del modal
+    clientes.value.push(cliente);
+    // Sincronizar el formulario del modal con el nuevo cliente
+    ventaForm.value.id_cliente = cliente.id;
+  }
 };
 
 const handleQuickTeamAssign = async ({ id_cliente, id_equipo }) => {
@@ -874,6 +897,7 @@ const fetchData = async () => {
       datosMaestrosService.getEstadosVenta(),
       datosMaestrosService.getMediosCobro(),
       articulosService.getAllActivos(),
+      datosMaestrosService.getCondicionesIva(),
     ]);
     const toArray = (r) => (r.status === 'fulfilled' && Array.isArray(r.value)) ? r.value : [];
     ventas.value      = toArray(results[0]);
@@ -882,6 +906,7 @@ const fetchData = async () => {
     estadosVenta.value = toArray(results[3]);
     mediosCobro.value = toArray(results[4]);
     articulos.value   = toArray(results[5]);
+    condicionesIva.value = toArray(results[6]);
 
     // Si alguno falló, notificamos pero no bloqueamos
     if (results.some(r => r.status === 'rejected')) {
@@ -983,7 +1008,7 @@ const iniciarCierreVenta = (venta) => {
   openVentaModal(venta, true);
 };
 
-const handleSaveVenta = async ({ venta, articulos: articulosCarrito, facturar }) => {
+const handleSaveVenta = async ({ venta, articulos: articulosCarrito, facturar, tipo_factura }) => {
   if (isSaving.value) return;
   isSaving.value = true;
   try {
@@ -1040,8 +1065,8 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito, facturar })
     if (tempQuickClient.value && String(venta.id_cliente).startsWith('temp-')) {
       payload.nuevo_cliente = {
         nombre_cliente:            tempQuickClient.value.nombre_cliente,
-        id_condicion_iva_receptor: 2, // Consumidor Final
-        condicion_iva:             'Consumidor Final',
+        id_condicion_iva_receptor: tempQuickClient.value.id_condicion_iva_receptor || 2,
+        cuit_dni:                  tempQuickClient.value.cuit_dni || '',
         id_provincia:              1,
         direccion:                 '',
         telefono:                  tempQuickClient.value.telefono || '',
@@ -1072,10 +1097,10 @@ const handleSaveVenta = async ({ venta, articulos: articulosCarrito, facturar })
       toast.showToast({ message: 'Emitiendo factura AFIP...', type: 'info' });
       let afipOk = false;
       try {
-        const factRes = await facturaService.facturarVenta(idVenta);
+        const factRes = await facturaService.facturarVenta(idVenta, tipo_factura);
         if (factRes.success) {
           afipOk = true;
-          toast.showToast({ message: `Factura emitida. CAE: ${factRes.cae}`, type: 'success' });
+          toast.showToast({ message: `Factura ${tipo_factura} emitida. CAE: ${factRes.cae}`, type: 'success' });
         } else {
           const errMsg = factRes.message || factRes.error || 'Error de AFIP.';
           const esRechazada = errMsg.toLowerCase().includes('rechazad') || errMsg.toLowerCase().includes('validación');

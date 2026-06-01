@@ -79,32 +79,51 @@
                         <div class="col-12" v-if="!isAjuste">
                           <div class="d-flex justify-content-between align-items-center mb-1">
                             <label class="form-label fw-semibold text-secondary small mb-0">
-                              Cliente <span v-if="esAbierta" class="text-danger">*</span>
+                              Cliente 
+                              <span v-if="esAbierta || (facturar && tipoFactura === 'A')" class="text-danger">*</span>
                             </label>
                             <button 
                               type="button" 
-                              @click="showQuickClientModal = true" 
+                              @click="openNewQuickClient" 
                               class="btn btn-link link-primary p-0 small text-decoration-none fw-bold" 
                               style="font-size: 0.65rem;"
                             >
                               + Nuevo
                             </button>
                           </div>
-                          <FuzzySearch
-                            v-model="queryCliente"
-                            :data="activeClients"
-                            :keys="['nombre_cliente', 'dni_cliente']"
-                            placeholder="Buscar cliente..."
-                            @selected="onClienteSelected"
-                            class="fuzzy-search-sm"
-                          >
-                            <template #default="{ item }">
-                              <div class="d-flex flex-column py-1">
-                                <span class="fw-bold small">{{ item.nombre_cliente }}</span>
-                                <span v-if="item.dni_cliente" class="text-muted" style="font-size: 0.7rem;">DNI: {{ item.dni_cliente }}</span>
-                              </div>
-                            </template>
-                          </FuzzySearch>
+                          <div class="d-flex align-items-center gap-2">
+                            <FuzzySearch
+                              v-model="queryCliente"
+                              :data="activeClients"
+                              :keys="['nombre_cliente', 'dni_cliente']"
+                              placeholder="Buscar cliente..."
+                              @selected="onClienteSelected"
+                              class="fuzzy-search-sm flex-grow-1"
+                            >
+                              <template #default="{ item }">
+                                <div class="d-flex flex-column py-1">
+                                  <span class="fw-bold small">{{ item.nombre_cliente }}</span>
+                                  <div class="d-flex align-items-center gap-1">
+                                    <span v-if="item.dni_cliente" class="text-muted" style="font-size: 0.7rem;">DNI: {{ item.dni_cliente }}</span>
+                                    <span v-else-if="Number(item.id_condicion_iva_receptor) === 1" class="text-danger fw-bold" style="font-size: 0.65rem;">
+                                      <i class="bi bi-exclamation-triangle-fill"></i> DNI REQUERIDO *
+                                    </span>
+                                    <span v-if="Number(item.id_condicion_iva_receptor) === 1" class="badge bg-info-subtle text-info border border-info-subtle py-0 px-1" style="font-size: 0.6rem;">RI</span>
+                                  </div>
+                                </div>
+                              </template>
+                            </FuzzySearch>
+                            <button 
+                              v-if="form.id_cliente"
+                              type="button" 
+                              class="btn btn-outline-primary p-0 rounded-3 d-flex align-items-center justify-content-center flex-shrink-0"
+                              style="width: 32px; height: 32px;"
+                              @click="openEditQuickClient"
+                              title="Editar cliente"
+                            >
+                              <i class="bi bi-pencil-fill" style="font-size: 0.9rem;"></i>
+                            </button>
+                          </div>
                           <input type="hidden" v-model="form.id_cliente" :required="esAbierta">
                         </div>
                         
@@ -174,7 +193,7 @@
 
                   <div class="bg-white border-2 rounded-4 p-3 border shadow-sm">
                     <!-- Checkbox Facturación -->
-                    <div v-if="!isAjuste && esCerrada" class="form-check mb-3 pb-3 border-bottom">
+                    <div v-if="!isAjuste && esCerrada" class="form-check mb-2">
                       <input 
                         id="chkFacturar" 
                         v-model="facturar" 
@@ -187,6 +206,23 @@
                       <label class="form-check-label fw-semibold text-secondary small ms-2 cursor-pointer" for="chkFacturar" :class="{ 'opacity-50': !puedeFacturar || (isEditing && !!form.estado_factura) }">
                         Emitir factura AFIP {{ isEditing && !!form.estado_factura ? '(Procesada)' : '' }}
                       </label>
+                    </div>
+
+                    <!-- Selector de Tipo de Factura -->
+                    <div v-if="facturar && !isAjuste && esCerrada" class="mb-3 pb-3 border-bottom animate-fade-in">
+                      <div class="d-flex gap-2">
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" v-model="tipoFactura" value="B" id="radFacturaB">
+                          <label class="form-check-label small fw-bold text-dark" for="radFacturaB">Factura B</label>
+                        </div>
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" v-model="tipoFactura" value="A" id="radFacturaA">
+                          <label class="form-check-label small fw-bold text-dark" for="radFacturaA">Factura A</label>
+                        </div>
+                      </div>
+                      <div v-if="tipoFactura === 'A'" class="alert alert-info py-1 px-2 mt-2 mb-0" style="font-size: 0.7rem;">
+                        <i class="bi bi-info-circle me-1"></i> Requiere que el cliente sea <strong>Responsable Inscripto</strong> con <strong>CUIT (11 dígitos)</strong>.
+                      </div>
                     </div>
 
                     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -385,7 +421,8 @@
           <button
             type="submit"
             class="btn btn-primary px-4 py-2 rounded-3 fw-bold d-flex align-items-center gap-2"
-            :disabled="isLoading || !puedeGuardar"
+            :class="{ 'opacity-50 cursor-not-allowed': !puedeGuardar }"
+            :disabled="isLoading"
           >
             <span v-if="isLoading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
             <span>{{ isLoading ? 'GUARDANDO...' : (isAjuste ? 'REGISTRAR AJUSTE' : (esPausa ? 'PAUSAR VENTA' : (isEditing ? 'GUARDAR' : 'CREAR VENTA'))) }}</span>
@@ -399,6 +436,8 @@
   <QuickClientModal
     v-model="showQuickClientModal"
     :clientes-existentes="activeClients"
+    :condiciones-iva="condicionesIva"
+    :initial-data="quickClientData"
     @confirm="handleQuickClientConfirm"
   />
 
@@ -433,6 +472,7 @@ const props = defineProps({
   estadosVenta: Array,
   mediosCobro: Array,
   articulos: Array,
+  condicionesIva: Array,
   idEstadoCerrada: Number,
   idEstadoPausa: Number,
   idEstadoAbierta: Number,
@@ -449,26 +489,89 @@ const montoEntregadoRef = ref(null);
 const articulosCarrito = ref([]);
 const queryCliente = ref('');
 const facturar = ref(false);
+const tipoFactura = ref('B');
 
 const onClienteSelected = (cliente) => {
   form.value.id_cliente = cliente?.id || null;
   queryCliente.value = cliente?.nombre_cliente || '';
 };
 
-const activeClients = computed(() => (props.clientes || []).filter(c => Number(c.activo) === 1));
+const activeClients = computed(() => props.clientes || []);
+
+const clienteSeleccionado = computed(() => {
+  if (!form.value.id_cliente) return null;
+  return activeClients.value.find(c => c.id === form.value.id_cliente);
+});
+
+// Nueva validación para Factura A (Requisitos AFIP)
+const validacionFacturaA = computed(() => {
+  if (!facturar.value || tipoFactura.value !== 'A') return { valid: true };
+  
+  if (!form.value.id_cliente) {
+    return { valid: false, message: 'Para Factura A se requiere un cliente seleccionado.' };
+  }
+  
+  const cli = clienteSeleccionado.value;
+  if (!cli) return { valid: false, message: 'Cliente seleccionado no es válido.' };
+
+  if (Number(cli.id_condicion_iva_receptor) !== 1) {
+    return { valid: false, message: 'El cliente debe ser Responsable Inscripto (RI) para emitir Factura A.' };
+  }
+  
+  const cuitLimpio = String(cli.dni_cliente || '').replace(/[^0-9]/g, '');
+  if (cuitLimpio.length !== 11) {
+    return { valid: false, message: 'Para Factura A se requiere un CUIT válido de 11 dígitos. El cliente seleccionado tiene un DNI o CUIT inválido.' };
+  }
+  
+  if (!cli.nombre_cliente || String(cli.nombre_cliente).trim() === '') {
+    return { valid: false, message: 'El cliente debe tener Razón Social / Nombre cargado para Factura A.' };
+  }
+
+  return { valid: true };
+});
+
+// Cambiar a factura A automáticamente si el cliente es Responsable Inscripto (id_condicion_iva_receptor = 1)
+watch(clienteSeleccionado, (nuevo) => {
+  if (nuevo && Number(nuevo.id_condicion_iva_receptor) === 1) {
+    tipoFactura.value = 'A';
+  } else {
+    tipoFactura.value = 'B';
+  }
+});
 
 const showQuickClientModal = ref(false);
 const showQuickTeamModal = ref(false);
+const quickClientData = ref(null);
+
+const openNewQuickClient = () => {
+  quickClientData.value = null;
+  showQuickClientModal.value = true;
+};
+
+const openEditQuickClient = () => {
+  if (form.value.id_cliente) {
+    quickClientData.value = clienteSeleccionado.value;
+    showQuickClientModal.value = true;
+  }
+};
 
 const handleQuickClientConfirm = (cliente) => {
-  if (cliente.isNew) {
-    // Si es nuevo, emitir evento para que el padre lo maneje después
+  if (cliente.id && !String(cliente.id).startsWith('temp-')) {
+    // Es una edición de un cliente real o ya persistido en esta sesión
+    emit('client-created', { ...cliente, isUpdate: true });
+  } else if (!cliente.id) {
+    // Es un nuevo cliente
+    cliente.isNew = true;
     emit('client-created', cliente);
+  } else {
+    // Es un cliente temporal que se está editando
+    emit('client-created', { ...cliente, isUpdate: true, isTemp: true });
   }
   
   // Asignar a la venta inmediatamente
   form.value.id_cliente = cliente.id;
   queryCliente.value = cliente.nombre_cliente; // Sincronizar el buscador con el nombre
+  showQuickClientModal.value = false;
   
   toastStore.showToast({
     message: `Cliente ${cliente.nombre_cliente} asignado.`,
@@ -733,6 +836,9 @@ const puedeGuardar = computed(() => {
   if (!form.value.fecha || !form.value.id_estado_venta || !tieneItems) return false;
   if (errorStock.value) return false;
 
+  // Validación Factura A (Requisitos AFIP)
+  if (!validacionFacturaA.value.valid) return false;
+
   if (esCerrada.value) {
     // Cerrada: requiere medio de pago, cliente NO obligatorio
     return !!form.value.id_medio_cobro;
@@ -746,10 +852,6 @@ const puedeGuardar = computed(() => {
   // Pausa: no requiere ni cliente ni pago
   return true;
 });
-
-const clienteSeleccionado = computed(() =>
-  props.clientes?.find(c => c.id === form.value.id_cliente) || null
-);
 
 const puedeFacturar = computed(() => {
   if (props.isAjuste) return false;
@@ -915,6 +1017,24 @@ const handleKeydownGlobal = (e) => {
 };
 
 const handleSave = async () => {
+  // Primero validamos si puede guardar, si no mostramos el toast específico
+  if (!puedeGuardar.value) {
+    // Si la falla es por Factura A, mostramos el mensaje específico
+    if (!validacionFacturaA.value.valid) {
+      toastStore.showToast({
+        message: validacionFacturaA.value.message,
+        type: 'warning'
+      });
+    } else {
+      // Fallas generales (items, fecha, medio de pago, etc)
+      toastStore.showToast({
+        message: 'Por favor complete todos los datos requeridos antes de guardar.',
+        type: 'warning'
+      });
+    }
+    return;
+  }
+
   // Ensure the effective displayed state is always what gets saved
   // (guards against any watcher timing edge cases with forceCierre)
   const ventaToSave = { ...form.value };
@@ -926,7 +1046,8 @@ const handleSave = async () => {
   emit('save', { 
     venta: ventaToSave, 
     articulos: articulosCarrito.value,
-    facturar: facturar.value && !props.isAjuste // Pasamos la intención de facturar
+    facturar: facturar.value && !props.isAjuste, // Pasamos la intención de facturar
+    tipo_factura: tipoFactura.value
   });
 };
 

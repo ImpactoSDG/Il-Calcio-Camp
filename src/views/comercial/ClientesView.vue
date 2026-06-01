@@ -92,8 +92,17 @@
                   <input v-model.trim="form.nombre_cliente" type="text" class="form-control" placeholder="Ej: Juan Pérez" required />
                 </div>
                 <div class="col-md-12">
-                  <label class="form-label">DNI / CUIT</label>
-                  <input v-model.trim="form.cuit_dni" type="text" class="form-control" placeholder="Ej: 23456789 (DNI)" />
+                  <label class="form-label">
+                    DNI / CUIT
+                    <span v-if="Number(form.id_condicion_iva_receptor) === 1" class="text-danger">*</span>
+                  </label>
+                  <input v-model.trim="form.cuit_dni" type="text" class="form-control" placeholder="Ej: 23456789 (DNI)" :required="Number(form.id_condicion_iva_receptor) === 1" />
+                </div>
+                <div class="col-md-12">
+                  <label class="form-label">Condición IVA</label>
+                  <select v-model="form.id_condicion_iva_receptor" class="form-select shadow-sm border-2">
+                    <option v-for="c in condicionesIva" :key="c.id" :value="c.id">{{ c.descripcion_condicion }}</option>
+                  </select>
                 </div>
                 <div class="col-md-12">
                   <label class="form-label">Dirección</label>
@@ -314,6 +323,11 @@ const save = async () => {
 
   isSaving.value = true;
   try {
+    // Sanitizar CUIT/DNI: dejar solo números (evita errores en bigint)
+    if (form.value.cuit_dni) {
+      form.value.cuit_dni = String(form.value.cuit_dni).replace(/[^0-9]/g, '');
+    }
+
     if (isEditing.value) {
       await clientesService.actualizarCliente(form.value);
       toast.showToast({ message: 'Cliente actualizado correctamente.', type: 'success' });

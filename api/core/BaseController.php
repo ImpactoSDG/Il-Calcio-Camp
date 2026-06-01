@@ -27,10 +27,12 @@ abstract class BaseController
      */
     protected function handleError(Throwable $e, string $message = 'Error interno del servidor'): void
     {
-        // En un entorno real, aquí registraríamos el error en un log: error_log($e->getMessage());
+        error_log("[Controller Error] " . $e->getMessage() . " in " . $e->getFile() . " on line " . $e->getLine());
+        error_log("[Stack Trace] " . $e->getTraceAsString());
+        
         $response = [
             'message' => $message,
-            'error' => ($_ENV['APP_DEBUG'] ?? 'false') === 'true' ? $e->getMessage() : 'Ocurrió un error inesperado.'
+            'error' => $e->getMessage()
         ];
         
         $this->respond(500, $response);

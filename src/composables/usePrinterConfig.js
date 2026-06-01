@@ -602,6 +602,16 @@ export async function imprimirTicketDetalleFactura({ venta, articulos, factura, 
     SEP,
     ...lineasDetalle,
     SEP,
+  ];
+
+  if (tipoLetra === 'A') {
+    const neto = total / 1.21;
+    const iva = total - neto;
+    data.push(RGT, `Neto Gravado: $${fmt(neto)}\x0A`);
+    data.push(RGT, `IVA 21%: $${fmt(iva)}\x0A`);
+  }
+
+  data.push(
     RGT, B, `\x1B\x21\x18TOTAL: $${fmt(total)}\x0A`, NRM, NB,
     LFT,
     SEP,
@@ -614,7 +624,7 @@ export async function imprimirTicketDetalleFactura({ venta, articulos, factura, 
     '\xADGracias por su compra!\x0A',
     feed,
     cut,
-  ];
+  );
 
   await qz.print(config, data);
 }
@@ -666,6 +676,18 @@ export function generarHtmlDetalleFactura({ factura, articulos }) {
       <td class="r">$${fmt(a.total)}</td>
     </tr>`).join('');
 
+  // Discriminación de IVA para Factura A
+  let discriminacionIvaHtml = '';
+  if (tipoLetra === 'A') {
+    const total = parseFloat(factura.importe_total || 0);
+    const neto = total / 1.21;
+    const iva = total - neto;
+    discriminacionIvaHtml = `
+      <tr class="small-text"><td>Neto Gravado</td><td class="r">$${fmt(neto)}</td></tr>
+      <tr class="small-text"><td>IVA 21%</td><td class="r">$${fmt(iva)}</td></tr>
+    `;
+  }
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -691,6 +713,7 @@ export function generarHtmlDetalleFactura({ factura, articulos }) {
     td.r { text-align: right; }
     .totales td { padding: 1px 0; }
     .total-final { font-size: 13px; font-weight: 900; }
+    .small-text { font-size: 9px; }
     .cae-block { font-size: 10px; margin-top: 4px; }
     .footer-legal { font-size: 9px; color: #333; text-align: center; margin-top: 4px; }
     .qr-wrap { text-align: center; margin-top: 6px; }
@@ -745,6 +768,7 @@ export function generarHtmlDetalleFactura({ factura, articulos }) {
 
   <div class="sep-solid"></div>
   <table class="totales">
+    ${discriminacionIvaHtml}
     <tr class="total-final"><td>TOTAL VENTA</td><td class="r">$${fmt(factura.importe_total)}</td></tr>
   </table>
 

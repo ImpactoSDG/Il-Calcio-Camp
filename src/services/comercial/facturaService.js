@@ -3,11 +3,11 @@ import api from '../api';
 const facturaService = {
   /**
    * Emite la factura electrónica AFIP para una venta.
-   * POST /facturar-venta  { id_venta }
+   * POST /facturar-venta  { id_venta, tipo_factura }
    * Retorna { success, id_factura, cae, factura, already_issued? }
    */
-  facturarVenta: (idVenta) =>
-    api.post('/facturar-venta', { id_venta: idVenta }).then(r => r.data),
+  facturarVenta: (idVenta, tipoFactura = 'B') =>
+    api.post('/facturar-venta', { id_venta: idVenta, tipo_factura: tipoFactura }).then(r => r.data),
 
   /**
    * Obtiene los datos de una factura ya emitida (incluye datos de venta, cliente y emisor).

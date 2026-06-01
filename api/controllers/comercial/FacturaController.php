@@ -27,12 +27,13 @@ class FacturaController extends BaseController
         try {
             $data     = json_decode(file_get_contents("php://input"), true) ?? [];
             $idVenta  = isset($data['id_venta']) ? (int)$data['id_venta'] : 0;
+            $tipoFactura = $data['tipo_factura'] ?? 'B';
 
             if (!$idVenta) {
                 $this->respond(400, ['message' => 'ID de venta requerido.']);
             }
 
-            $resultado = $this->procesarFacturacion($idVenta);
+            $resultado = $this->procesarFacturacion($idVenta, $tipoFactura);
 
             if ($resultado['success']) {
                 $this->respond(200, $resultado);
@@ -143,7 +144,7 @@ class FacturaController extends BaseController
      * Orquesta el proceso completo de facturación de una venta.
      * Valida que todos los datos obligatorios estén presentes.
      */
-    public function procesarFacturacion(int $idVenta): array
+    public function procesarFacturacion(int $idVenta, string $tipoFactura = 'B'): array
     {
         // 1. Obtener la venta y su total calculado
         $stmt = $this->db->prepare("
@@ -209,6 +210,12 @@ class FacturaController extends BaseController
             return ['success' => false, 'error' => 'No hay datos de emisor configurados. Complete la tabla facturacion_datos_emisor.'];
         }
 
+        // Si se solicita Factura A, sobrescribimos el tipo de comprobante (AFIP 01 = Factura A)
+        if ($tipoFactura === 'A') {
+            $emisor['id_tipo_comprobante'] = 1; // Suponiendo ID 1 para Factura A en tabla tipo_comprobante
+            $emisor['codigo_afip_comprobante'] = 1; // Código AFIP 01
+        }
+
         // Validar datos del emisor y sus relaciones
         $erroresEmisor = [];
         if (empty($emisor['CUIT'])) $erroresEmisor[] = 'CUIT del emisor';
@@ -257,6 +264,16 @@ class FacturaController extends BaseController
                 $erroresReceptor[] = 'DNI/CUIT (requerido para clientes no Consumidor Final)';
             }
 
+            // Requisitos específicos para Factura A
+            if ($tipoFactura === 'A') {
+                if ((int)($receptor['id_condicion_iva_receptor'] ?? 0) !== 1) { // 1 = Responsable Inscripto
+                    $erroresReceptor[] = 'el cliente debe ser Responsable Inscripto para emitir Factura A';
+                }
+                if (empty($receptor['cuit_dni']) || strlen(preg_replace('/[^0-9]/', '', (string)$receptor['cuit_dni'])) !== 11) {
+                    $erroresReceptor[] = 'CUIT válido (11 dígitos, requerido para Factura A)';
+                }
+            }
+
             if (!empty($erroresReceptor)) {
                 return [
                     'success' => false,
@@ -265,6 +282,9 @@ class FacturaController extends BaseController
             }
         } else {
             // Si es anónimo/sin cliente, definimos los datos por defecto para Consumidor Final
+            if ($tipoFactura === 'A') {
+                return ['success' => false, 'error' => 'No se puede emitir Factura A para un cliente anónimo o consumidor final.'];
+            }
             $receptor = [
                 'nombre_cliente' => 'Consumidor Final',
                 'id_condicion_iva_receptor' => 2, // ID 2 = Consumidor Final
