@@ -21,11 +21,11 @@
           Cargando torneos...
         </div>
 
-        <div v-else-if="torneos.length === 0" class="alert alert-warning mb-0">
-          No hay torneos disponibles.
-        </div>
+        <div v-if="!loadingTorneos" class="torneo-grid">
+          <div v-if="torneos.length === 0" class="alert alert-warning mb-0 w-100">
+            No hay torneos disponibles.
+          </div>
 
-        <div v-else class="torneo-grid">
           <button
             v-for="torneo in torneos"
             :key="torneo.id"
@@ -213,6 +213,13 @@
             </table>
           </div>
 
+
+          <!-- Solicitudes del portal web -->
+          <InscripcionesPortalSection
+            :id-torneo="idTorneoSeleccionado"
+            :id-disciplina-default="detalle?.torneo?.id_disciplina ?? null"
+            @aprobada="cargarDetalle(idTorneoSeleccionado)"
+          />
 
         </template>
 
@@ -1099,6 +1106,7 @@ import datosMaestrosService from '@/services/datosMaestrosService'
 import planTorneoService from '@/services/torneos/planTorneoService'
 import { useToastStore } from '@/stores/toastStore'
 import TorneoCalendar from '@/components/torneos/TorneoCalendar.vue'
+import InscripcionesPortalSection from '@/components/torneos/InscripcionesPortalSection.vue'
 
 const toast = useToastStore()
 const route = useRoute()
@@ -1126,6 +1134,7 @@ const showPagoEventoModal = ref(false)
 const idPagoEventoSeleccionado = ref(null)
 const showInscripcionModal = ref(false)
 const showEliminarTorneoModal = ref(false)
+
 const showAccionesMenu = ref(false)
 const confirmNombreEliminar = ref('')
 const motivoBajaTorneo = ref('')
@@ -1163,6 +1172,7 @@ const tabActiva = ref('resumen')
 const subTabAsignaciones = ref('zonas')
 
 const getApiMessage = (error, fallback) => error?.response?.data?.message || fallback
+
 
 const getEstadoTorneoBadgeClass = (estado) => {
   const key = String(estado || '').trim().toUpperCase()

@@ -18,6 +18,8 @@ require_once __DIR__ . '/controllers/catalogo/MedioCobroController.php';
 
 // --- Torneos (Gestión Deportiva) ---
 require_once __DIR__ . '/controllers/torneos/ArbitroController.php';
+require_once __DIR__ . '/controllers/torneos/InscripcionEquipoController.php';
+require_once __DIR__ . '/controllers/torneos/InscripcionJugadorController.php';
 require_once __DIR__ . '/controllers/torneos/EquipoController.php';
 require_once __DIR__ . '/controllers/torneos/JugadorController.php';
 require_once __DIR__ . '/controllers/torneos/TorneoController.php';
@@ -105,6 +107,8 @@ $pagoProveedorController = new PagoProveedorController($db);
 $articuloResumenVentaController = new ArticuloResumenVentaController($db);
 $simboloDiaController = new SimboloDiaController();
 $registroPublicoController = new RegistroPublicoController($db);
+$inscripcionEquipoController = new InscripcionEquipoController($db);
+$inscripcionJugadorController = new InscripcionJugadorController($db);
 $facturaController = new FacturaController($db);
 $reporteVentaController = new ReporteVentaController($db);
 
@@ -1114,6 +1118,51 @@ switch ($resource) {
                 break;
             case 'DELETE':
                 $pagoProveedorController->delete();
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    // --- Inscripciones de equipos (portal web, gestión admin) ---
+    case 'inscripciones':
+        verifyAuth();
+        if ($method === 'POST' && $id === 'aprobar') {
+            $inscripcionEquipoController->aprobar();
+            break;
+        }
+        if ($method === 'POST' && $id === 'observar') {
+            $inscripcionEquipoController->observar();
+            break;
+        }
+        if ($method === 'POST' && $id === 'rechazar') {
+            $inscripcionEquipoController->rechazar();
+            break;
+        }
+        switch ($method) {
+            case 'GET':
+                if ($id) {
+                    $_GET['id'] = $id;
+                    $inscripcionEquipoController->getById();
+                } else {
+                    $inscripcionEquipoController->getAll();
+                }
+                break;
+            default:
+                http_response_code(405);
+                break;
+        }
+        break;
+
+    case 'inscripciones-jugadores':
+        verifyAuth();
+        switch ($method) {
+            case 'GET':
+                $inscripcionJugadorController->getByInscripcion();
+                break;
+            case 'PUT':
+                $inscripcionJugadorController->setEstadoDocumentacion();
                 break;
             default:
                 http_response_code(405);
