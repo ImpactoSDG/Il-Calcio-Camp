@@ -22,10 +22,17 @@ class Torneo
                        t.valor_inscripcion, t.formato_manual, t.configuracion_json,
                        COALESCE(t.activo, 1) AS activo,
                        d.nombre AS disciplina_nombre,
-                       et.descripcion AS estado_torneo_descripcion
+                       et.descripcion AS estado_torneo_descripcion,
+                       COALESCE(ie.solicitudes_pendientes, 0) AS solicitudes_pendientes
                 FROM {$this->table} t
                 LEFT JOIN disciplina d ON t.id_disciplina = d.id
                 LEFT JOIN estado_torneo et ON t.id_estado_torneo = et.id
+                LEFT JOIN (
+                    SELECT id_torneo, COUNT(*) AS solicitudes_pendientes
+                    FROM inscripcion_equipo
+                    WHERE id_estado = 1
+                    GROUP BY id_torneo
+                ) ie ON ie.id_torneo = t.id
                 WHERE COALESCE(t.activo, 1) = 1
                 ORDER BY t.nombre ASC, t.id ASC";
         $stmt = $this->conn->prepare($sql);

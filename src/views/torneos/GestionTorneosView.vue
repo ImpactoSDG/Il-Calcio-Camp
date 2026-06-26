@@ -40,7 +40,16 @@
                 <div class="fw-semibold text-start">{{ torneo.nombre }}</div>
                 <div class="small text-muted text-start">{{ torneo.disciplina_nombre || 'Sin disciplina' }}</div>
               </div>
-              <span class="badge rounded-pill text-bg-light">#{{ torneo.id }}</span>
+              <div class="d-flex flex-column align-items-end gap-1">
+                <span class="badge rounded-pill text-bg-light">#{{ torneo.id }}</span>
+                <span
+                  v-if="Number(torneo.solicitudes_pendientes) > 0"
+                  class="badge rounded-pill bg-warning text-dark"
+                  title="Solicitudes de inscripción pendientes de revisión"
+                >
+                  {{ torneo.solicitudes_pendientes }} pendiente{{ Number(torneo.solicitudes_pendientes) > 1 ? 's' : '' }}
+                </span>
+              </div>
             </div>
             <div class="text-start mt-2">
               <span
@@ -107,11 +116,11 @@
             <button class="torneo-tab" :class="{ active: tabActiva === 'inscripciones' }" @click="tabActiva = 'inscripciones'">
               <i class="bi bi-person-plus me-1"></i>Inscripciones
               <span class="badge ms-1" :class="tabActiva === 'inscripciones' ? 'bg-primary text-white' : 'bg-secondary-subtle text-secondary'">
-                {{ detalle.inscripciones?.total || 0 }}
+                {{ detalle.inscripciones?.solicitudes_activas || 0 }}
               </span>
             </button>
           </li>
-          <li class="nav-item">
+          <!-- <li class="nav-item">
             <button class="torneo-tab" :class="{ active: tabActiva === 'asignaciones' }" @click="tabActiva = 'asignaciones'">
               <i class="bi bi-diagram-3 me-1"></i>Asignaciones
               <span class="badge ms-1" :class="tabActiva === 'asignaciones' ? 'bg-info text-white' : 'bg-info-subtle text-info'">
@@ -133,7 +142,7 @@
             <button class="torneo-tab" :class="{ active: tabActiva === 'pagos' }" @click="tabActiva = 'pagos'">
               <i class="bi bi-cash-coin me-1"></i>Pagos por partido
             </button>
-          </li>
+          </li> -->
         </ul>
 
         <template v-if="tabActiva === 'resumen'">
@@ -166,7 +175,6 @@
           <div class="seccion-inscripciones">
             <InscripcionesPortalSection
               :id-torneo="idTorneoSeleccionado"
-              :id-disciplina-default="detalle?.torneo?.id_disciplina ?? null"
               @aprobada="cargarDetalle(idTorneoSeleccionado)"
             />
           </div>

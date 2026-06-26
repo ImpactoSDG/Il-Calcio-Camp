@@ -408,6 +408,14 @@ class PlanTorneoController extends BaseController
                 }
             }
 
+            $stmtSolicitudes = $this->db->prepare(
+                "SELECT COUNT(*) FROM inscripcion_equipo
+                 WHERE id_torneo = :id_torneo AND id_estado IN (1, 2, 3, 7)"
+            );
+            $stmtSolicitudes->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+            $stmtSolicitudes->execute();
+            $solicitudesActivas = (int)$stmtSolicitudes->fetchColumn();
+
             $sqlEventos = "SELECT
                                SUM(CASE WHEN ev.titulo LIKE 'Zona % - Fecha % - Partido %' THEN 1 ELSE 0 END) AS eventos_zona,
                                SUM(CASE WHEN ev.titulo NOT LIKE 'Zona % - Fecha % - Partido %' THEN 1 ELSE 0 END) AS eventos_eliminacion,
@@ -434,6 +442,7 @@ class PlanTorneoController extends BaseController
                 'inscripciones' => [
                     'total' => $inscripcionesTotal,
                     'asignadas' => $inscripcionesAsignadas,
+                    'solicitudes_activas' => $solicitudesActivas,
                 ],
                 'eventos' => [
                     'zona' => (int)($eventos['eventos_zona'] ?? 0),

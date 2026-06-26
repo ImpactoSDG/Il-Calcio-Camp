@@ -79,7 +79,13 @@ class InscripcionEquipoController extends BaseController
 
             $jugadores = $this->jugadorModel->getByInscripcion((int)$id);
 
-            $idDisciplinaSeleccionada = (int)($data['id_disciplina'] ?? 1);
+            $stmtDisc = $this->db->prepare(
+                'SELECT COALESCE(t.id_disciplina, 1) FROM torneo t WHERE t.id = :id_torneo LIMIT 1'
+            );
+            $stmtDisc->bindValue(':id_torneo', (int)$inscripcion['id_torneo'], PDO::PARAM_INT);
+            $stmtDisc->execute();
+            $idDisciplinaSeleccionada = (int)($stmtDisc->fetchColumn() ?: 1);
+
             $equipoModel = new Equipo($this->db);
 
             $this->db->beginTransaction();

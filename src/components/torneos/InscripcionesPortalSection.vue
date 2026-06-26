@@ -61,7 +61,7 @@
                 <span class="badge rounded-pill" :class="badgeEstado(sol.estado)">{{ sol.estado }}</span>
                 <span
                   v-if="Number(sol.id_estado) === 7 && sol.tiene_docs_nuevas"
-                  class="badge bg-primary-subtle text-primary rounded-pill ms-1"
+                  class="badge bg-warning text-dark rounded-pill ms-1"
                   title="El delegado actualizó documentación desde la última revisión"
                 >Documentación a revisar</span>
               </td>
@@ -119,7 +119,7 @@
        MODAL PRINCIPAL: Visualizar solicitud
        ============================================================ -->
   <Teleport to="body">
-    <div v-if="showVisualizarModal" class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)" @click.self="showVisualizarModal = false">
+    <div v-if="showVisualizarModal" class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
       <div class="modal-dialog modal-xxl modal-dialog-scrollable">
         <div class="modal-content">
 
@@ -280,7 +280,6 @@
 
             <!-- Sección 3: Cambio de estado -->
             <div class="border-top pt-3">
-              <h6 class="fw-bold text-secondary mb-2">Confirmar inscripcion</h6>
 
               <!-- Bloqueado: aprobada o rechazada -->
               <template v-if="[5, 8].includes(Number(solicitudActual?.id_estado)) && !desbloqueado">
@@ -357,20 +356,6 @@
 
                 </div>
 
-                <!-- Formulario: Aprobar -->
-                <div v-if="accionSeleccionada === 'aprobar'" class="mt-2">
-                  <label class="form-label small fw-semibold">Disciplina del equipo</label>
-                  <div class="d-flex gap-2 align-items-center flex-wrap">
-                    <select v-model="idDisciplina" class="form-select form-select-sm" style="max-width:240px">
-                      <option v-for="d in disciplinas" :key="d.id" :value="d.id">{{ d.nombre }}</option>
-                    </select>
-                    <button class="btn btn-sm btn-success" :disabled="!idDisciplina" @click="continuarAprobar">
-                      Continuar
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary" @click="accionSeleccionada = null">Volver</button>
-                  </div>
-                </div>
-
                 <!-- Formulario: Rechazar -->
                 <div v-if="accionSeleccionada === 'rechazar'" class="mt-2">
                   <label class="form-label small fw-semibold">Motivo de rechazo</label>
@@ -438,13 +423,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import inscripcionesService from '@/services/torneos/inscripcionesService'
-import datosMaestrosService from '@/services/datosMaestrosService'
 import { useToastStore } from '@/stores/toastStore'
 import { useUserStore } from '@/stores/userStore'
 
 const props = defineProps({
   idTorneo: { type: Number, required: true },
-  idDisciplinaDefault: { type: Number, default: null },
 })
 
 const emit = defineEmits(['aprobada'])
@@ -462,11 +445,9 @@ const showVisualizarModal = ref(false)
 const solicitudActual = ref(null)
 const jugadores = ref([])
 const loadingJugadores = ref(false)
-const disciplinas = ref([])
 const desbloqueado = ref(false)
-const accionSeleccionada = ref(null) // 'aprobar' | 'observar' | 'rechazar' | null
+const accionSeleccionada = ref(null) // 'observar' | 'rechazar' | null
 const textoAccion = ref('')
-const idDisciplina = ref(null)
 const saving = ref(false)
 const mostrarMensajeAdmin = ref(false)
 
@@ -551,9 +532,8 @@ const badgeEstado = (estado) => {
 
 const fichaUrl = (nombreArchivo) => {
   if (!nombreArchivo) return ''
-  const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
-  const token = userStore.token || ''
-  return `${apiBase}/fichas/${encodeURIComponent(nombreArchivo)}?token=${token}`
+  const base = (import.meta.env.VITE_FICHAS_URL || '').replace(/\/+$/, '')
+  return `${base}/${encodeURIComponent(nombreArchivo)}`
 }
 
 // -------------------------------------------------------
@@ -590,7 +570,8 @@ const buildTemplateObservada = () => {
 ${listaRechazados}${seccionMotivo}
 ${listaPendientes}
 
-Por favor, ingresá nuevamente a la web de inscripción y completá la información solicitada.
+Por favor, ingresá nuevamente a la web de inscripción https://ilcalciocamp.impactosdg.com
+y completá la información solicitada.
 
 Saludos,
 Equipo de Il Calcio Camp`
@@ -646,7 +627,6 @@ const abrirVisualizar = async (sol) => {
   mostrarMensajeAdmin.value = false
   accionSeleccionada.value = null
   textoAccion.value = ''
-  idDisciplina.value = props.idDisciplinaDefault
   jugadores.value = []
   showVisualizarModal.value = true
 
@@ -698,7 +678,7 @@ const intentarAprobar = () => {
     toast.error('No podés aprobar la solicitud mientras haya archivos pendientes, en revisión o rechazados.')
     return
   }
-  accionSeleccionada.value = 'aprobar'
+  continuarAprobar()
 }
 
 const continuarAprobar = () => {
@@ -725,7 +705,7 @@ const confirmarConEmail = async () => {
   saving.value = true
   try {
     if (accionPendiente.value === 'aprobar') {
-      await inscripcionesService.aprobar(solicitudActual.value.id, idDisciplina.value, emailBody.value)
+      await inscripcionesService.aprobar(solicitudActual.value.id, emailBody.value)
       toast.success('Solicitud aprobada. Equipo y jugadores creados.')
       actualizarEstadoLocal(8, 'Aprobada', emailBody.value)
       emit('aprobada')
@@ -763,7 +743,6 @@ const actualizarEstadoLocal = (idEstado, estadoTexto, observacion) => {
 
 onMounted(async () => {
   await cargar()
-  datosMaestrosService.getDisciplinas().then(d => { disciplinas.value = d }).catch(() => {})
 })
 </script>
 
