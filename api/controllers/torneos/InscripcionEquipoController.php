@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../models/torneos/InscripcionEquipo.php';
 require_once __DIR__ . '/../../models/torneos/InscripcionJugador.php';
 require_once __DIR__ . '/../../models/torneos/Equipo.php';
 require_once __DIR__ . '/../../models/torneos/Jugador.php';
+require_once __DIR__ . '/../../models/torneos/DocumentoJugador.php';
 require_once __DIR__ . '/../../models/auth/UsuarioWeb.php';
 require_once __DIR__ . '/../../vendor/autoload.php';
 
@@ -78,31 +79,31 @@ class InscripcionEquipoController extends BaseController
 
             $jugadores = $this->jugadorModel->getByInscripcion((int)$id);
 
+            $idDisciplinaSeleccionada = (int)($data['id_disciplina'] ?? 1);
+            $equipoModel = new Equipo($this->db);
+
             $this->db->beginTransaction();
 
-            // 1. Crear equipo
-            $equipoModel = new Equipo($this->db);
-            $idEquipo = $equipoModel->create(
-                $inscripcion['nombre_equipo'],
-                (int)($data['id_disciplina'] ?? 1),
-                true,
-                null,
-                1
-            );
+            // 1. Crear equipo o reutilizar uno existente con nombre similar
+            $equiposDisciplina = $equipoModel->getByDisciplinaId($idDisciplinaSeleccionada);
+            $equipoExistente = $this->buscarEquipoDuplicado($equiposDisciplina, $inscripcion['nombre_equipo']);
 
-            if (!$idEquipo) {
-                $this->db->rollBack();
-                $this->respond(500, ['message' => 'Error al crear el equipo.']);
+            if ($equipoExistente) {
+                $idEquipo = (int)$equipoExistente['id'];
+            } else {
+                $idEquipo = $equipoModel->create(
+                    $inscripcion['nombre_equipo'],
+                    $idDisciplinaSeleccionada,
+                    true,
+                    null,
+                    1
+                );
+
+                if (!$idEquipo) {
+                    $this->db->rollBack();
+                    $this->respond(500, ['message' => 'Error al crear el equipo.']);
+                }
             }
-
-            // Vincular delegado web al equipo
-            $idSolicitante = (int)$inscripcion['id_usuario_web_solicitante'];
-            $stmt = $this->db->prepare(
-                'UPDATE equipo SET id_usuario_web_delegado = :id_uw WHERE id = :id'
-            );
-            $stmt->bindValue(':id_uw', $idSolicitante, PDO::PARAM_INT);
-            $stmt->bindValue(':id', $idEquipo, PDO::PARAM_INT);
-            $stmt->execute();
 
             // 2. Inscribir equipo en el torneo (equipo_torneo)
             $stmt = $this->db->prepare(
@@ -115,6 +116,7 @@ class InscripcionEquipoController extends BaseController
 
             // 3. Procesar jugadores
             $jugadorModel = new Jugador($this->db);
+            $documentoJugadorModel = new DocumentoJugador($this->db);
             $usuarioWebModel = new UsuarioWeb($this->db);
 
             foreach ($jugadores as $ij) {
@@ -124,13 +126,15 @@ class InscripcionEquipoController extends BaseController
                     $idJugador = (int)$jugadorExistente['id'];
                 } else {
                     $stmtJ = $this->db->prepare(
-                        'INSERT INTO jugador (nombre, apellido, dni, fecha_nac, fecha_alta, activo)
-                         VALUES (:nombre, :apellido, :dni, :fecha_nac, :fecha_alta, 1)'
+                        'INSERT INTO jugador (nombre, apellido, dni, fecha_nac, email, telefono, fecha_alta, activo)
+                         VALUES (:nombre, :apellido, :dni, :fecha_nac, :email, :telefono, :fecha_alta, 1)'
                     );
                     $stmtJ->bindValue(':nombre',     (string)$ij['nombre']);
                     $stmtJ->bindValue(':apellido',   (string)$ij['apellido']);
                     $stmtJ->bindValue(':dni',        (string)$ij['dni']);
                     $stmtJ->bindValue(':fecha_nac',  $ij['fecha_nac'] ?: null);
+                    $stmtJ->bindValue(':email',      $ij['email'] ?: null);
+                    $stmtJ->bindValue(':telefono',   $ij['telefono'] ?: null);
                     $stmtJ->bindValue(':fecha_alta', date('Y-m-d'));
                     if (!$stmtJ->execute()) {
                         $this->db->rollBack();
@@ -140,10 +144,13 @@ class InscripcionEquipoController extends BaseController
                 }
 
                 $stmt = $this->db->prepare(
-                    'INSERT INTO jugador_equipo (id_jugador, id_equipo, fecha_desde) VALUES (:ij, :ie, NOW())'
+                    'INSERT INTO jugador_equipo (id_jugador, id_equipo, fecha_desde, es_capitan, es_arquero)
+                     VALUES (:ij, :ie, NOW(), :es_capitan, :es_arquero)'
                 );
-                $stmt->bindValue(':ij', $idJugador, PDO::PARAM_INT);
-                $stmt->bindValue(':ie', $idEquipo, PDO::PARAM_INT);
+                $stmt->bindValue(':ij',         $idJugador, PDO::PARAM_INT);
+                $stmt->bindValue(':ie',         $idEquipo,  PDO::PARAM_INT);
+                $stmt->bindValue(':es_capitan', (int)($ij['es_capitan'] ?? 0), PDO::PARAM_INT);
+                $stmt->bindValue(':es_arquero', (int)($ij['es_arquero'] ?? 0), PDO::PARAM_INT);
                 $stmt->execute();
 
                 $emailJugador = $ij['email'] ?? null;
@@ -159,10 +166,15 @@ class InscripcionEquipoController extends BaseController
                         }
                     }
                 }
+
+                $archivoDoc = $ij['archivo_documentacion'] ?? null;
+                if ($archivoDoc && !$documentoJugadorModel->existeParaJugador($idJugador, $archivoDoc)) {
+                    $documentoJugadorModel->crear($idJugador, $archivoDoc);
+                }
             }
 
             // 4. Marcar inscripción como aprobada
-            $this->model->cambiarEstado((int)$id, InscripcionEquipo::ESTADO_APROBADA);
+            $this->model->cambiarEstado((int)$id, InscripcionEquipo::ESTADO_APROBADA, $emailBody !== '' ? $emailBody : null);
 
             $this->db->commit();
 
@@ -267,6 +279,46 @@ class InscripcionEquipoController extends BaseController
         } catch (Throwable $e) {
             $this->handleError($e, 'Error al rechazar inscripción');
         }
+    }
+
+    private function normalizarNombreEquipo(string $nombre): string
+    {
+        $nombre = mb_strtolower(trim($nombre), 'UTF-8');
+        $nombre = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $nombre) ?: $nombre;
+        $nombre = preg_replace('/[^a-z0-9\s]/', '', $nombre);
+        return trim(preg_replace('/\s+/', ' ', $nombre));
+    }
+
+    private function buscarEquipoDuplicado(array $equipos, string $nombreBuscado): ?array
+    {
+        $nombreNorm = $this->normalizarNombreEquipo($nombreBuscado);
+
+        foreach ($equipos as $equipo) {
+            $equipoNorm = $this->normalizarNombreEquipo((string)$equipo['nombre']);
+
+            // Coincidencia exacta normalizada
+            if ($nombreNorm === $equipoNorm) {
+                return $equipo;
+            }
+
+            // Alta similitud (>= 85%)
+            similar_text($nombreNorm, $equipoNorm, $similitud);
+            if ($similitud >= 85.0) {
+                return $equipo;
+            }
+
+            // Un nombre está contenido en el otro, siempre que no sean demasiado distintos en longitud
+            $longA = strlen($nombreNorm);
+            $longB = strlen($equipoNorm);
+            if ($longA > 0 && $longB > 0) {
+                $ratioDeLongitud = min($longA, $longB) / max($longA, $longB);
+                if ($ratioDeLongitud >= 0.7 && (str_contains($nombreNorm, $equipoNorm) || str_contains($equipoNorm, $nombreNorm))) {
+                    return $equipo;
+                }
+            }
+        }
+
+        return null;
     }
 
     private function enviarEmail(string $destinatario, string $asunto, string $cuerpo): void

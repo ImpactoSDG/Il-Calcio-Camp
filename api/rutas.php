@@ -1170,6 +1170,42 @@ switch ($resource) {
         }
         break;
 
+    case 'fichas':
+        verifyAuth();
+        if ($method === 'GET' && $id) {
+            $nombreArchivo = basename($id); // previene path traversal
+            $dirBase = rtrim($_ENV['FICHAS_MEDICAS_DIR'] ?? '', '/');
+            $rutaArchivo = $dirBase . '/' . $nombreArchivo;
+
+            if (!$dirBase || !file_exists($rutaArchivo) || !is_file($rutaArchivo)) {
+                http_response_code(404);
+                echo json_encode(['message' => 'Archivo no encontrado.']);
+                break;
+            }
+
+            $extension = strtolower(pathinfo($nombreArchivo, PATHINFO_EXTENSION));
+            $tiposPermitidos = [
+                'pdf'  => 'application/pdf',
+                'jpg'  => 'image/jpeg',
+                'jpeg' => 'image/jpeg',
+                'png'  => 'image/png',
+            ];
+
+            if (!isset($tiposPermitidos[$extension])) {
+                http_response_code(415);
+                echo json_encode(['message' => 'Tipo de archivo no permitido.']);
+                break;
+            }
+
+            header('Content-Type: ' . $tiposPermitidos[$extension]);
+            header('Content-Disposition: inline; filename="' . $nombreArchivo . '"');
+            header('Content-Length: ' . filesize($rutaArchivo));
+            readfile($rutaArchivo);
+            exit;
+        }
+        http_response_code(405);
+        break;
+
     default:
         http_response_code(404);
         echo json_encode([

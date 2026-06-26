@@ -160,66 +160,69 @@
         </template>
 
         <template v-if="tabActiva === 'inscripciones'">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <div>
-              <p class="mb-1 text-muted">Listado de equipos inscriptos al torneo.</p>
-              <div class="d-flex align-items-center gap-2 small">
-                <span class="text-secondary">Inscriptos:</span>
-                <span class="badge rounded-pill" :class="inscripcionesCompletas ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'">
-                  {{ detalle.inscripciones?.total || 0 }}/{{ totalInscriptosObjetivo }}
-                </span>
-              </div>
-              <div v-if="cupoLleno" class="small text-danger mt-1">
-                Cupo completo: no se permiten nuevas inscripciones.
-              </div>
-            </div>
-            <div class="d-flex gap-2">
-              <button class="btn btn-outline-success" @click="abrirBulkInscripcionModal" :disabled="cupoLleno" :title="cupoLleno ? 'Cupo completo' : ''">
-                <i class="bi bi-check2-all me-1"></i>Inscribir varios
-              </button>
-              <button class="btn btn-outline-primary" @click="abrirInscripcionesModal" :disabled="cupoLleno" :title="cupoLleno ? 'Cupo completo' : ''">Agregar nueva inscripción</button>
-            </div>
-          </div>
-
-          <div v-if="!detalle.inscriptos?.length" class="alert alert-info mb-0">
-            Este torneo aún no tiene equipos inscriptos.
-          </div>
-
-          <div v-else class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-              <thead>
-                <tr>
-                  <th>Equipo</th>
-                  <th>Fecha inscripción</th>
-                  <th class="text-end">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in detalle.inscriptos" :key="item.id">
-                  <td>
-                    <div class="d-flex align-items-center gap-2">
-                      <img v-if="item.escudo" :src="resolveEscudoUrl(item.escudo)" alt="escudo" class="escudo-thumb" />
-                      <span>{{ item.equipo_nombre }}</span>
-                    </div>
-                  </td>
-                  <td>{{ item.fecha_inscripcion || '-' }}</td>
-                  <td class="text-end">
-                    <div class="d-inline-flex gap-2">
-                      <button class="btn btn-sm btn-outline-danger" @click="eliminarInscripcion(item)">Eliminar</button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
 
           <!-- Solicitudes del portal web -->
-          <InscripcionesPortalSection
-            :id-torneo="idTorneoSeleccionado"
-            :id-disciplina-default="detalle?.torneo?.id_disciplina ?? null"
-            @aprobada="cargarDetalle(idTorneoSeleccionado)"
-          />
+          <div class="seccion-inscripciones">
+            <InscripcionesPortalSection
+              :id-torneo="idTorneoSeleccionado"
+              :id-disciplina-default="detalle?.torneo?.id_disciplina ?? null"
+              @aprobada="cargarDetalle(idTorneoSeleccionado)"
+            />
+          </div>
+
+          <!-- Listado de equipos inscriptos (gestión administrativa) -->
+          <div class="seccion-inscripciones mt-4">
+            <div class="seccion-inscripciones-header d-flex justify-content-between align-items-center mb-3">
+              <div>
+                <h3 class="h6 fw-bold text-secondary mb-1">Gestión de inscripciones</h3>
+                <div class="d-flex align-items-center gap-2 small text-muted">
+                  Inscriptos:
+                  <span class="badge rounded-pill" :class="inscripcionesCompletas ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'">
+                    {{ detalle.inscripciones?.total || 0 }}/{{ totalInscriptosObjetivo }}
+                  </span>
+                  <span v-if="cupoLleno" class="text-danger">— Cupo completo</span>
+                </div>
+              </div><!-- 
+              <div class="d-flex gap-2">
+                <button class="btn btn-outline-success" @click="abrirBulkInscripcionModal" :disabled="cupoLleno" :title="cupoLleno ? 'Cupo completo' : ''">
+                  <i class="bi bi-check2-all me-1"></i>Inscribir varios
+                </button>
+                <button class="btn btn-outline-primary" @click="abrirInscripcionesModal" :disabled="cupoLleno" :title="cupoLleno ? 'Cupo completo' : ''">Agregar nueva inscripción</button>
+              </div> -->
+            </div>
+
+            <div v-if="!detalle.inscriptos?.length" class="alert alert-info mb-0">
+              Este torneo aún no tiene equipos inscriptos.
+            </div>
+
+            <div v-else class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Equipo</th>
+                    <th>Fecha inscripción</th>
+                    <th class="text-end">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in detalle.inscriptos" :key="item.id">
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        <img v-if="item.escudo" :src="resolveEscudoUrl(item.escudo)" alt="escudo" class="escudo-thumb" />
+                        <span>{{ item.equipo_nombre }}</span>
+                      </div>
+                    </td>
+                    <td>{{ item.fecha_inscripcion || '-' }}</td>
+                    <td class="text-end">
+                      <div class="d-inline-flex gap-2">
+                        <button class="btn btn-sm btn-outline-danger" @click="eliminarInscripcion(item)">Eliminar</button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
 
         </template>
 
@@ -2452,6 +2455,13 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.seccion-inscripciones {
+  background-color: #f8f9fa;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
 .torneo-tabs {
   border-bottom: 1px solid #e5e7eb;
   gap: 6px;
