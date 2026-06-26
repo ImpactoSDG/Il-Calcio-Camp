@@ -21,8 +21,11 @@ class EventoPartidoController extends BaseController
             $idEvento = isset($_GET['id_evento']) && $_GET['id_evento'] !== ''
                 ? (int)$_GET['id_evento']
                 : null;
+            $idTorneo = isset($_GET['id_torneo']) && $_GET['id_torneo'] !== ''
+                ? (int)$_GET['id_torneo']
+                : null;
 
-            $this->respond(200, $this->model->getAll($idEvento));
+            $this->respond(200, $this->model->getAll($idEvento, $idTorneo));
         } catch (Throwable $e) {
             $this->handleError($e, 'Error al obtener incidencias del partido');
         }

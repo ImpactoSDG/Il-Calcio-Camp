@@ -17,28 +17,63 @@
 
             <form @submit.prevent="simular" class="d-grid gap-3">
               <div>
+                <label class="form-label">Formato del torneo</label>
+                <select v-model="form.formato" class="form-select">
+                  <option value="ELIMINACION">Solo eliminación directa</option>
+                  <option value="MIXTO">Grupos + Llave eliminatoria</option>
+                  <option value="GRUPOS_CON_CONSUELO">Grupos + Ganadores / Rueda Consuelo</option>
+                  <option value="LIGA">Liga (todos contra todos)</option>
+                </select>
+              </div>
+
+              <div>
                 <label class="form-label">Cantidad total de equipos</label>
                 <input v-model.number="form.cantidad_equipos" type="number" min="2" class="form-control" required />
               </div>
 
-              <div class="form-check form-switch">
-                <input v-model="form.usa_zonas" class="form-check-input" type="checkbox" id="usa-zonas" />
-                <label class="form-check-label" for="usa-zonas">Usar fase de zonas</label>
-              </div>
-
-              <div v-if="form.usa_zonas" class="row g-3">
-                <div class="col-md-6 col-xl-12">
-                  <label class="form-label">Cantidad de zonas</label>
-                  <input v-model.number="form.cantidad_zonas" type="number" min="1" class="form-control" placeholder="Opcional" />
-                </div>
-                <div class="col-md-6 col-xl-12">
-                  <label class="form-label">Equipos por zona</label>
-                  <input v-model.number="form.equipos_por_zona" type="number" min="2" class="form-control" placeholder="Opcional" />
-                </div>
-                <div class="col-md-6 col-xl-12">
+              <div v-if="formatoUsaZonas" class="row g-3">
+                <template v-if="form.formato !== 'LIGA'">
+                  <div class="col-md-6 col-xl-12">
+                    <label class="form-label">Cantidad de zonas</label>
+                    <input v-model.number="form.cantidad_zonas" type="number" min="1" class="form-control" placeholder="Opcional" />
+                  </div>
+                  <div class="col-md-6 col-xl-12">
+                    <label class="form-label">Equipos por zona</label>
+                    <input v-model.number="form.equipos_por_zona" type="number" min="2" class="form-control" placeholder="Opcional" />
+                  </div>
+                </template>
+                <div v-if="form.formato !== 'GRUPOS_CON_CONSUELO' && form.formato !== 'LIGA'" class="col-md-6 col-xl-12">
                   <label class="form-label">Clasificados por zona</label>
                   <input v-model.number="form.clasificados_por_zona" type="number" min="1" class="form-control" required />
                 </div>
+                <template v-if="form.formato === 'GRUPOS_CON_CONSUELO'">
+                  <div class="col-12">
+                    <label class="form-label">Llave Zona Ganadores</label>
+                    <select v-model.number="form.llave_ganadores" class="form-select">
+                      <option :value="2">Final (2 equipos)</option>
+                      <option :value="4">Semifinal (4 equipos)</option>
+                      <option :value="8">Cuartos de final (8 equipos)</option>
+                      <option :value="16">Octavos de final (16 equipos)</option>
+                      <option :value="32">Dieciseisavos (32 equipos)</option>
+                    </select>
+                    <div v-if="avisoByesGanadores" class="form-text text-warning">
+                      <i class="bi bi-exclamation-triangle me-1"></i>{{ avisoByesGanadores }}
+                    </div>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">Llave Rueda Consuelo</label>
+                    <select v-model.number="form.llave_consuelo" class="form-select">
+                      <option :value="2">Final (2 equipos)</option>
+                      <option :value="4">Semifinal (4 equipos)</option>
+                      <option :value="8">Cuartos de final (8 equipos)</option>
+                      <option :value="16">Octavos de final (16 equipos)</option>
+                      <option :value="32">Dieciseisavos (32 equipos)</option>
+                    </select>
+                    <div v-if="avisoByesConsuelo" class="form-text text-warning">
+                      <i class="bi bi-exclamation-triangle me-1"></i>{{ avisoByesConsuelo }}
+                    </div>
+                  </div>
+                </template>
                 <div class="col-md-6 col-xl-12 d-flex align-items-end">
                   <div class="form-check form-switch">
                     <input v-model="form.ida_vuelta_zonas" class="form-check-input" type="checkbox" id="ida-vuelta" />
@@ -47,18 +82,20 @@
                 </div>
               </div>
 
-              <div>
-                <label class="form-label">Llave eliminatoria</label>
-                <select v-model.number="form.llave_equipos" class="form-select">
-                  <option :value="null">Automática</option>
-                  <option v-for="size in [2, 4, 8, 16, 32]" :key="size" :value="size">{{ size }} equipos</option>
-                </select>
-              </div>
+              <template v-if="form.formato !== 'GRUPOS_CON_CONSUELO' && form.formato !== 'LIGA'">
+                <div>
+                  <label class="form-label">Llave eliminatoria</label>
+                  <select v-model.number="form.llave_equipos" class="form-select">
+                    <option :value="null">Automática</option>
+                    <option v-for="size in [2, 4, 8, 16, 32]" :key="size" :value="size">{{ size }} equipos</option>
+                  </select>
+                </div>
 
-              <div class="form-check form-switch">
-                <input v-model="form.tercer_puesto" class="form-check-input" type="checkbox" id="tercer-puesto" />
-                <label class="form-check-label" for="tercer-puesto">Agregar partido por tercer puesto</label>
-              </div>
+                <div class="form-check form-switch">
+                  <input v-model="form.tercer_puesto" class="form-check-input" type="checkbox" id="tercer-puesto" />
+                  <label class="form-check-label" for="tercer-puesto">Agregar partido por tercer puesto</label>
+                </div>
+              </template>
 
               <button type="submit" class="btn-primary-modern d-flex align-items-center justify-content-center" :disabled="loading">
                 <span v-if="loading" class="spinner-border spinner-border-sm me-2"></span>
@@ -99,7 +136,27 @@
           <div class="small">Cruces: {{ resultadoConfirmacion.ids_cruces?.length || 0 }} | Eventos: {{ resultadoConfirmacion.ids_eventos?.length || 0 }}</div>
         </div>
 
-        <div v-if="resultado?.zonas?.length" class="card shadow-sm border-0 rounded-lg mb-4">
+        <div v-if="resultado && resultado.input_normalizado?.formato === 'LIGA'" class="card shadow-sm border-0 rounded-lg mb-4">
+          <div class="card-body p-4">
+            <h2 class="h6 fw-bold text-secondary mb-3">Resumen de liga</h2>
+            <div class="d-flex flex-wrap gap-3">
+              <div class="text-center px-3 py-2 bg-light rounded">
+                <div class="fw-bold fs-5">{{ resultado.resumen.total_partidos }}</div>
+                <div class="small text-muted">Partidos totales</div>
+              </div>
+              <div class="text-center px-3 py-2 bg-light rounded">
+                <div class="fw-bold fs-5">{{ resultado.resumen.jornadas }}</div>
+                <div class="small text-muted">Jornadas</div>
+              </div>
+              <div class="text-center px-3 py-2 bg-light rounded">
+                <div class="fw-bold fs-5">{{ resultado.resumen.minimo_partidos_por_equipo }}</div>
+                <div class="small text-muted">Partidos por equipo</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="resultado?.zonas?.length && resultado.input_normalizado?.formato !== 'LIGA'" class="card shadow-sm border-0 rounded-lg mb-4">
           <div class="card-body p-4">
             <h2 class="h6 fw-bold text-secondary mb-3">Distribución de zonas</h2>
             <div class="table-responsive">
@@ -125,14 +182,15 @@
           </div>
         </div>
 
-        <div v-if="resultado?.llave?.rondas?.length" class="card shadow-sm border-0 rounded-lg">
+        <div v-if="resultado?.llave?.rondas?.length" class="card shadow-sm border-0 rounded-lg" :class="resultado?.consuelo ? 'mb-3' : ''">
           <div class="card-body p-4">
-            <h2 class="h6 fw-bold text-secondary mb-3">Llave estimada</h2>
+            <h2 class="h6 fw-bold text-secondary mb-3">
+              {{ resultado?.consuelo ? 'Llave Zona Ganadores' : 'Llave estimada' }}
+            </h2>
             <div class="bracket-scroll">
               <div class="bracket-grid" :style="{ '--round-count': resultado.llave.rondas.length }">
                 <div v-for="(ronda, index) in resultado.llave.rondas" :key="ronda.nombre + index" class="round-column">
                   <h3 class="round-title">{{ ronda.nombre }}</h3>
-
                   <div class="round-track" :style="getRoundTrackStyle(index, ronda.partidos.length)">
                     <div
                       v-for="(partido, partidoIndex) in ronda.partidos"
@@ -140,22 +198,48 @@
                       class="match-wrapper"
                       :style="getMatchStyle(index, partidoIndex)"
                     >
-                      <div
-                        class="match-card bracket-match"
-                        :class="{
-                          'has-next': index < resultado.llave.rondas.length - 1,
-                          'has-prev': index > 0,
-                        }"
-                      >
+                      <div class="match-card bracket-match" :class="{ 'has-next': index < resultado.llave.rondas.length - 1, 'has-prev': index > 0 }">
                         <div class="team-line">{{ partido.local }}</div>
                         <div class="team-line">{{ partido.visitante }}</div>
                       </div>
                     </div>
-
                     <div
                       v-if="index < resultado.llave.rondas.length - 1"
                       v-for="pairIndex in Math.floor(ronda.partidos.length / 2)"
                       :key="`merge-${index}-${pairIndex}`"
+                      class="round-merge"
+                      :style="getMergeStyle(index, pairIndex - 1)"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="resultado?.consuelo?.rondas?.length" class="card shadow-sm border-0 rounded-lg border-warning-subtle">
+          <div class="card-body p-4">
+            <h2 class="h6 fw-bold mb-3" style="color: #b45309;">Rueda Consuelo</h2>
+            <div class="bracket-scroll">
+              <div class="bracket-grid" :style="{ '--round-count': resultado.consuelo.rondas.length }">
+                <div v-for="(ronda, index) in resultado.consuelo.rondas" :key="'c-' + ronda.nombre + index" class="round-column">
+                  <h3 class="round-title">{{ ronda.nombre }}</h3>
+                  <div class="round-track" :style="getRoundTrackStyle(index, ronda.partidos.length)">
+                    <div
+                      v-for="(partido, partidoIndex) in ronda.partidos"
+                      :key="partido.id"
+                      class="match-wrapper"
+                      :style="getMatchStyle(index, partidoIndex)"
+                    >
+                      <div class="match-card bracket-match" :class="{ 'has-next': index < resultado.consuelo.rondas.length - 1, 'has-prev': index > 0 }">
+                        <div class="team-line">{{ partido.local }}</div>
+                        <div class="team-line">{{ partido.visitante }}</div>
+                      </div>
+                    </div>
+                    <div
+                      v-if="index < resultado.consuelo.rondas.length - 1"
+                      v-for="pairIndex in Math.floor(ronda.partidos.length / 2)"
+                      :key="`cmerge-${index}-${pairIndex}`"
                       class="round-merge"
                       :style="getMergeStyle(index, pairIndex - 1)"
                     ></div>
@@ -201,8 +285,12 @@
                     <input v-model="torneoForm.fecha_inicio" type="date" class="form-control" />
                   </div>
                   <div>
-                    <label class="form-label">Valor inscripción</label>
+                    <label class="form-label">Valor inscripción <span class="text-muted fw-normal small">(por fecha)</span></label>
                     <CustomNumberInput v-model="torneoForm.valor_inscripcion" :decimals="2" placeholder="0.00" />
+                  </div>
+                  <div>
+                    <label class="form-label">Reglamento <span class="text-muted fw-normal">(opcional)</span></label>
+                    <textarea v-model.trim="torneoForm.reglamento" class="form-control" rows="4" placeholder="Ej: Categoría +30 años. 9 jugadores por equipo. Cambios libres..."></textarea>
                   </div>
                 </div>
               </div>
@@ -222,7 +310,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import datosMaestrosService from '@/services/datosMaestrosService'
 import planTorneoService from '@/services/torneos/planTorneoService'
@@ -241,11 +329,14 @@ const disciplinas = ref([])
 const loadingDisciplinas = ref(false)
 
 const form = ref({
+  formato: 'MIXTO',
   cantidad_equipos: 16,
-  usa_zonas: true,
   cantidad_zonas: 4,
   equipos_por_zona: null,
   clasificados_por_zona: 2,
+  clasificados_consuelo: 4,
+  llave_ganadores: 8,
+  llave_consuelo: 8,
   ida_vuelta_zonas: false,
   llave_equipos: 8,
   tercer_puesto: false,
@@ -257,6 +348,27 @@ const torneoForm = ref({
   id_disciplina: null,
   fecha_inicio: '',
   valor_inscripcion: 0,
+  reglamento: '',
+})
+
+const formatoUsaZonas = computed(() =>
+  form.value.formato === 'MIXTO' || form.value.formato === 'GRUPOS_CON_CONSUELO' || form.value.formato === 'LIGA'
+)
+
+const avisoByesGanadores = computed(() => {
+  if (form.value.formato !== 'GRUPOS_CON_CONSUELO') return null
+  const zonas = form.value.cantidad_zonas || 1
+  if (form.value.llave_ganadores % zonas !== 0)
+    return `${form.value.llave_ganadores} no divide exactamente entre ${zonas} zonas — se asignarán byes automáticamente.`
+  return null
+})
+
+const avisoByesConsuelo = computed(() => {
+  if (form.value.formato !== 'GRUPOS_CON_CONSUELO') return null
+  const zonas = form.value.cantidad_zonas || 1
+  if (form.value.llave_consuelo % zonas !== 0)
+    return `${form.value.llave_consuelo} no divide exactamente entre ${zonas} zonas — se asignarán byes automáticamente.`
+  return null
 })
 
 const getApiMessage = (error, fallback) => error?.response?.data?.message || fallback
@@ -302,26 +414,59 @@ const getMergeStyle = (roundIndex, pairIndex) => {
   }
 }
 
-const buildPayload = () => ({
-  ...form.value,
-  cantidad_zonas: form.value.usa_zonas ? form.value.cantidad_zonas : null,
-  equipos_por_zona: form.value.usa_zonas ? form.value.equipos_por_zona : null,
-  clasificados_por_zona: form.value.usa_zonas ? form.value.clasificados_por_zona : 1,
-  ida_vuelta_zonas: form.value.usa_zonas ? form.value.ida_vuelta_zonas : false,
-})
+const buildPayload = () => {
+  const usaZonas = formatoUsaZonas.value
+  const esConsuelo = form.value.formato === 'GRUPOS_CON_CONSUELO'
+  const esLiga = form.value.formato === 'LIGA'
+  const zonas = form.value.cantidad_zonas || 1
+
+  const clasificadosPorZona = esConsuelo
+    ? Math.ceil(form.value.llave_ganadores / zonas)
+    : (usaZonas && !esLiga ? form.value.clasificados_por_zona : 1)
+
+  const clasificadosConsuelo = esConsuelo
+    ? Math.ceil(form.value.llave_consuelo / zonas)
+    : 0
+
+  return {
+    formato: form.value.formato,
+    usa_zonas: usaZonas,
+    cantidad_equipos: form.value.cantidad_equipos,
+    cantidad_zonas: esLiga ? 1 : (usaZonas ? form.value.cantidad_zonas : null),
+    equipos_por_zona: esLiga ? null : (usaZonas ? form.value.equipos_por_zona : null),
+    clasificados_por_zona: clasificadosPorZona,
+    clasificados_consuelo: clasificadosConsuelo,
+    ida_vuelta_zonas: usaZonas ? form.value.ida_vuelta_zonas : false,
+    llave_equipos: esLiga ? null : (esConsuelo ? form.value.llave_ganadores : form.value.llave_equipos),
+    llave_consuelo: esConsuelo ? form.value.llave_consuelo : null,
+    tercer_puesto: (!esConsuelo && !esLiga) ? form.value.tercer_puesto : false,
+  }
+}
+
+const nearestPow2 = (n) => {
+  if (n < 2) return 2
+  let p = 1
+  while (p * 2 <= n) p *= 2
+  return p
+}
 
 watch(
-  () => [form.value.usa_zonas, form.value.cantidad_equipos, form.value.cantidad_zonas],
-  ([usaZonas, cantidadEquipos, cantidadZonas]) => {
+  () => form.value.llave_ganadores,
+  (ganadores) => {
+    const restantes = (form.value.cantidad_equipos || 0) - ganadores
+    form.value.llave_consuelo = nearestPow2(restantes)
+  }
+)
+
+watch(
+  () => [form.value.formato, form.value.cantidad_equipos, form.value.cantidad_zonas],
+  ([formato, cantidadEquipos, cantidadZonas]) => {
+    const usaZonas = formato === 'MIXTO' || formato === 'GRUPOS_CON_CONSUELO'
     if (!usaZonas) {
       form.value.equipos_por_zona = null
       return
     }
-
-    if (!cantidadEquipos || !cantidadZonas || cantidadZonas < 1) {
-      return
-    }
-
+    if (!cantidadEquipos || !cantidadZonas || cantidadZonas < 1) return
     form.value.equipos_por_zona = Math.max(2, Math.floor(cantidadEquipos / cantidadZonas))
   },
   { immediate: true }
@@ -372,6 +517,7 @@ const confirmarSimulacion = async () => {
         id_disciplina: Number(torneoForm.value.id_disciplina),
         fecha_inicio: torneoForm.value.fecha_inicio || null,
         valor_inscripcion: Number(torneoForm.value.valor_inscripcion || 0),
+        reglamento: torneoForm.value.reglamento?.trim() || null,
       },
       parametros: buildPayload(),
       version_algoritmo: 'v1.1.0',

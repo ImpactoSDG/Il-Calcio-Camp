@@ -143,7 +143,8 @@
                 <p class="mb-1"><strong>{{ detalle.torneo.nombre }}</strong></p>
                 <p class="mb-1 text-muted">Disciplina: {{ detalle.torneo.disciplina_nombre || '-' }}</p>
                 <p class="mb-1 text-muted">Estado: {{ detalle.torneo.estado_nombre || '-' }}</p>
-                <p class="mb-0 text-muted">Formato: {{ detalle.torneo.formato_manual || '-' }}</p>
+                <p class="mb-1 text-muted">Formato: {{ detalle.torneo.formato_manual || '-' }}</p>
+                <p class="mb-0 text-muted">Fecha de inicio: {{ detalle.torneo.fecha_inicio ? new Date(detalle.torneo.fecha_inicio).toLocaleDateString('es-AR') : '-' }}</p>
               </div>
             </div>
             <div class="col-12 col-lg-6">
@@ -224,7 +225,7 @@
         </template>
 
         <template v-if="tabActiva === 'asignaciones'">
-          <ul class="nav nav-pills mb-3 asignaciones-subtabs">
+          <ul v-if="!esFormatoLiga" class="nav nav-pills mb-3 asignaciones-subtabs">
             <li class="nav-item">
               <button class="nav-link" :class="{ active: subTabAsignaciones === 'zonas' }" @click="subTabAsignaciones = 'zonas'">
                 Asignaciones de zonas
@@ -237,9 +238,9 @@
             </li>
           </ul>
 
-          <template v-if="subTabAsignaciones === 'zonas'">
+          <template v-if="esFormatoLiga || subTabAsignaciones === 'zonas'">
             <div v-if="!detalle.grupos?.length" class="alert alert-warning mb-0">
-              Este torneo no tiene grupos configurados (fase de zonas).
+              {{ esFormatoLiga ? 'Este torneo no tiene fixture generado aún.' : 'Este torneo no tiene grupos configurados (fase de zonas).' }}
             </div>
 
             <template v-else-if="asignacionesCompletas">
@@ -291,7 +292,7 @@
             </template>
 
             <template v-else>
-              <div class="table-responsive mb-3">
+              <div v-if="!esFormatoLiga" class="table-responsive mb-3">
                 <table class="table table-sm align-middle mb-0">
                   <thead>
                     <tr>
@@ -316,7 +317,12 @@
                 </table>
               </div>
 
-              <div class="pool-box mb-3">
+              <div v-if="esFormatoLiga" class="alert alert-info mb-3">
+                <i class="bi bi-info-circle me-1"></i>
+                Hay <strong>{{ poolTeams.length }}</strong> equipos inscriptos. Hacé clic en <strong>Asignar aleatorio</strong> para distribuirlos en el fixture y luego en <strong>Guardar asignación</strong>.
+              </div>
+
+              <div v-if="!esFormatoLiga" class="pool-box mb-3">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                   <strong>Equipos para sorteo</strong>
                   <small class="text-muted">{{ selectedPool.length }}/{{ totalSlots }} seleccionados</small>
@@ -333,7 +339,7 @@
                 </div>
               </div>
 
-              <div class="row g-3">
+              <div v-if="!esFormatoLiga" class="row g-3">
                 <div v-for="grupo in detalle.grupos" :key="grupo.id" class="col-12 col-md-6">
                   <div class="group-card h-100">
                     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -371,7 +377,57 @@
             </template>
           </template>
 
-          <template v-else>
+          <template v-else-if="!esFormatoLiga">
+            <!-- LIGA: sin cruces, solo tabla de posiciones -->
+            <template v-if="esFormatoLiga">
+              <div class="alert alert-info mb-3">
+                <i class="bi bi-info-circle me-1"></i>
+                Este torneo es de formato <strong>Liga (todos contra todos)</strong>. No hay fase de cruces eliminatorios. La clasificación final se determina por la tabla de posiciones.
+              </div>
+              <div v-if="detalle?.zonas?.length">
+                <div v-for="zona in detalle.zonas" :key="zona.id_grupo_torneo">
+                  <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0 custom-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Equipo</th>
+                          <th class="text-center">PJ</th>
+                          <th class="text-center">PG</th>
+                          <th class="text-center">PE</th>
+                          <th class="text-center">PP</th>
+                          <th class="text-center">GF</th>
+                          <th class="text-center">GC</th>
+                          <th class="text-center">Dif</th>
+                          <th class="text-center fw-bold">Pts</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(eq, idx) in zona.equipos" :key="eq.id">
+                          <td class="text-muted small">{{ idx + 1 }}</td>
+                          <td>
+                            <img v-if="eq.escudo" :src="resolveEscudoUrl(eq.escudo)" alt="escudo" class="escudo-thumb me-1" />
+                            <span v-else class="escudo-thumb-placeholder me-1"><i class="bi bi-shield"></i></span>
+                            {{ eq.nombre }}
+                          </td>
+                          <td class="text-center">{{ eq.pj }}</td>
+                          <td class="text-center">{{ eq.pg }}</td>
+                          <td class="text-center">{{ eq.pe }}</td>
+                          <td class="text-center">{{ eq.pp }}</td>
+                          <td class="text-center">{{ eq.gf }}</td>
+                          <td class="text-center">{{ eq.gc }}</td>
+                          <td class="text-center" :class="eq.dif > 0 ? 'text-success' : eq.dif < 0 ? 'text-danger' : ''">{{ eq.dif > 0 ? '+' : '' }}{{ eq.dif }}</td>
+                          <td class="text-center fw-bold">{{ eq.pts }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="text-muted small">Los equipos aún no han sido asignados al torneo.</div>
+            </template>
+
+            <template v-else>
             <div v-if="!crucesHabilitados" class="alert alert-warning mb-3">
               Los cruces se habilitan cuando la fase de zonas está concretada (todos los partidos de zona finalizados) o cuando el torneo no tiene fase de zonas.
             </div>
@@ -399,55 +455,89 @@
               No hay cruces configurados para este torneo.
             </div>
 
-            <div v-else class="cruce-bracket-box mb-3">
-              <div class="small fw-semibold text-secondary mb-2">Visualización de llave</div>
-              <div class="cruce-bracket-scroll">
-                <div class="cruce-bracket-grid" :style="{ '--round-count': Math.max(1, cruceRounds.length) }">
-                  <div v-for="(ronda, roundIndex) in cruceRounds" :key="`${ronda.nombre}-${roundIndex}`" class="cruce-round-column">
-                    <h3 class="cruce-round-title">{{ ronda.nombre }}</h3>
-
-                    <div class="cruce-round-track" :style="getCruceRoundTrackStyle(roundIndex, ronda.partidos.length)">
-                      <div
-                        v-for="(partido, partidoIndex) in ronda.partidos"
-                        :key="partido.id"
-                        class="cruce-match-wrapper"
-                        :style="getCruceMatchStyle(roundIndex, partidoIndex)"
-                      >
+            <template v-else>
+              <div class="cruce-bracket-box" :class="esFormatoConsuelo && cruceRoundsConsuelo.length ? 'mb-2' : 'mb-3'">
+                <div class="small fw-semibold text-secondary mb-2">
+                  {{ esFormatoConsuelo ? 'Zona Ganadores' : 'Visualización de llave' }}
+                </div>
+                <div class="cruce-bracket-scroll">
+                  <div class="cruce-bracket-grid" :style="{ '--round-count': Math.max(1, cruceRounds.length) }">
+                    <div v-for="(ronda, roundIndex) in cruceRounds" :key="`g-${ronda.nombre}-${roundIndex}`" class="cruce-round-column">
+                      <h3 class="cruce-round-title">{{ ronda.nombre }}</h3>
+                      <div class="cruce-round-track" :style="getCruceRoundTrackStyle(roundIndex, ronda.partidos.length)">
                         <div
-                          class="cruce-match-card"
-                          :class="{
-                            'has-next': roundIndex < cruceRounds.length - 1,
-                            'has-prev': roundIndex > 0,
-                          }"
+                          v-for="(partido, partidoIndex) in ronda.partidos"
+                          :key="partido.id"
+                          class="cruce-match-wrapper"
+                          :style="getCruceMatchStyle(roundIndex, partidoIndex)"
                         >
-                          <div class="cruce-team-line">
-                            <img v-if="partido.local.escudo" :src="resolveEscudoUrl(partido.local.escudo)" alt="escudo local" class="escudo-thumb" />
-                            <span v-else class="escudo-thumb-placeholder"><i class="bi bi-shield"></i></span>
-                            <span class="team-name">{{ partido.local.nombre || 'Por definir' }}</span>
-                          </div>
-                          <div class="cruce-team-line">
-                            <img v-if="partido.visitante.escudo" :src="resolveEscudoUrl(partido.visitante.escudo)" alt="escudo visitante" class="escudo-thumb" />
-                            <span v-else class="escudo-thumb-placeholder"><i class="bi bi-shield"></i></span>
-                            <span class="team-name">{{ partido.visitante.nombre || 'Por definir' }}</span>
-                          </div>
-                          <div v-if="partido.resultado !== null" class="cruce-score-pill">
-                            {{ partido.resultado }}
+                          <div class="cruce-match-card" :class="{ 'has-next': roundIndex < cruceRounds.length - 1, 'has-prev': roundIndex > 0 }">
+                            <div class="cruce-team-line">
+                              <img v-if="partido.local.escudo" :src="resolveEscudoUrl(partido.local.escudo)" alt="escudo local" class="escudo-thumb" />
+                              <span v-else class="escudo-thumb-placeholder"><i class="bi bi-shield"></i></span>
+                              <span class="team-name">{{ partido.local.nombre || 'Por definir' }}</span>
+                            </div>
+                            <div class="cruce-team-line">
+                              <img v-if="partido.visitante.escudo" :src="resolveEscudoUrl(partido.visitante.escudo)" alt="escudo visitante" class="escudo-thumb" />
+                              <span v-else class="escudo-thumb-placeholder"><i class="bi bi-shield"></i></span>
+                              <span class="team-name">{{ partido.visitante.nombre || 'Por definir' }}</span>
+                            </div>
+                            <div v-if="partido.resultado !== null" class="cruce-score-pill">{{ partido.resultado }}</div>
                           </div>
                         </div>
+                        <div
+                          v-if="roundIndex < cruceRounds.length - 1"
+                          v-for="pairIndex in Math.floor(ronda.partidos.length / 2)"
+                          :key="`gmerge-${roundIndex}-${pairIndex}`"
+                          class="cruce-round-merge"
+                          :style="getCruceMergeStyle(roundIndex, pairIndex - 1)"
+                        ></div>
                       </div>
-
-                      <div
-                        v-if="roundIndex < cruceRounds.length - 1"
-                        v-for="pairIndex in Math.floor(ronda.partidos.length / 2)"
-                        :key="`cruce-merge-${roundIndex}-${pairIndex}`"
-                        class="cruce-round-merge"
-                        :style="getCruceMergeStyle(roundIndex, pairIndex - 1)"
-                      ></div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+
+              <div v-if="esFormatoConsuelo && cruceRoundsConsuelo.length" class="cruce-bracket-box mb-3" style="border-left: 3px solid #d97706;">
+                <div class="small fw-semibold mb-2" style="color: #b45309;">Rueda Consuelo</div>
+                <div class="cruce-bracket-scroll">
+                  <div class="cruce-bracket-grid" :style="{ '--round-count': Math.max(1, cruceRoundsConsuelo.length) }">
+                    <div v-for="(ronda, roundIndex) in cruceRoundsConsuelo" :key="`c-${ronda.nombre}-${roundIndex}`" class="cruce-round-column">
+                      <h3 class="cruce-round-title">{{ ronda.nombre }}</h3>
+                      <div class="cruce-round-track" :style="getCruceRoundTrackStyle(roundIndex, ronda.partidos.length)">
+                        <div
+                          v-for="(partido, partidoIndex) in ronda.partidos"
+                          :key="partido.id"
+                          class="cruce-match-wrapper"
+                          :style="getCruceMatchStyle(roundIndex, partidoIndex)"
+                        >
+                          <div class="cruce-match-card" :class="{ 'has-next': roundIndex < cruceRoundsConsuelo.length - 1, 'has-prev': roundIndex > 0 }">
+                            <div class="cruce-team-line">
+                              <img v-if="partido.local.escudo" :src="resolveEscudoUrl(partido.local.escudo)" alt="escudo local" class="escudo-thumb" />
+                              <span v-else class="escudo-thumb-placeholder"><i class="bi bi-shield"></i></span>
+                              <span class="team-name">{{ partido.local.nombre || 'Por definir' }}</span>
+                            </div>
+                            <div class="cruce-team-line">
+                              <img v-if="partido.visitante.escudo" :src="resolveEscudoUrl(partido.visitante.escudo)" alt="escudo visitante" class="escudo-thumb" />
+                              <span v-else class="escudo-thumb-placeholder"><i class="bi bi-shield"></i></span>
+                              <span class="team-name">{{ partido.visitante.nombre || 'Por definir' }}</span>
+                            </div>
+                            <div v-if="partido.resultado !== null" class="cruce-score-pill">{{ partido.resultado }}</div>
+                          </div>
+                        </div>
+                        <div
+                          v-if="roundIndex < cruceRoundsConsuelo.length - 1"
+                          v-for="pairIndex in Math.floor(ronda.partidos.length / 2)"
+                          :key="`cmerge-${roundIndex}-${pairIndex}`"
+                          class="cruce-round-merge"
+                          :style="getCruceMergeStyle(roundIndex, pairIndex - 1)"
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
 
             <div v-if="eventosCruceProgramacion.length" class="table-responsive">
               <table class="table table-sm align-middle mb-0">
@@ -538,7 +628,8 @@
                 </tbody>
               </table>
             </div>
-          </template>
+            </template><!-- end v-else (no-liga) -->
+          </template><!-- end v-else (no zonas tab) -->
         </template>
 
         <template v-if="tabActiva === 'programacion'">
@@ -588,18 +679,20 @@
                 </thead>
                 <tbody>
                   <tr
-                    v-for="ev in programacionEventos"
+                    v-for="(ev, evIndex) in programacionEventos"
                     :key="ev.id"
                     :class="{ 'programacion-row-selected': selectedProgramacionIds.includes(Number(ev.id)) }"
+                    style="cursor: pointer;"
+                    @click="toggleSeleccionProgramacion(ev, evIndex, $event)"
                   >
                     <td class="text-center">
-                      <input type="checkbox" class="form-check-input" :value="Number(ev.id)" v-model="selectedProgramacionIds" />
+                      <input type="checkbox" class="form-check-input" :checked="selectedProgramacionIds.includes(Number(ev.id))" @click.stop="toggleSeleccionProgramacion(ev, evIndex, $event)" />
                     </td>
                     <td>{{ ev.titulo }}</td>
                     <td>{{ ev.equipo_local_nombre || 'Por definir' }}</td>
                     <td>{{ ev.equipo_visitante_nombre || 'Por definir' }}</td>
                     <td>{{ ev.estado_evento_descripcion || '-' }}</td>
-                    <td>
+                    <td @click="isEditingProgramacion(ev.id) && $event.stopPropagation()">
                       <template v-if="isEditingProgramacion(ev.id)">
                         <input
                           type="datetime-local"
@@ -612,7 +705,7 @@
                         <span>{{ formatearFechaHora(ev.fecha_hora_inicio) }}</span>
                       </template>
                     </td>
-                    <td>
+                    <td @click="isEditingProgramacion(ev.id) && $event.stopPropagation()">
                       <template v-if="isEditingProgramacion(ev.id)">
                         <select
                           class="form-select form-select-sm"
@@ -629,7 +722,7 @@
                         <span>{{ getProgramacionCanchaLabel(ev) }}</span>
                       </template>
                     </td>
-                    <td>
+                    <td @click="isEditingProgramacion(ev.id) && $event.stopPropagation()">
                       <template v-if="isEditingProgramacion(ev.id)">
                         <select
                           class="form-select form-select-sm"
@@ -646,12 +739,12 @@
                         <span>{{ getProgramacionArbitroLabel(ev) }}</span>
                       </template>
                     </td>
-                    <td class="text-end">
+                    <td class="text-end" @click.stop>
                       <div class="d-inline-flex gap-2">
                         <button
                           v-if="!isEditingProgramacion(ev.id)"
                           class="btn btn-sm btn-outline-primary"
-                          @click="editarProgramacionEvento(ev)"
+                          @click.stop="editarProgramacionEvento(ev)"
                           :disabled="savingProgramacion"
                         >
                           Editar
@@ -660,14 +753,14 @@
                         <template v-else>
                           <button
                             class="btn btn-sm btn-outline-secondary"
-                            @click="cancelarEdicionProgramacionEvento(ev)"
+                            @click.stop="cancelarEdicionProgramacionEvento(ev)"
                             :disabled="savingProgramacion"
                           >
                             Cancelar
                           </button>
                           <button
                             class="btn btn-sm btn-success"
-                            @click="guardarProgramacionEvento(ev.id)"
+                            @click.stop="guardarProgramacionEvento(ev.id)"
                             :disabled="savingProgramacion"
                           >
                             Guardar
@@ -782,11 +875,15 @@
               </div>
 
               <div class="row g-3">
-                <div class="col-12 col-md-6">
+                <div class="col-12 col-md-4">
                   <label class="form-label small mb-1">Fecha inicio</label>
                   <input type="date" class="form-control" v-model="programacionForm.fecha_inicio" />
                 </div>
-                <div class="col-12 col-md-6">
+                <div class="col-12 col-md-4">
+                  <label class="form-label small mb-1">Programar hasta <span class="text-muted">(opcional)</span></label>
+                  <input type="date" class="form-control" v-model="programacionForm.fecha_hasta" :min="programacionForm.fecha_inicio" />
+                </div>
+                <div class="col-12 col-md-4">
                   <label class="form-label small mb-1">Duración por partido (min)</label>
                   <input type="number" min="20" max="240" step="5" class="form-control" v-model.number="programacionForm.duracion_minutos" />
                 </div>
@@ -1140,6 +1237,7 @@ const confirmNombreEliminar = ref('')
 const motivoBajaTorneo = ref('')
 const programacionData = ref(null)
 const selectedProgramacionIds = ref([])
+const lastClickedProgramacionIdx = ref(null)
 const showProgramacionModal = ref(false)
 const programacionDrafts = ref({})
 const editingProgramacionIds = ref([])
@@ -1147,6 +1245,7 @@ const editingCruceManualIds = ref([])
 const programacionForm = ref({
   fase_programar: 'todas',
   fecha_inicio: new Date().toISOString().slice(0, 10),
+  fecha_hasta: '',
   duracion_minutos: 70,
   max_dias_busqueda: 365,
   id_canchas: [],
@@ -1465,10 +1564,37 @@ const toggleSeleccionTodosProgramacion = () => {
   selectedProgramacionIds.value = programacionEventos.value.map(ev => Number(ev.id))
 }
 
+const toggleSeleccionProgramacion = (ev, index, event) => {
+  const id = Number(ev.id)
+  if (event.shiftKey && lastClickedProgramacionIdx.value !== null) {
+    const from = Math.min(lastClickedProgramacionIdx.value, index)
+    const to = Math.max(lastClickedProgramacionIdx.value, index)
+    const rangeIds = programacionEventos.value.slice(from, to + 1).map(e => Number(e.id))
+    const allSelected = rangeIds.every(rid => selectedProgramacionIds.value.includes(rid))
+    if (allSelected) {
+      selectedProgramacionIds.value = selectedProgramacionIds.value.filter(rid => !rangeIds.includes(rid))
+    } else {
+      const merged = new Set([...selectedProgramacionIds.value, ...rangeIds])
+      selectedProgramacionIds.value = [...merged]
+    }
+  } else {
+    if (selectedProgramacionIds.value.includes(id)) {
+      selectedProgramacionIds.value = selectedProgramacionIds.value.filter(rid => rid !== id)
+    } else {
+      selectedProgramacionIds.value.push(id)
+    }
+    lastClickedProgramacionIdx.value = index
+  }
+}
+
 const abrirModalProgramacionSeleccionados = () => {
   if (!selectedProgramacionIds.value.length) {
     toast.showToast({ message: 'Selecciona al menos un partido.', type: 'warning' })
     return
+  }
+  const fechaInicio = detalle.value?.torneo?.fecha_inicio
+  if (fechaInicio) {
+    programacionForm.value.fecha_inicio = String(fechaInicio).slice(0, 10)
   }
   showProgramacionModal.value = true
 }
@@ -1599,6 +1725,24 @@ const eventosCruceProgramacion = computed(() =>
   programacionEventos.value.filter(ev => !/^zona\s/i.test(String(ev.titulo || '').trim()))
 )
 
+const esFormatoConsuelo = computed(() =>
+  detalle.value?.torneo?.formato_manual === 'GRUPOS_CON_CONSUELO'
+)
+
+const esFormatoLiga = computed(() =>
+  detalle.value?.torneo?.formato_manual === 'LIGA'
+)
+
+const esEventoConsuelo = (ev) => /^consuelo\s*-/i.test(String(ev?.titulo || '').trim())
+
+const eventosCruceGanadores = computed(() =>
+  eventosCruceProgramacion.value.filter(ev => !esEventoConsuelo(ev))
+)
+
+const eventosCruceConsuelo = computed(() =>
+  eventosCruceProgramacion.value.filter(ev => esEventoConsuelo(ev))
+)
+
 const eventosPagoPartido = computed(() => {
   const allEventos = (detalle.value?.eventos_partido || []).map(ev => ({ ...ev, id: Number(ev.id) }))
   const now = new Date()
@@ -1681,7 +1825,10 @@ const isSavingPagoEventoPartido = (idEvento) =>
 const getNombreRondaCruce = (titulo, fallback) => {
   const value = String(titulo || '').trim()
   if (!value) return fallback
-  const cleaned = value.replace(/\s*-\s*partido\s*\d+\s*$/i, '').trim()
+  const cleaned = value
+    .replace(/^consuelo\s*-\s*/i, '')
+    .replace(/\s*-\s*partido\s*\d+\s*$/i, '')
+    .trim()
   return cleaned || fallback
 }
 
@@ -1707,15 +1854,14 @@ const getCruceEquipoDisplay = (ev, side) => {
   }
 }
 
-const cruceRounds = computed(() => {
+const buildCruceRounds = (eventos, nombreFallback = 'Ronda') => {
   const byFecha = new Map()
-  const sorted = [...eventosCruceProgramacion.value]
-    .sort((a, b) => {
-      const fa = Number(a?.numero_fecha || 0)
-      const fb = Number(b?.numero_fecha || 0)
-      if (fa !== fb) return fa - fb
-      return Number(a?.id || 0) - Number(b?.id || 0)
-    })
+  const sorted = [...eventos].sort((a, b) => {
+    const fa = Number(a?.numero_fecha || 0)
+    const fb = Number(b?.numero_fecha || 0)
+    if (fa !== fb) return fa - fb
+    return Number(a?.id || 0) - Number(b?.id || 0)
+  })
 
   for (const ev of sorted) {
     const fecha = Number(ev?.numero_fecha || 0)
@@ -1723,7 +1869,7 @@ const cruceRounds = computed(() => {
     if (!byFecha.has(key)) {
       byFecha.set(key, {
         fecha: key,
-        nombre: getNombreRondaCruce(ev?.titulo, `Ronda ${byFecha.size + 1}`),
+        nombre: getNombreRondaCruce(ev?.titulo, `${nombreFallback} ${byFecha.size + 1}`),
         partidos: [],
       })
     }
@@ -1743,7 +1889,18 @@ const cruceRounds = computed(() => {
   }
 
   return Array.from(byFecha.values())
-})
+}
+
+const cruceRounds = computed(() =>
+  buildCruceRounds(
+    esFormatoConsuelo.value ? eventosCruceGanadores.value : eventosCruceProgramacion.value,
+    'Ronda',
+  )
+)
+
+const cruceRoundsConsuelo = computed(() =>
+  buildCruceRounds(eventosCruceConsuelo.value, 'Ronda')
+)
 
 const getCruceRoundTrackStyle = (roundIndex, matchCount) => {
   const slot = CRUCE_BRACKET_BASE_SLOT * (2 ** roundIndex)
@@ -1838,7 +1995,9 @@ const asignarAleatorio = () => {
   if (!grupos.length) return
 
   const needed = totalSlots.value
-  const pool = Array.from(new Set(selectedPool.value.map(Number).filter(v => v > 0)))
+  const pool = esFormatoLiga.value
+    ? (detalle.value?.inscriptos || []).map(i => Number(i.id_equipo)).filter(v => v > 0)
+    : Array.from(new Set(selectedPool.value.map(Number).filter(v => v > 0)))
 
   if (pool.length < needed) {
     toast.showToast({
@@ -2332,7 +2491,7 @@ const programarAutomatico = async () => {
 
   savingProgramacion.value = true
   try {
-    const resp = await planTorneoService.autoProgramar({
+    const payload = {
       id_torneo: idTorneoSeleccionado.value,
       fase_programar: programacionForm.value.fase_programar,
       fecha_inicio: programacionForm.value.fecha_inicio,
@@ -2343,7 +2502,11 @@ const programarAutomatico = async () => {
       id_eventos: (programacionForm.value.id_eventos || []).map(Number),
       franjas,
       force_reprogramar: false,
-    })
+    }
+    if (programacionForm.value.fecha_hasta) {
+      payload.fecha_hasta = programacionForm.value.fecha_hasta
+    }
+    const resp = await planTorneoService.autoProgramar(payload)
 
     toast.showToast({
       message: `${resp?.programados || 0} partidos programados automáticamente.`,
@@ -2399,6 +2562,7 @@ const deshacerProgramacion = async () => {
     })
 
     selectedProgramacionIds.value = []
+    lastClickedProgramacionIdx.value = null
     programacionForm.value.id_eventos = []
     await cargarDetalle()
   } catch (error) {

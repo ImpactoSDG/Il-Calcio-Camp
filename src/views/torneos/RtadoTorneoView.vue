@@ -143,7 +143,58 @@
             </div>
           </div>
 
-          <div class="col-12">
+          <!-- LIGA: tabla de posiciones completa -->
+          <div v-if="esFormatoLiga" class="col-12">
+            <div class="panel">
+              <div class="section-head">
+                <h3 class="section-title mb-0">Tabla de posiciones</h3>
+              </div>
+              <div v-if="!tablaLiga.length" class="empty-state">Aún no hay equipos inscriptos o partidos jugados.</div>
+              <div v-else class="table-responsive">
+                <table class="table table-sm align-middle mb-0 custom-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Equipo</th>
+                      <th class="text-center">PJ</th>
+                      <th class="text-center">PG</th>
+                      <th class="text-center">PE</th>
+                      <th class="text-center">PP</th>
+                      <th class="text-center">GF</th>
+                      <th class="text-center">GC</th>
+                      <th class="text-center">DIF</th>
+                      <th class="text-center fw-bold">PTS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(equipo, idx) in tablaLiga" :key="equipo.id">
+                      <td class="text-muted">{{ idx + 1 }}</td>
+                      <td>
+                        <div class="d-flex align-items-center gap-2">
+                          <img v-if="equipo.escudo" :src="resolveEscudoUrl(equipo.escudo)" alt="escudo" class="escudo escudo-mini" />
+                          <span v-else class="escudo-fallback"><i class="bi bi-shield"></i></span>
+                          <span>{{ equipo.nombre }}</span>
+                        </div>
+                      </td>
+                      <td class="text-center">{{ equipo.pj }}</td>
+                      <td class="text-center">{{ equipo.pg }}</td>
+                      <td class="text-center">{{ equipo.pe }}</td>
+                      <td class="text-center">{{ equipo.pp }}</td>
+                      <td class="text-center">{{ equipo.gf }}</td>
+                      <td class="text-center">{{ equipo.gc }}</td>
+                      <td class="text-center" :class="equipo.dif > 0 ? 'text-success' : equipo.dif < 0 ? 'text-danger' : ''">
+                        {{ equipo.dif > 0 ? '+' : '' }}{{ equipo.dif }}
+                      </td>
+                      <td class="text-center fw-bold">{{ equipo.pts }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Zonas (para formatos con grupos, NO liga) -->
+          <div v-if="!esFormatoLiga" class="col-12">
             <div class="panel">
               <div class="section-head">
                 <h3 class="section-title mb-0">Tabla de zonas</h3>
@@ -189,7 +240,42 @@
           <div class="col-12">
             <div class="panel">
               <div class="section-head">
-                <h3 class="section-title mb-0">Llave eliminatoria</h3>
+                <h3 class="section-title mb-0">Amonestaciones y expulsiones</h3>
+              </div>
+              <div v-if="!tarjetasJugadores.length" class="empty-state">Aún no hay tarjetas registradas.</div>
+              <div v-else class="tarjetas-scroll">
+                <table class="table table-sm align-middle mb-0 custom-table">
+                  <thead>
+                    <tr>
+                      <th>Jugador</th>
+                      <th>Equipo</th>
+                      <th class="text-center" style="width:60px">🟨</th>
+                      <th class="text-center" style="width:60px">🟥</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="t in tarjetasJugadores" :key="t.id_jugador">
+                      <td class="fw-semibold">{{ t.nombre_mostrar }}</td>
+                      <td class="text-muted small">{{ t.equipo_nombre }}</td>
+                      <td class="text-center">
+                        <span v-if="t.amarillas" class="badge rounded-pill bg-warning text-dark">{{ t.amarillas }}</span>
+                        <span v-else class="text-muted">-</span>
+                      </td>
+                      <td class="text-center">
+                        <span v-if="t.rojas" class="badge rounded-pill bg-danger">{{ t.rojas }}</span>
+                        <span v-else class="text-muted">-</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="!esFormatoLiga" class="col-12">
+            <div class="panel">
+              <div class="section-head">
+                <h3 class="section-title mb-0">{{ llaveRondasConsuelo.length ? 'Zona Ganadores' : 'Llave eliminatoria' }}</h3>
               </div>
               <div v-if="!llave.length" class="empty-state">No hay cruces para mostrar.</div>
               <div v-else class="rt-bracket-box">
@@ -234,6 +320,61 @@
                           v-if="roundIndex < llaveRondas.length - 1"
                           v-for="pairIndex in Math.floor(ronda.partidos.length / 2)"
                           :key="`llave-merge-${roundIndex}-${pairIndex}`"
+                          class="rt-round-merge"
+                          :style="getLlaveMergeStyle(roundIndex, pairIndex - 1)"
+                        ></div>
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="!esFormatoLiga && llaveRondasConsuelo.length" class="col-12">
+            <div class="panel">
+              <div class="section-head">
+                <h3 class="section-title mb-0" style="color: #b45309;">Rueda Consuelo</h3>
+              </div>
+              <div class="rt-bracket-box" style="border-left: 3px solid #d97706;">
+                <div class="rt-bracket-scroll">
+                  <div class="rt-bracket-grid" :style="{ '--round-count': Math.max(1, llaveRondasConsuelo.length) }">
+                    <section v-for="(ronda, roundIndex) in llaveRondasConsuelo" :key="`c-${ronda.nombre}-${roundIndex}`" class="rt-round-column">
+                      <div class="round-title">{{ ronda.nombre }}</div>
+                      <div class="rt-round-track" :style="getLlaveRoundTrackStyle(roundIndex, ronda.partidos.length)">
+                        <article
+                          v-for="(match, matchIndex) in ronda.partidos"
+                          :key="match.id_cruce || `consuelo-${roundIndex}-${matchIndex}`"
+                          class="rt-match-wrap"
+                          :style="getLlaveMatchStyle(roundIndex, matchIndex)"
+                        >
+                          <div
+                            class="rt-match-card"
+                            :class="{ 'has-next': roundIndex < llaveRondasConsuelo.length - 1, 'has-prev': roundIndex > 0 }"
+                            @click="abrirDetalleLlave(match, ronda.nombre)"
+                            @keyup.enter="abrirDetalleLlave(match, ronda.nombre)"
+                            tabindex="0"
+                            role="button"
+                            title="Ver detalle del partido"
+                          >
+                            <div class="rt-team-line" :class="{ winner: ganadorLocal(match) }">
+                              <img v-if="match.equipo_local?.escudo" :src="resolveEscudoUrl(match.equipo_local.escudo)" alt="escudo local" class="escudo escudo-mini" />
+                              <span v-else class="escudo-fallback"><i class="bi bi-shield"></i></span>
+                              <span class="rt-team-name">{{ match.equipo_local?.nombre || 'Por definir' }}</span>
+                              <span class="rt-team-score">{{ tieneResultado(match) ? safeNum(match.equipo_local?.resultado) : '-' }}</span>
+                            </div>
+                            <div class="rt-team-line" :class="{ winner: ganadorVisitante(match) }">
+                              <img v-if="match.equipo_visitante?.escudo" :src="resolveEscudoUrl(match.equipo_visitante.escudo)" alt="escudo visitante" class="escudo escudo-mini" />
+                              <span v-else class="escudo-fallback"><i class="bi bi-shield"></i></span>
+                              <span class="rt-team-name">{{ match.equipo_visitante?.nombre || 'Por definir' }}</span>
+                              <span class="rt-team-score">{{ tieneResultado(match) ? safeNum(match.equipo_visitante?.resultado) : '-' }}</span>
+                            </div>
+                          </div>
+                        </article>
+                        <div
+                          v-if="roundIndex < llaveRondasConsuelo.length - 1"
+                          v-for="pairIndex in Math.floor(ronda.partidos.length / 2)"
+                          :key="`cmerge-${roundIndex}-${pairIndex}`"
                           class="rt-round-merge"
                           :style="getLlaveMergeStyle(roundIndex, pairIndex - 1)"
                         ></div>
@@ -404,9 +545,13 @@ const resultadosTorneo = ref([])
 
 const torneosActivos = computed(() => torneos.value.filter(item => Number(item.activo ?? 1) === 1))
 const resumen = computed(() => dashboard.value?.resumen || {})
-const ultimosResultados = computed(() => dashboard.value?.ultimos_resultados || [])
+const ultimosResultados = computed(() => (dashboard.value?.ultimos_resultados || []).slice(0, 5))
 const zonas = computed(() => dashboard.value?.zonas || [])
+const tablaLiga = computed(() => dashboard.value?.tabla_liga || [])
+const esFormatoLiga = computed(() => dashboard.value?.torneo?.formato_manual === 'LIGA')
 const llave = computed(() => dashboard.value?.llave || [])
+const llaveConsuelo = computed(() => dashboard.value?.llave_consuelo || [])
+const todasIncidencias = ref([])
 const partidoDetalle = ref(null)
 const showDetalleModal = ref(false)
 const showTodosResultadosModal = ref(false)
@@ -431,16 +576,50 @@ const normalizeRoundName = (nombre, idx, totalRounds) => {
 const sortMatches = (partidos) => [...(Array.isArray(partidos) ? partidos : [])]
   .sort((a, b) => Number(a?.orden || 0) - Number(b?.orden || 0) || Number(a?.id_cruce || 0) - Number(b?.id_cruce || 0))
 
-const llaveRondas = computed(() => {
-  const rounds = [...llave.value]
+const buildRondasFromLlave = (llaveData) => {
+  const rounds = [...llaveData]
     .sort((a, b) => Number(a?.round || 0) - Number(b?.round || 0))
     .map((r, idx, arr) => ({
       ...r,
       nombre: normalizeRoundName(r.nombre, idx, arr.length),
       partidos: sortMatches(r.partidos),
     }))
-
   return rounds.filter(r => Array.isArray(r.partidos) && r.partidos.length)
+}
+
+const llaveRondas = computed(() => buildRondasFromLlave(llave.value))
+const llaveRondasConsuelo = computed(() => buildRondasFromLlave(llaveConsuelo.value))
+
+const isTipoAmarilla = (inc) => normalizeText(inc?.tipo_evento_partido_descripcion).includes('AMARILLA') || normalizeText(inc?.tipo_evento_partido_descripcion).includes('AMONESTAC')
+const isTipoRoja = (inc) => normalizeText(inc?.tipo_evento_partido_descripcion).includes('ROJA') || normalizeText(inc?.tipo_evento_partido_descripcion).includes('EXPULSION') || normalizeText(inc?.tipo_evento_partido_descripcion).includes('EXPULSIÓN')
+
+const tarjetasJugadores = computed(() => {
+  const map = new Map()
+  for (const inc of todasIncidencias.value) {
+    const idJugador = Number(inc.id_jugador || 0)
+    if (!idJugador) continue
+    const esAmarilla = isTipoAmarilla(inc)
+    const esRoja = isTipoRoja(inc)
+    if (!esAmarilla && !esRoja) continue
+
+    if (!map.has(idJugador)) {
+      map.set(idJugador, {
+        id_jugador: idJugador,
+        nombre_mostrar: inc.jugador_apellido
+          ? `${inc.jugador_apellido}, ${inc.jugador_nombre || ''}`.trim()
+          : (inc.jugador_nombre || '-'),
+        equipo_nombre: inc.equipo_nombre || '-',
+        amarillas: 0,
+        rojas: 0,
+      })
+    }
+    const row = map.get(idJugador)
+    if (esAmarilla) row.amarillas++
+    if (esRoja) row.rojas++
+  }
+  return [...map.values()]
+    .filter(r => r.amarillas > 0 || r.rojas > 0)
+    .sort((a, b) => (b.rojas - a.rojas) || (b.amarillas - a.amarillas) || a.nombre_mostrar.localeCompare(b.nombre_mostrar))
 })
 
 const getLlaveRoundTrackStyle = (roundIndex, matchCount) => {
@@ -667,6 +846,7 @@ const cargarDashboardSeleccionado = async () => {
     topJugadoresGoleadores.value = []
     proximosPartidos.value = []
     resultadosTorneo.value = []
+    todasIncidencias.value = []
     return
   }
 
@@ -693,22 +873,23 @@ const cargarDashboardSeleccionado = async () => {
       .filter(ev => Number(ev.id_estado_evento) === 2)
       .sort((a, b) => String(a.fecha_hora_inicio || '').localeCompare(String(b.fecha_hora_inicio || '')))
 
+    const MAX_PROXIMOS = 5
     const pendientesConFechaNumero = pendientes.filter(ev => Number.isFinite(Number(ev.numero_fecha)) && Number(ev.numero_fecha) > 0)
     if (pendientesConFechaNumero.length) {
       const proximaFechaNumero = Math.min(...pendientesConFechaNumero.map(ev => Number(ev.numero_fecha)))
-      proximosPartidos.value = pendientesConFechaNumero.filter(ev => Number(ev.numero_fecha) === proximaFechaNumero)
+      proximosPartidos.value = pendientesConFechaNumero.filter(ev => Number(ev.numero_fecha) === proximaFechaNumero).slice(0, MAX_PROXIMOS)
     } else if (pendientes.length) {
       const primerDia = String(pendientes[0].fecha_hora_inicio || '').slice(0, 10)
-      proximosPartidos.value = pendientes.filter(ev => String(ev.fecha_hora_inicio || '').slice(0, 10) === primerDia)
+      proximosPartidos.value = pendientes.filter(ev => String(ev.fecha_hora_inicio || '').slice(0, 10) === primerDia).slice(0, MAX_PROXIMOS)
     } else {
       proximosPartidos.value = []
     }
 
-    const idsEventos = eventosTorneo.map(ev => Number(ev.id)).filter(id => id > 0)
-    const incidenciasPorEvento = await Promise.all(idsEventos.map(idEvento => eventosService.getEventosPartido(idEvento).catch(() => [])))
+    const todasLasIncidencias = await eventosService.getEventosPartidoByTorneo(idTorneo).catch(() => [])
+    todasIncidencias.value = todasLasIncidencias
 
     const goleadoresMap = new Map()
-    incidenciasPorEvento.flat().filter(isTipoGol).forEach(inc => {
+    todasLasIncidencias.filter(isTipoGol).forEach(inc => {
       const idJugador = Number(inc.id_jugador || 0)
       if (!idJugador) return
 
@@ -1440,5 +1621,10 @@ onMounted(() => {
     grid-template-columns: repeat(var(--round-count), minmax(190px, 1fr));
     min-width: calc(var(--round-count) * 190px + (var(--round-count) - 1) * 14px);
   }
+}
+
+.tarjetas-scroll {
+  max-height: 220px;
+  overflow-y: auto;
 }
 </style>

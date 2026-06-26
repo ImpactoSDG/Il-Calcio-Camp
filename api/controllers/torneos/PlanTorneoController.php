@@ -114,10 +114,11 @@ class PlanTorneoController extends BaseController
             $idFaseGrupos = null;
             $maxFechaZonas = 0;
             if ($payload['usa_zonas'] && !empty($resultado['zonas'])) {
+                $esLigaFase = $payload['formato'] === 'LIGA';
                 $idFaseGrupos = $this->insertFase(
                     $idTorneo,
-                    'Fase de grupos',
-                    'FASE_DE_GRUPOS',
+                    $esLigaFase ? 'Liga' : 'Fase de grupos',
+                    $esLigaFase ? 'LIGA' : 'FASE_DE_GRUPOS',
                     1,
                     [
                         'cantidad_zonas' => count($resultado['zonas']),
@@ -127,10 +128,11 @@ class PlanTorneoController extends BaseController
                 );
                 $idsFases[] = $idFaseGrupos;
 
+                $esLiga = $payload['formato'] === 'LIGA';
                 foreach ($resultado['zonas'] as $index => $zona) {
                     $idGrupo = $this->insertGrupo(
                         $idFaseGrupos,
-                        'Zona ' . (string)$zona['zona'],
+                        $esLiga ? 'Liga' : 'Zona ' . (string)$zona['zona'],
                         $index + 1,
                         (int)$zona['equipos'],
                         'MANUAL_POST_CONFIRMACION'
@@ -142,7 +144,8 @@ class PlanTorneoController extends BaseController
                         $estadoEventoPendienteProgramacionId,
                         (string)$zona['zona'],
                         (int)$zona['equipos'],
-                        (bool)$payload['ida_vuelta_zonas']
+                        (bool)$payload['ida_vuelta_zonas'],
+                        $esLiga
                     );
 
                     $idsEventos = array_merge($idsEventos, $idsEventosZona);
@@ -150,11 +153,24 @@ class PlanTorneoController extends BaseController
                 }
             }
 
+            // LIGA: sin fase eliminatoria ni cruces
+            if ($payload['formato'] === 'LIGA') {
+                $this->db->commit();
+                $this->respond(200, [
+                    'message' => 'Planificación de liga confirmada exitosamente.',
+                    'id_generacion' => $idGeneracion,
+                    'id_torneo' => $idTorneo,
+                    'fases' => $idsFases,
+                    'eventos' => $idsEventos,
+                ]);
+            }
+
+            $ordenFaseElim = $payload['usa_zonas'] ? 2 : 1;
             $idFaseEliminacion = $this->insertFase(
                 $idTorneo,
-                'Fase eliminatoria',
+                $payload['formato'] === 'GRUPOS_CON_CONSUELO' ? 'Zona Ganadores' : 'Fase eliminatoria',
                 'ELIMINACION_DIRECTA',
-                $payload['usa_zonas'] ? 2 : 1,
+                $ordenFaseElim,
                 [
                     'llave_equipos' => $resultado['llave']['equipos'] ?? null,
                     'tercer_puesto' => $payload['tercer_puesto'],
@@ -193,6 +209,55 @@ class PlanTorneoController extends BaseController
                         $origenVisitante
                     );
                     $idsCruces[] = $idCruce;
+                }
+            }
+
+            // Fase Rueda Consuelo (solo para formato GRUPOS_CON_CONSUELO)
+            if ($payload['formato'] === 'GRUPOS_CON_CONSUELO' && !empty($resultado['consuelo'])) {
+                $idFaseConsuelo = $this->insertFase(
+                    $idTorneo,
+                    'Rueda Consuelo',
+                    'RUEDA_CONSUELO',
+                    $ordenFaseElim + 1,
+                    [
+                        'llave_equipos' => $resultado['consuelo']['equipos'] ?? null,
+                        'clasificados_consuelo' => $payload['clasificados_consuelo'],
+                    ]
+                );
+                $idsFases[] = $idFaseConsuelo;
+
+                $rondasConsuelo = $resultado['consuelo']['rondas'] ?? [];
+                foreach ($rondasConsuelo as $indiceRonda => $ronda) {
+                    $numeroFecha = $maxFechaZonas + $indiceRonda + 1;
+                    $offsetDias = $indiceRonda * 7;
+
+                    foreach (($ronda['partidos'] ?? []) as $indicePartido => $partido) {
+                        $tituloEvento = 'Consuelo - ' . ($ronda['nombre'] ?? 'Cruce') . ' - Partido ' . ($indicePartido + 1);
+                        $fechaHoraInicio = date('Y-m-d H:i:s', strtotime('+' . $offsetDias . ' days 18:00:00'));
+
+                        $idEvento = $this->insertEventoPlanificado(
+                            $idTorneo,
+                            $estadoEventoPendienteProgramacionId,
+                            $tituloEvento,
+                            'Partido de Rueda Consuelo.',
+                            $numeroFecha,
+                            $fechaHoraInicio
+                        );
+                        $idsEventos[] = $idEvento;
+
+                        $origenLocal = $this->parseOrigen((string)($partido['local'] ?? 'TBD'));
+                        $origenVisitante = $this->parseOrigen((string)($partido['visitante'] ?? 'TBD'));
+
+                        $idCruce = $this->insertCruce(
+                            $idFaseConsuelo,
+                            $idEvento,
+                            'Consuelo - ' . ($ronda['nombre'] ?? 'Cruce') . ' P' . ($indicePartido + 1),
+                            $indicePartido + 1,
+                            $origenLocal,
+                            $origenVisitante
+                        );
+                        $idsCruces[] = $idCruce;
+                    }
                 }
             }
 
@@ -292,7 +357,7 @@ class PlanTorneoController extends BaseController
                            INNER JOIN fase_torneo f ON f.id = g.id_fase_torneo
                            LEFT JOIN grupo_torneo_equipo gte ON gte.id_grupo_torneo = g.id
                            WHERE f.id_torneo = :id_torneo
-                             AND UPPER(f.tipo_fase) = 'FASE_DE_GRUPOS'
+                             AND UPPER(f.tipo_fase) IN ('FASE_DE_GRUPOS', 'LIGA')
                            GROUP BY g.id, g.nombre, g.orden, g.cantidad_equipos_objetivo
                            ORDER BY g.orden ASC, g.id ASC";
             $stmt = $this->db->prepare($sqlGrupos);
@@ -309,7 +374,7 @@ class PlanTorneoController extends BaseController
                                 INNER JOIN equipo_torneo et ON et.id = gte.id_equipo_torneo
                                 INNER JOIN equipo e ON e.id = et.id_equipo
                                 WHERE f.id_torneo = :id_torneo
-                                  AND UPPER(f.tipo_fase) = 'FASE_DE_GRUPOS'
+                                  AND UPPER(f.tipo_fase) IN ('FASE_DE_GRUPOS', 'LIGA')
                                 ORDER BY g.orden ASC, gte.posicion_inicial ASC";
             $stmt = $this->db->prepare($sqlAsignaciones);
             $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
@@ -1014,12 +1079,24 @@ class PlanTorneoController extends BaseController
                 $this->respond(422, ['message' => 'duracion_minutos debe estar entre 20 y 240.']);
             }
 
-            $maxDiasBusqueda = (int)($data['max_dias_busqueda'] ?? 120);
-            if ($maxDiasBusqueda < 7) {
-                $maxDiasBusqueda = 7;
-            }
-            if ($maxDiasBusqueda > 365) {
-                $maxDiasBusqueda = 365;
+            $fechaHastaRaw = isset($data['fecha_hasta']) ? trim((string)$data['fecha_hasta']) : '';
+            if ($fechaHastaRaw !== '') {
+                $fechaHasta = DateTime::createFromFormat('Y-m-d', $fechaHastaRaw);
+                if (!$fechaHasta) {
+                    $this->respond(400, ['message' => 'fecha_hasta debe tener formato YYYY-MM-DD.']);
+                }
+                if ($fechaHasta < $fechaInicio) {
+                    $this->respond(422, ['message' => 'fecha_hasta no puede ser anterior a fecha_inicio.']);
+                }
+                $maxDiasBusqueda = (int)$fechaInicio->diff($fechaHasta)->days + 1;
+            } else {
+                $maxDiasBusqueda = (int)($data['max_dias_busqueda'] ?? 120);
+                if ($maxDiasBusqueda < 7) {
+                    $maxDiasBusqueda = 7;
+                }
+                if ($maxDiasBusqueda > 365) {
+                    $maxDiasBusqueda = 365;
+                }
             }
 
             $franjas = $this->normalizeFranjas((array)($data['franjas'] ?? []));
@@ -1396,21 +1473,56 @@ class PlanTorneoController extends BaseController
             [$zonas, $partidosFaseZonas, $minimoPartidosPorEquipo, $warnings] = $this->calcularFaseZonas($payload, $warnings);
         }
 
+        // LIGA: sin llave eliminatoria
+        if ($payload['formato'] === 'LIGA') {
+            $n = $payload['cantidad_equipos'];
+            $idaVuelta = $payload['ida_vuelta_zonas'];
+            $factor = $idaVuelta ? 2 : 1;
+            $jornadas = (($n % 2 === 0) ? ($n - 1) : $n) * $factor;
+
+            return [
+                'message' => 'Planificación simulada correctamente.',
+                'input_normalizado' => $payload,
+                'resumen' => [
+                    'total_partidos' => $partidosFaseZonas,
+                    'partidos_fase_zonas' => $partidosFaseZonas,
+                    'partidos_eliminacion' => 0,
+                    'partidos_consuelo' => 0,
+                    'cantidad_zonas' => 1,
+                    'llave_equipos' => null,
+                    'minimo_partidos_por_equipo' => ($n - 1) * $factor,
+                    'jornadas' => $jornadas,
+                ],
+                'zonas' => $zonas,
+                'llave' => null,
+                'consuelo' => null,
+                'observaciones' => $warnings,
+            ];
+        }
+
         [$llave, $partidosEliminacion, $warnings] = $this->calcularLlave($payload, $zonas, $warnings);
+
+        $consuelo = null;
+        $partidosConsuelo = 0;
+        if ($payload['formato'] === 'GRUPOS_CON_CONSUELO' && $payload['clasificados_consuelo'] > 0) {
+            [$consuelo, $partidosConsuelo, $warnings] = $this->calcularLlaveConsuelo($payload, $zonas, $warnings);
+        }
 
         return [
             'message' => 'Planificación simulada correctamente.',
             'input_normalizado' => $payload,
             'resumen' => [
-                'total_partidos' => $partidosFaseZonas + $partidosEliminacion,
+                'total_partidos' => $partidosFaseZonas + $partidosEliminacion + $partidosConsuelo,
                 'partidos_fase_zonas' => $partidosFaseZonas,
                 'partidos_eliminacion' => $partidosEliminacion,
+                'partidos_consuelo' => $partidosConsuelo,
                 'cantidad_zonas' => count($zonas),
                 'llave_equipos' => $llave['equipos'],
                 'minimo_partidos_por_equipo' => $minimoPartidosPorEquipo,
             ],
             'zonas' => $zonas,
             'llave' => $llave,
+            'consuelo' => $consuelo,
             'observaciones' => $warnings,
         ];
     }
@@ -1450,7 +1562,7 @@ class PlanTorneoController extends BaseController
                 FROM grupo_torneo g
                 INNER JOIN fase_torneo f ON f.id = g.id_fase_torneo
                 WHERE f.id_torneo = :id_torneo
-                  AND UPPER(f.tipo_fase) = 'FASE_DE_GRUPOS'
+                  AND UPPER(f.tipo_fase) IN ('FASE_DE_GRUPOS', 'LIGA')
                 ORDER BY g.orden ASC, g.id ASC";
         $stmt = $this->db->prepare($sql);
         $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
@@ -1860,8 +1972,7 @@ class PlanTorneoController extends BaseController
     {
         $sql = "SELECT id, fecha_hora_inicio, fecha_hora_fin, id_cancha, id_arbitro
                 FROM evento
-                                WHERE id_torneo = ?
-                  AND LOWER(tipo_evento) = 'partido'
+                WHERE LOWER(tipo_evento) = 'partido'
                   AND fecha_hora_inicio IS NOT NULL
                   AND fecha_hora_fin IS NOT NULL";
 
@@ -1870,9 +1981,8 @@ class PlanTorneoController extends BaseController
         }
 
         $stmt = $this->db->prepare($sql);
-        $stmt->bindValue(1, $idTorneo, PDO::PARAM_INT);
         foreach ($excludeEventoIds as $i => $idEv) {
-            $stmt->bindValue($i + 2, (int)$idEv, PDO::PARAM_INT);
+            $stmt->bindValue($i + 1, (int)$idEv, PDO::PARAM_INT);
         }
         $stmt->execute();
 
@@ -2113,8 +2223,11 @@ class PlanTorneoController extends BaseController
 
         foreach ($grupos as $grupo) {
             $idGrupo = (int)$grupo['id'];
-            $zona = $this->extractZonaFromGroupName((string)$grupo['nombre']);
-            if ($zona === null) {
+            $nombreGrupo = (string)$grupo['nombre'];
+            $zona = $this->extractZonaFromGroupName($nombreGrupo);
+            $esLiga = strtoupper(trim($nombreGrupo)) === 'LIGA';
+
+            if ($zona === null && !$esLiga) {
                 continue;
             }
 
@@ -2133,13 +2246,17 @@ class PlanTorneoController extends BaseController
                 continue;
             }
 
+            $prefix = $esLiga
+                ? 'Liga - Fecha % - Partido %'
+                : 'Zona ' . $zona . ' - Fecha % - Partido %';
+
             $stmt = $this->db->prepare("SELECT id
                                        FROM evento
                                        WHERE id_torneo = :id_torneo
                                          AND titulo LIKE :prefix
                                        ORDER BY numero_fecha ASC, id ASC");
             $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
-            $stmt->bindValue(':prefix', 'Zona ' . $zona . ' - Fecha % - Partido %');
+            $stmt->bindValue(':prefix', $prefix);
             $stmt->execute();
             $eventIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
 
@@ -2231,7 +2348,7 @@ class PlanTorneoController extends BaseController
                      INNER JOIN equipo_torneo et ON et.id = gte.id_equipo_torneo
                      INNER JOIN equipo e ON e.id = et.id_equipo
                      WHERE f.id_torneo = :id_torneo
-                       AND UPPER(f.tipo_fase) = 'FASE_DE_GRUPOS'
+                       AND UPPER(f.tipo_fase) IN ('FASE_DE_GRUPOS', 'LIGA')
                      ORDER BY g.orden ASC, g.id ASC";
         $stmtTeams = $this->db->prepare($sqlTeams);
         $stmtTeams->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
@@ -2537,7 +2654,10 @@ class PlanTorneoController extends BaseController
             : 0.0;
 
         $idEstadoTorneo = $this->resolveEstadoTorneoInicialId();
-        $formatoManual = $payload['usa_zonas'] ? 'MIXTO' : 'ELIMINACION';
+        $formatoManual = $payload['formato'] ?? ($payload['usa_zonas'] ? 'MIXTO' : 'ELIMINACION');
+        $reglamento = isset($torneoNuevo['reglamento']) && trim((string)$torneoNuevo['reglamento']) !== ''
+            ? trim((string)$torneoNuevo['reglamento'])
+            : ($payload['reglamento'] ?? null);
 
         $sql = "INSERT INTO torneo (
                     nombre,
@@ -2550,7 +2670,8 @@ class PlanTorneoController extends BaseController
                     cupo_equipos,
                     valor_inscripcion,
                     formato_manual,
-                    configuracion_json
+                    configuracion_json,
+                    reglamento
                 ) VALUES (
                     :nombre,
                     :descripcion,
@@ -2562,7 +2683,8 @@ class PlanTorneoController extends BaseController
                     :cupo_equipos,
                     :valor_inscripcion,
                     :formato_manual,
-                    :configuracion_json
+                    :configuracion_json,
+                    :reglamento
                 )";
         $stmt = $this->db->prepare($sql);
         $stmt->bindValue(':nombre', $nombre);
@@ -2574,6 +2696,7 @@ class PlanTorneoController extends BaseController
         $stmt->bindValue(':valor_inscripcion', $valorInscripcion);
         $stmt->bindValue(':formato_manual', $formatoManual);
         $stmt->bindValue(':configuracion_json', json_encode($payload));
+        $stmt->bindValue(':reglamento', $reglamento);
         $stmt->execute();
 
         return (int)$this->db->lastInsertId();
@@ -2789,7 +2912,8 @@ class PlanTorneoController extends BaseController
         int $idEstadoEvento,
         string $zona,
         int $equiposZona,
-        bool $idaVuelta
+        bool $idaVuelta,
+        bool $esLiga = false
     ): array {
         $partidosPorFecha = max(1, intdiv($equiposZona, 2));
         $factor = $idaVuelta ? 2 : 1;
@@ -2805,7 +2929,9 @@ class PlanTorneoController extends BaseController
                     break 2;
                 }
 
-                $titulo = 'Zona ' . $zona . ' - Fecha ' . $fecha . ' - Partido ' . $i;
+                $titulo = $esLiga
+                    ? 'Liga - Fecha ' . $fecha . ' - Partido ' . $i
+                    : 'Zona ' . $zona . ' - Fecha ' . $fecha . ' - Partido ' . $i;
                 $fechaHoraInicio = date('Y-m-d H:i:s', strtotime('+' . (($fecha - 1) * 3) . ' days 20:00:00'));
 
                 $ids[] = $this->insertEventoPlanificado(
@@ -2830,15 +2956,39 @@ class PlanTorneoController extends BaseController
             $this->respond(400, ['message' => 'La cantidad de equipos debe ser al menos 2.']);
         }
 
+        $formato = trim((string)($data['formato'] ?? ''));
         $usaZonas = (bool)($data['usa_zonas'] ?? false);
+
+        // GRUPOS_CON_CONSUELO y LIGA implican siempre usa_zonas
+        if ($formato === 'GRUPOS_CON_CONSUELO' || $formato === 'LIGA') {
+            $usaZonas = true;
+        }
+
         $idaVuelta = (bool)($data['ida_vuelta_zonas'] ?? false);
         $tercerPuesto = (bool)($data['tercer_puesto'] ?? false);
         $cantidadZonas = $this->nullableInt($data['cantidad_zonas'] ?? null);
         $equiposPorZona = $this->nullableInt($data['equipos_por_zona'] ?? null);
         $clasificadosPorZona = max(1, (int)($data['clasificados_por_zona'] ?? 1));
+        $clasificadosConsuelo = max(0, (int)($data['clasificados_consuelo'] ?? 0));
+        $llaveConsuelo = $this->nullableInt($data['llave_consuelo'] ?? null);
         $llaveEquipos = $this->nullableInt($data['llave_equipos'] ?? null);
+        $reglamento = isset($data['reglamento']) && trim((string)$data['reglamento']) !== ''
+            ? trim((string)$data['reglamento'])
+            : null;
 
-        if ($usaZonas && $cantidadZonas === null && $equiposPorZona === null) {
+        if ($formato === '') {
+            $formato = $usaZonas ? 'MIXTO' : 'ELIMINACION';
+        }
+
+        // LIGA: todos contra todos en una sola zona, sin llave eliminatoria
+        if ($formato === 'LIGA') {
+            $cantidadZonas = 1;
+            $clasificadosPorZona = $cantidadEquipos;
+            $clasificadosConsuelo = 0;
+            $llaveEquipos = null;
+        }
+
+        if ($usaZonas && $formato !== 'LIGA' && $cantidadZonas === null && $equiposPorZona === null) {
             $this->respond(400, ['message' => 'Si usas zonas, debes indicar cantidad de zonas o equipos por zona.']);
         }
 
@@ -2854,15 +3004,27 @@ class PlanTorneoController extends BaseController
             $this->respond(400, ['message' => 'La llave eliminatoria debe ser potencia de 2 (2, 4, 8, 16...).']);
         }
 
+        if ($formato === 'GRUPOS_CON_CONSUELO' && $clasificadosConsuelo < 1) {
+            $this->respond(400, ['message' => 'El formato Grupos con Consuelo requiere clasificados_consuelo >= 1.']);
+        }
+
+        if ($llaveEquipos !== null && $formato === 'LIGA') {
+            $this->respond(400, ['message' => 'El formato Liga no usa llave eliminatoria.']);
+        }
+
         return [
+            'formato' => $formato,
             'cantidad_equipos' => $cantidadEquipos,
             'usa_zonas' => $usaZonas,
             'cantidad_zonas' => $cantidadZonas,
             'equipos_por_zona' => $equiposPorZona,
             'clasificados_por_zona' => $clasificadosPorZona,
+            'clasificados_consuelo' => $clasificadosConsuelo,
+            'llave_consuelo' => $llaveConsuelo,
             'ida_vuelta_zonas' => $idaVuelta,
             'llave_equipos' => $llaveEquipos,
             'tercer_puesto' => $tercerPuesto,
+            'reglamento' => $reglamento,
         ];
     }
 
@@ -2964,6 +3126,66 @@ class PlanTorneoController extends BaseController
             $partidosEliminacion,
             $warnings,
         ];
+    }
+
+    private function calcularLlaveConsuelo(array $payload, array $zonas, array $warnings): array
+    {
+        $clasificadosConsuelo = (int)$payload['clasificados_consuelo'];
+        $posInicio = (int)$payload['clasificados_por_zona'] + 1;
+
+        $llaveEquipos = $payload['llave_consuelo']
+            ?? $this->nearestPowerOfTwoLessOrEqual(count($zonas) * $clasificadosConsuelo);
+        if ($llaveEquipos < 2) {
+            $warnings[] = 'No hay suficientes equipos para la Rueda Consuelo.';
+            return [null, 0, $warnings];
+        }
+
+        $rondas = $this->buildRounds($llaveEquipos);
+        $entrantes = $this->buildEntrantesConsueloDesdeZonas($zonas, $clasificadosConsuelo, $posInicio, $llaveEquipos);
+        $rondas = $this->asignarPrimeraRonda($rondas, $entrantes);
+        $partidos = $llaveEquipos - 1;
+
+        return [
+            [
+                'equipos' => $llaveEquipos,
+                'rondas' => $rondas,
+            ],
+            $partidos,
+            $warnings,
+        ];
+    }
+
+    private function buildEntrantesConsueloDesdeZonas(array $zonas, int $clasificadosConsuelo, int $posInicio, int $llaveEquipos): array
+    {
+        $entrantes = [];
+
+        for ($i = 0; $i < count($zonas); $i += 2) {
+            $zonaA = $zonas[$i]['zona'] ?? null;
+            $zonaB = $zonas[$i + 1]['zona'] ?? null;
+
+            if ($zonaA === null) {
+                break;
+            }
+            if ($zonaB === null) {
+                $zonaB = $zonaA;
+            }
+
+            for ($j = 0; $j < $clasificadosConsuelo; $j++) {
+                if (count($entrantes) >= $llaveEquipos) {
+                    break 2;
+                }
+                $posA = $posInicio + $j;
+                $posB = $posInicio + ($clasificadosConsuelo - 1 - $j);
+
+                $entrantes[] = $posA . $zonaA;
+                if (count($entrantes) >= $llaveEquipos) {
+                    break 2;
+                }
+                $entrantes[] = $posB . $zonaB;
+            }
+        }
+
+        return $entrantes;
     }
 
     private function buildRounds(int $llaveEquipos): array

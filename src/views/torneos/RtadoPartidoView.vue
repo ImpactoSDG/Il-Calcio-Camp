@@ -166,56 +166,111 @@
               <table class="table table-sm align-middle mb-0">
                 <thead>
                   <tr>
-                    <th>Estado</th>
+                    <th style="width: 90px"></th>
                     <th>Equipo</th>
                     <th>Jugador</th>
                     <th>Tipo</th>
-                    <th>Min</th>
+                    <th style="width: 72px">Min</th>
                     <th>Observación</th>
-                    <th class="text-end">Acciones</th>
+                    <th class="text-end" style="width: 80px"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="incidencia in incidenciasMostradas" :key="incidencia.id">
+                  <tr v-for="incidencia in incidenciasMostradas" :key="incidencia.id" :class="incidencia.esPendiente ? 'table-warning-soft' : ''">
                     <td>
                       <span class="badge rounded-pill" :class="incidencia.esPendiente ? 'bg-warning-subtle text-warning' : 'bg-success-subtle text-success'">
-                        {{ incidencia.esPendiente ? 'Pendiente' : 'Guardada' }}
+                        {{ incidencia.esPendiente ? 'Borrador' : 'Guardada' }}
                       </span>
                     </td>
-                    <td>{{ incidencia.equipo_nombre || '-' }}</td>
+                    <td class="fw-semibold small">{{ incidencia.equipo_nombre || '-' }}</td>
                     <td>
-                      {{ incidencia.jugador_apellido || incidencia.jugador_nombre
-                        ? `${incidencia.jugador_apellido || ''}${incidencia.jugador_apellido && incidencia.jugador_nombre ? ', ' : ''}${incidencia.jugador_nombre || ''}`
-                        : '-' }}
+                      <template v-if="incidencia.esPendiente">
+                        <div class="jdrop-wrap" @click.stop>
+                          <button
+                            type="button"
+                            class="jdrop-toggle"
+                            @click="toggleJugadorDropdown(incidencia.id)"
+                          >
+                            <span class="jdrop-value" :class="{ placeholder: !incidencia.id_jugador }">
+                              {{ incidencia.id_jugador
+                                ? (incidencia.jugador_apellido ? `${incidencia.jugador_apellido}, ${incidencia.jugador_nombre || ''}`.trim() : incidencia.jugador_nombre)
+                                : 'Seleccionar jugador...' }}
+                            </span>
+                            <i class="bi bi-chevron-down jdrop-arrow" :class="{ open: openJugadorId === incidencia.id }"></i>
+                          </button>
+                          <div v-if="openJugadorId === incidencia.id" class="jdrop-menu">
+                            <div class="jdrop-search-wrap">
+                              <input
+                                :ref="el => { if (el) el.focus() }"
+                                type="text"
+                                class="jdrop-search"
+                                placeholder="Buscar..."
+                                :value="jugadorSearch[incidencia.id] ?? ''"
+                                @input="jugadorSearch[incidencia.id] = $event.target.value"
+                              />
+                            </div>
+                            <ul class="jdrop-list">
+                              <li class="jdrop-item jdrop-item-empty" @click="selectJugadorInline(incidencia, null)">
+                                Sin jugador
+                              </li>
+                              <li
+                                v-for="j in getJugadoresFiltrados(incidencia.id_equipo, jugadorSearch[incidencia.id])"
+                                :key="j.id"
+                                class="jdrop-item"
+                                :class="{ active: Number(incidencia.id_jugador) === Number(j.id) }"
+                                @click="selectJugadorInline(incidencia, j)"
+                              >
+                                {{ j.apellido ? `${j.apellido}, ${j.nombre || ''}`.trim() : j.nombre }}
+                              </li>
+                              <li v-if="!getJugadoresFiltrados(incidencia.id_equipo, jugadorSearch[incidencia.id]).length" class="jdrop-empty">
+                                Sin resultados
+                              </li>
+                            </ul>
+                          </div>
+                        </div>
+                      </template>
+                      <template v-else>
+                        {{ incidencia.jugador_apellido || incidencia.jugador_nombre
+                          ? `${incidencia.jugador_apellido || ''}${incidencia.jugador_apellido && incidencia.jugador_nombre ? ', ' : ''}${incidencia.jugador_nombre || ''}`
+                          : '-' }}
+                      </template>
                     </td>
                     <td>
                       <span class="incidencia-tipo-chip" :class="`incidencia-${getIncidenciaMeta(incidencia.tipo_evento_partido_descripcion).tone}`">
-                        <span
-                          v-if="getIncidenciaMeta(incidencia.tipo_evento_partido_descripcion).icon === 'ball'"
-                          class="incidencia-icon incidencia-ball"
-                          aria-hidden="true"
-                        >
-                          ⚽
-                        </span>
-                        <span
-                          v-else-if="getIncidenciaMeta(incidencia.tipo_evento_partido_descripcion).icon === 'yellow-card'"
-                          class="incidencia-icon incidencia-card incidencia-card-yellow"
-                          aria-hidden="true"
-                        ></span>
-                        <span
-                          v-else-if="getIncidenciaMeta(incidencia.tipo_evento_partido_descripcion).icon === 'red-card'"
-                          class="incidencia-icon incidencia-card incidencia-card-red"
-                          aria-hidden="true"
-                        ></span>
+                        <span v-if="getIncidenciaMeta(incidencia.tipo_evento_partido_descripcion).icon === 'ball'" class="incidencia-icon incidencia-ball" aria-hidden="true">⚽</span>
+                        <span v-else-if="getIncidenciaMeta(incidencia.tipo_evento_partido_descripcion).icon === 'yellow-card'" class="incidencia-icon incidencia-card incidencia-card-yellow" aria-hidden="true"></span>
+                        <span v-else-if="getIncidenciaMeta(incidencia.tipo_evento_partido_descripcion).icon === 'red-card'" class="incidencia-icon incidencia-card incidencia-card-red" aria-hidden="true"></span>
                         <i v-else class="bi bi-record-circle incidencia-icon"></i>
                         <span>{{ incidencia.tipo_evento_partido_descripcion }}</span>
                       </span>
                     </td>
-                    <td>{{ incidencia.minuto ?? '-' }}</td>
-                    <td>{{ incidencia.observacion || '-' }}</td>
+                    <td>
+                      <input
+                        v-if="incidencia.esPendiente"
+                        type="number"
+                        class="form-control form-control-sm"
+                        v-model.number="incidencia.minuto"
+                        min="0"
+                        max="120"
+                        placeholder="Min"
+                        style="width: 64px"
+                      />
+                      <span v-else>{{ incidencia.minuto ?? '-' }}</span>
+                    </td>
+                    <td>
+                      <input
+                        v-if="incidencia.esPendiente"
+                        type="text"
+                        class="form-control form-control-sm"
+                        v-model="incidencia.observacion"
+                        placeholder="Observación"
+                        style="min-width: 120px"
+                      />
+                      <span v-else>{{ incidencia.observacion || '-' }}</span>
+                    </td>
                     <td class="text-end">
                       <button class="btn btn-sm btn-outline-danger" @click="eliminarIncidencia(incidencia)">
-                        Eliminar
+                        <i class="bi bi-trash"></i>
                       </button>
                     </td>
                   </tr>
@@ -372,7 +427,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import FuzzySearch from '@/components/FuzzySearch.vue'
 import datosMaestrosService from '@/services/datosMaestrosService'
 import eventosService from '@/services/instalaciones/eventosService'
@@ -434,7 +489,7 @@ const partidosFiltrados = computed(() => {
     .filter(ev => String(ev.tipo_evento).toLowerCase() === 'partido')
     // Solo reportables: programado y finalizado. El estado 7 ya reportado queda fuera.
     .filter(ev => ESTADOS_PARTIDO_HABILITADOS.includes(Number(ev.id_estado_evento)))
-    .sort((a, b) => String(b.fecha_hora_inicio || '').localeCompare(String(a.fecha_hora_inicio || '')))
+    .sort((a, b) => String(a.fecha_hora_inicio || '').localeCompare(String(b.fecha_hora_inicio || '')))
 })
 
 const partidoSeleccionado = computed(() => {
@@ -699,6 +754,7 @@ const onPartidoChange = async () => {
   busquedaTipoIncidencia.value = ''
   incidenciasPendientes.value = []
   incidenciasEliminadasIds.value = []
+  jugadorSearch.value = {}
 
   try {
     incidencias.value = await eventosService.getEventosPartido(partido.id)
@@ -706,6 +762,120 @@ const onPartidoChange = async () => {
     incidencias.value = []
     toast.showToast({ message: getApiMessage(error, 'No se pudieron cargar las incidencias.'), type: 'danger' })
   }
+}
+
+const tipoGolId = computed(() => {
+  const tipo = tiposEventoPartidoActivos.value.find(t =>
+    normalizeText(t.descripcion).includes('GOL')
+  )
+  return tipo ? Number(tipo.id) : null
+})
+
+const tipoGolDescripcion = computed(() => {
+  const tipo = tiposEventoPartidoActivos.value.find(t =>
+    normalizeText(t.descripcion).includes('GOL')
+  )
+  return tipo?.descripcion || 'Gol'
+})
+
+watch(
+  () => [resultadoForm.value.resultado_local, resultadoForm.value.resultado_visitante],
+  ([local, visitante]) => {
+    const partido = partidoSeleccionado.value
+    if (!partido) return
+
+    const golesLocal = Number(local)
+    const golesVisitante = Number(visitante)
+    if (!Number.isInteger(golesLocal) || golesLocal < 0 || !Number.isInteger(golesVisitante) || golesVisitante < 0) return
+
+    // No auto-generar si ya hay goles guardados en la BD para este partido
+    const yaHayGolesGuardados = incidencias.value.some(i => normalizeText(i.tipo_evento_partido_descripcion).includes('GOL'))
+    if (yaHayGolesGuardados) return
+
+    // Quitar los auto-generados anteriores, conservar los manuales
+    incidenciasPendientes.value = incidenciasPendientes.value.filter(i => !i._auto)
+
+    if (!tipoGolId.value) return
+
+    const idLocal = Number(partido.id_equipo_local)
+    const idVisitante = Number(partido.id_equipo_visitante)
+    const nombreLocal = equipoLocalPartido.value.nombre
+    const nombreVisitante = equipoVisitantePartido.value.nombre
+
+    const nuevosGoles = []
+    for (let i = 0; i < golesLocal; i++) {
+      nuevosGoles.push({
+        id: `auto-local-${i}-${Date.now()}`,
+        esPendiente: true,
+        _auto: true,
+        id_evento: Number(partido.id),
+        id_tipo_evento_partido: tipoGolId.value,
+        id_equipo: idLocal,
+        id_jugador: null,
+        minuto: null,
+        observacion: null,
+        tipo_evento_partido_descripcion: tipoGolDescripcion.value,
+        equipo_nombre: nombreLocal,
+        jugador_nombre: null,
+        jugador_apellido: null,
+      })
+    }
+    for (let i = 0; i < golesVisitante; i++) {
+      nuevosGoles.push({
+        id: `auto-visitante-${i}-${Date.now()}`,
+        esPendiente: true,
+        _auto: true,
+        id_evento: Number(partido.id),
+        id_tipo_evento_partido: tipoGolId.value,
+        id_equipo: idVisitante,
+        id_jugador: null,
+        minuto: null,
+        observacion: null,
+        tipo_evento_partido_descripcion: tipoGolDescripcion.value,
+        equipo_nombre: nombreVisitante,
+        jugador_nombre: null,
+        jugador_apellido: null,
+      })
+    }
+
+    incidenciasPendientes.value = [...incidenciasPendientes.value, ...nuevosGoles]
+  }
+)
+
+const jugadorSearch = ref({})
+const openJugadorId = ref(null)
+
+const getJugadoresFiltrados = (idEquipo, searchText) => {
+  const lista = jugadores.value
+    .filter(j => Number(j.id_equipo_actual) === Number(idEquipo))
+    .sort((a, b) => `${a.apellido || ''} ${a.nombre || ''}`.localeCompare(`${b.apellido || ''} ${b.nombre || ''}`))
+
+  if (!searchText || !String(searchText).trim()) return lista
+
+  const q = normalizeText(String(searchText).trim())
+  return lista.filter(j => normalizeText(`${j.apellido || ''} ${j.nombre || ''}`).includes(q))
+}
+
+const toggleJugadorDropdown = (incidenciaId) => {
+  if (openJugadorId.value === incidenciaId) {
+    openJugadorId.value = null
+  } else {
+    openJugadorId.value = incidenciaId
+    jugadorSearch.value[incidenciaId] = ''
+  }
+}
+
+const selectJugadorInline = (incidencia, jugador) => {
+  incidencia.id_jugador = jugador ? Number(jugador.id) : null
+  incidencia.jugador_nombre = jugador?.nombre || null
+  incidencia.jugador_apellido = jugador?.apellido || null
+  openJugadorId.value = null
+}
+
+const closeJugadorDropdown = () => { openJugadorId.value = null }
+
+if (typeof window !== 'undefined') {
+  document.addEventListener('click', closeJugadorDropdown)
 }
 
 const parseNullableInt = (value) => {
@@ -943,6 +1113,10 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.table-warning-soft {
+  background-color: #fffdf0;
+}
+
 .match-summary {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -1071,5 +1245,90 @@ onMounted(() => {
   background: #f1f3f5;
   color: #495057;
   border-color: #dee2e6;
+}
+
+/* ── Jugador inline dropdown ───────────────────────── */
+.jdrop-wrap {
+  position: relative;
+  min-width: 170px;
+}
+
+.jdrop-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.3rem 0.55rem;
+  background: #fff;
+  border: 1px solid #ced4da;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  text-align: left;
+  color: #212529;
+}
+.jdrop-toggle:hover { border-color: #86b7fe; }
+
+.jdrop-value.placeholder { color: #999; }
+
+.jdrop-arrow {
+  font-size: 0.7rem;
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+.jdrop-arrow.open { transform: rotate(180deg); }
+
+.jdrop-menu {
+  position: absolute;
+  z-index: 1050;
+  top: calc(100% + 3px);
+  left: 0;
+  min-width: 220px;
+  background: #fff;
+  border: 1px solid #ced4da;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  overflow: hidden;
+}
+
+.jdrop-search-wrap {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.jdrop-search {
+  width: 100%;
+  border: 1px solid #ced4da;
+  border-radius: 0.3rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8125rem;
+  outline: none;
+}
+.jdrop-search:focus { border-color: #86b7fe; }
+
+.jdrop-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.jdrop-item {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  color: #212529;
+}
+.jdrop-item:hover { background: #f0f6ff; }
+.jdrop-item.active { background: #e8f0fe; font-weight: 600; }
+.jdrop-item-empty { color: #888; font-style: italic; }
+
+.jdrop-empty {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  color: #aaa;
+  font-style: italic;
 }
 </style>

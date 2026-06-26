@@ -12,7 +12,7 @@ class EventoPartido
         $this->conn = $db;
     }
 
-    public function getAll(?int $idEvento = null): array
+    public function getAll(?int $idEvento = null, ?int $idTorneo = null): array
     {
         $sql = "SELECT ep.id, ep.id_evento, ep.id_tipo_evento_partido, ep.id_jugador, ep.id_equipo,
                        ep.minuto, ep.observacion,
@@ -25,8 +25,16 @@ class EventoPartido
                 LEFT JOIN jugador j ON ep.id_jugador = j.id
                 LEFT JOIN equipo e ON ep.id_equipo = e.id";
 
+        $where = [];
         if ($idEvento !== null) {
-            $sql .= " WHERE ep.id_evento = :id_evento";
+            $where[] = "ep.id_evento = :id_evento";
+        }
+        if ($idTorneo !== null) {
+            $sql .= " INNER JOIN evento ev ON ep.id_evento = ev.id";
+            $where[] = "ev.id_torneo = :id_torneo";
+        }
+        if ($where) {
+            $sql .= " WHERE " . implode(' AND ', $where);
         }
 
         $sql .= " ORDER BY ep.id DESC";
@@ -34,6 +42,9 @@ class EventoPartido
         $stmt = $this->conn->prepare($sql);
         if ($idEvento !== null) {
             $stmt->bindValue(':id_evento', $idEvento, PDO::PARAM_INT);
+        }
+        if ($idTorneo !== null) {
+            $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
         }
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);

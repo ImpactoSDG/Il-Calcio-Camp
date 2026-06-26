@@ -177,7 +177,7 @@ class Torneo
                                                   LEFT JOIN equipo_torneo et ON et.id = gte.id_equipo_torneo
                                                   LEFT JOIN equipo e ON e.id = et.id_equipo
                                                   WHERE f.id_torneo = :id_torneo
-                                                    AND UPPER(f.tipo_fase) = 'FASE_DE_GRUPOS'
+                                                    AND UPPER(f.tipo_fase) IN ('FASE_DE_GRUPOS', 'LIGA')
                                                   ORDER BY g.orden ASC, g.id ASC, gte.posicion_inicial ASC");
         $stmtZonasEquipos->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
         $stmtZonasEquipos->execute();
@@ -221,26 +221,44 @@ class Torneo
             ];
         }
 
-        $stmtEventosZona = $this->conn->prepare("SELECT id, titulo, id_equipo_local, id_equipo_visitante,
-                                                        resultado_local, resultado_visitante, id_estado_evento
-                                                 FROM evento
-                                                 WHERE id_torneo = :id_torneo
-                                                   AND LOWER(tipo_evento) = 'partido'
-                                                   AND titulo LIKE 'Zona %'
-                                                   AND id_estado_evento IN (4, 7)
-                                                   AND resultado_local IS NOT NULL
-                                                   AND resultado_visitante IS NOT NULL");
+        // Detectar si es formato Liga (una sola zona sin zona_key por título)
+        $esFormatoLiga = ($torneo['formato_manual'] ?? '') === 'LIGA';
+
+        // Para LIGA: traer eventos por id_equipo directamente (sin depender del título)
+        // Para zonas: traer por título con prefijo "Zona X"
+        $stmtEventosZona = $this->conn->prepare("SELECT ev.id, ev.titulo, ev.id_equipo_local, ev.id_equipo_visitante,
+                                                        ev.resultado_local, ev.resultado_visitante, ev.id_estado_evento,
+                                                        gte_l.id_grupo_torneo AS id_grupo_local,
+                                                        gte_v.id_grupo_torneo AS id_grupo_visitante
+                                                 FROM evento ev
+                                                 LEFT JOIN grupo_torneo_equipo gte_l ON gte_l.id_equipo_torneo = (
+                                                     SELECT et.id FROM equipo_torneo et WHERE et.id_equipo = ev.id_equipo_local AND et.id_torneo = ev.id_torneo LIMIT 1
+                                                 )
+                                                 LEFT JOIN grupo_torneo_equipo gte_v ON gte_v.id_equipo_torneo = (
+                                                     SELECT et.id FROM equipo_torneo et WHERE et.id_equipo = ev.id_equipo_visitante AND et.id_torneo = ev.id_torneo LIMIT 1
+                                                 )
+                                                 WHERE ev.id_torneo = :id_torneo
+                                                   AND LOWER(ev.tipo_evento) = 'partido'
+                                                   AND ev.id_estado_evento IN (4, 7)
+                                                   AND ev.resultado_local IS NOT NULL
+                                                   AND ev.resultado_visitante IS NOT NULL
+                                                   AND (ev.titulo LIKE 'Zona %' OR ev.titulo LIKE 'Liga %')");
         $stmtEventosZona->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
         $stmtEventosZona->execute();
         $eventosZona = $stmtEventosZona->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($eventosZona as $ev) {
-            $zonaKey = $this->extractZonaKey((string)($ev['titulo'] ?? ''));
-            if (!isset($zonaByKey[$zonaKey])) {
-                continue;
+            if ($esFormatoLiga) {
+                // Para LIGA: el único grupo es el primero disponible
+                $idGrupo = !empty($zonas) ? array_key_first($zonas) : null;
+                if ($idGrupo === null) continue;
+            } else {
+                $zonaKey = $this->extractZonaKey((string)($ev['titulo'] ?? ''));
+                if (!isset($zonaByKey[$zonaKey])) {
+                    continue;
+                }
+                $idGrupo = $zonaByKey[$zonaKey];
             }
-
-            $idGrupo = $zonaByKey[$zonaKey];
             $idLocal = isset($ev['id_equipo_local']) ? (int)$ev['id_equipo_local'] : 0;
             $idVisitante = isset($ev['id_equipo_visitante']) ? (int)$ev['id_equipo_visitante'] : 0;
             $golLocal = (int)($ev['resultado_local'] ?? 0);
@@ -316,6 +334,7 @@ class Torneo
         $stmtLlave = $this->conn->prepare("SELECT c.id, c.nombre, c.orden,
                                                   c.origen_local_tipo, c.origen_local_valor,
                                                   c.origen_visitante_tipo, c.origen_visitante_valor,
+                                                  f.tipo_fase,
                                                   ev.id AS id_evento, ev.titulo, ev.numero_fecha, ev.id_estado_evento,
                                                   ee.descripcion AS estado,
                                                   ev.id_equipo_local, el.nombre AS equipo_local_nombre, el.escudo AS equipo_local_escudo,
@@ -334,67 +353,11 @@ class Torneo
         $stmtLlave->execute();
         $cruces = $stmtLlave->fetchAll(PDO::FETCH_ASSOC);
 
-        $minFechaLlave = null;
-        foreach ($cruces as $c) {
-            $num = isset($c['numero_fecha']) ? (int)$c['numero_fecha'] : 0;
-            if ($num <= 0) {
-                continue;
-            }
-            if ($minFechaLlave === null || $num < $minFechaLlave) {
-                $minFechaLlave = $num;
-            }
-        }
+        $crucesGanadores = array_filter($cruces, fn($c) => ($c['tipo_fase'] ?? '') !== 'RUEDA_CONSUELO');
+        $crucesConsuelo  = array_filter($cruces, fn($c) => ($c['tipo_fase'] ?? '') === 'RUEDA_CONSUELO');
 
-        $llaveByRound = [];
-        foreach ($cruces as $c) {
-            $numFecha = isset($c['numero_fecha']) ? (int)$c['numero_fecha'] : 0;
-            $round = 1;
-            if ($minFechaLlave !== null && $numFecha > 0) {
-                $round = ($numFecha - $minFechaLlave) + 1;
-            }
-            if (!isset($llaveByRound[$round])) {
-                $llaveByRound[$round] = [
-                    'round' => $round,
-                    'nombre' => 'Ronda ' . $round,
-                    'partidos' => [],
-                ];
-            }
-
-            $llaveByRound[$round]['partidos'][] = [
-                'id_cruce' => (int)$c['id'],
-                'nombre' => $c['nombre'],
-                'orden' => (int)($c['orden'] ?? 0),
-                'id_evento' => (int)$c['id_evento'],
-                'titulo' => $c['titulo'],
-                'estado' => $c['estado'],
-                'id_estado_evento' => (int)($c['id_estado_evento'] ?? 0),
-                'equipo_local' => [
-                    'id' => isset($c['id_equipo_local']) ? (int)$c['id_equipo_local'] : null,
-                    'nombre' => $c['equipo_local_nombre'] ?? null,
-                    'escudo' => $c['equipo_local_escudo'] ?? null,
-                    'resultado' => isset($c['resultado_local']) ? (int)$c['resultado_local'] : null,
-                    'penales' => isset($c['resultado_penales_local']) ? (int)$c['resultado_penales_local'] : null,
-                ],
-                'equipo_visitante' => [
-                    'id' => isset($c['id_equipo_visitante']) ? (int)$c['id_equipo_visitante'] : null,
-                    'nombre' => $c['equipo_visitante_nombre'] ?? null,
-                    'escudo' => $c['equipo_visitante_escudo'] ?? null,
-                    'resultado' => isset($c['resultado_visitante']) ? (int)$c['resultado_visitante'] : null,
-                    'penales' => isset($c['resultado_penales_visitante']) ? (int)$c['resultado_penales_visitante'] : null,
-                ],
-                'origen_local' => [
-                    'tipo' => $c['origen_local_tipo'],
-                    'valor' => $c['origen_local_valor'],
-                ],
-                'origen_visitante' => [
-                    'tipo' => $c['origen_visitante_tipo'],
-                    'valor' => $c['origen_visitante_valor'],
-                ],
-            ];
-        }
-
-        ksort($llaveByRound);
-        $llave = array_values($llaveByRound);
+        $llave         = $this->buildLlaveFromCruces(array_values($crucesGanadores));
+        $llaveConsuelo = $this->buildLlaveFromCruces(array_values($crucesConsuelo));
 
         $totalPartidos = 0;
         $totalFinalizados = 0;
@@ -406,22 +369,80 @@ class Torneo
             }
         }
 
+        // Para LIGA: tabla_liga es la zona única (todos los equipos juntos)
+        $tablaLiga = null;
+        if ($esFormatoLiga && !empty($zonasList)) {
+            $tablaLiga = $zonasList[0]['equipos'] ?? [];
+        }
+
         return [
             'torneo' => $torneo,
             'fases' => $fases,
-            'fase_actual' => $faseActual,
+            'fase_actual' => $esFormatoLiga ? 'Liga' : $faseActual,
             'resumen' => [
                 'total_partidos' => $totalPartidos,
                 'partidos_finalizados' => $totalFinalizados,
                 'partidos_pendientes' => max(0, $totalPartidos - $totalFinalizados),
                 'eventos_zona_total' => $totZona,
-                'eventos_eliminacion_total' => $totElim,
+                'eventos_eliminacion_total' => $esFormatoLiga ? 0 : $totElim,
             ],
             'estado_partidos' => $estadoPartidos,
             'ultimos_resultados' => $ultimosResultados,
-            'zonas' => $zonasList,
-            'llave' => $llave,
+            'zonas' => $esFormatoLiga ? [] : $zonasList,
+            'tabla_liga' => $tablaLiga,
+            'llave' => $esFormatoLiga ? [] : $llave,
+            'llave_consuelo' => $esFormatoLiga ? [] : $llaveConsuelo,
         ];
+    }
+
+    private function buildLlaveFromCruces(array $cruces): array
+    {
+        $minFecha = null;
+        foreach ($cruces as $c) {
+            $num = (int)($c['numero_fecha'] ?? 0);
+            if ($num > 0 && ($minFecha === null || $num < $minFecha)) {
+                $minFecha = $num;
+            }
+        }
+
+        $byRound = [];
+        foreach ($cruces as $c) {
+            $numFecha = (int)($c['numero_fecha'] ?? 0);
+            $round = ($minFecha !== null && $numFecha > 0) ? ($numFecha - $minFecha) + 1 : 1;
+
+            if (!isset($byRound[$round])) {
+                $byRound[$round] = ['round' => $round, 'nombre' => 'Ronda ' . $round, 'partidos' => []];
+            }
+
+            $byRound[$round]['partidos'][] = [
+                'id_cruce'        => (int)$c['id'],
+                'nombre'          => $c['nombre'],
+                'orden'           => (int)($c['orden'] ?? 0),
+                'id_evento'       => (int)$c['id_evento'],
+                'titulo'          => $c['titulo'],
+                'estado'          => $c['estado'],
+                'id_estado_evento'=> (int)($c['id_estado_evento'] ?? 0),
+                'equipo_local' => [
+                    'id'        => isset($c['id_equipo_local']) ? (int)$c['id_equipo_local'] : null,
+                    'nombre'    => $c['equipo_local_nombre'] ?? null,
+                    'escudo'    => $c['equipo_local_escudo'] ?? null,
+                    'resultado' => isset($c['resultado_local']) ? (int)$c['resultado_local'] : null,
+                    'penales'   => isset($c['resultado_penales_local']) ? (int)$c['resultado_penales_local'] : null,
+                ],
+                'equipo_visitante' => [
+                    'id'        => isset($c['id_equipo_visitante']) ? (int)$c['id_equipo_visitante'] : null,
+                    'nombre'    => $c['equipo_visitante_nombre'] ?? null,
+                    'escudo'    => $c['equipo_visitante_escudo'] ?? null,
+                    'resultado' => isset($c['resultado_visitante']) ? (int)$c['resultado_visitante'] : null,
+                    'penales'   => isset($c['resultado_penales_visitante']) ? (int)$c['resultado_penales_visitante'] : null,
+                ],
+                'origen_local'     => ['tipo' => $c['origen_local_tipo'],     'valor' => $c['origen_local_valor']],
+                'origen_visitante' => ['tipo' => $c['origen_visitante_tipo'],  'valor' => $c['origen_visitante_valor']],
+            ];
+        }
+
+        ksort($byRound);
+        return array_values($byRound);
     }
 
     private function extractZonaKey(string $texto): string
