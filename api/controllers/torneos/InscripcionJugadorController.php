@@ -43,7 +43,7 @@ class InscripcionJugadorController extends BaseController
                 $this->respond(400, ['message' => 'ID y estado_documentacion requeridos.']);
             }
 
-            $estadosValidos = ['pendiente', 'aprobada', 'rechazada'];
+            $estadosValidos = ['pendiente', 'pendiente de revision', 'aprobada', 'rechazada'];
             if (!in_array($estado, $estadosValidos)) {
                 $this->respond(400, ['message' => 'estado_documentacion inválido.']);
             }
@@ -51,6 +51,12 @@ class InscripcionJugadorController extends BaseController
             $jugador = $this->model->getById((int)$id);
             if (!$jugador) {
                 $this->respond(404, ['message' => 'Jugador de inscripción no encontrado.']);
+            }
+
+            $estadoActual = $jugador['estado_documentacion'] ?? '';
+            $estadosFinales = ['aprobada', 'rechazada'];
+            if (in_array($estadoActual, $estadosFinales) && $estado === 'pendiente de revision') {
+                $this->respond(409, ['message' => 'No se puede volver a pendiente de revisión desde ' . $estadoActual . '.']);
             }
 
             if ($this->model->setEstadoDocumentacion((int)$id, $estado)) {

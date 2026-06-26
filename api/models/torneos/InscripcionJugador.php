@@ -16,10 +16,10 @@ class InscripcionJugador
     {
         $sql = "SELECT id, id_inscripcion_equipo, nombre, apellido, dni, fecha_nac,
                        email, telefono, archivo_documentacion, estado_documentacion,
-                       fecha_actualizacion_documentacion
+                       fecha_actualizacion_documentacion, es_capitan, es_arquero
                 FROM {$this->table}
                 WHERE id_inscripcion_equipo = :id_inscripcion_equipo
-                ORDER BY apellido ASC, nombre ASC";
+                ORDER BY es_capitan DESC, apellido ASC, nombre ASC";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id_inscripcion_equipo', $idInscripcionEquipo, PDO::PARAM_INT);
         $stmt->execute();
@@ -29,7 +29,8 @@ class InscripcionJugador
     public function getById(int $id): ?array
     {
         $sql = "SELECT id, id_inscripcion_equipo, nombre, apellido, dni, fecha_nac,
-                       email, telefono, archivo_documentacion, estado_documentacion
+                       email, telefono, archivo_documentacion, estado_documentacion,
+                       es_capitan, es_arquero
                 FROM {$this->table}
                 WHERE id = :id
                 LIMIT 1";
