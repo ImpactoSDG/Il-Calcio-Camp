@@ -33,13 +33,25 @@ class InscripcionEquipo
                        ie.id_torneo,
                        t.nombre AS torneo_nombre,
                        ie.nombre_equipo,
+                       ie.categoria,
+                       ie.nombre_delegado,
+                       ie.telefono_delegado,
+                       ie.email_delegado,
                        ie.id_estado,
                        ei.descripcion AS estado,
                        ie.id_usuario_web_solicitante,
                        uw.email AS email_solicitante,
                        ie.observacion_admin,
                        ie.fecha_creacion,
-                       ie.fecha_actualizacion
+                       ie.fecha_actualizacion,
+                       ie.fecha_actualizacion_estado,
+                       EXISTS (
+                           SELECT 1 FROM inscripcion_jugador ij
+                           WHERE ij.id_inscripcion_equipo = ie.id
+                             AND ij.fecha_actualizacion_documentacion IS NOT NULL
+                             AND ie.fecha_actualizacion_estado IS NOT NULL
+                             AND ij.fecha_actualizacion_documentacion > ie.fecha_actualizacion_estado
+                       ) AS tiene_docs_nuevas
                 FROM {$this->table} ie
                 LEFT JOIN torneo t ON t.id = ie.id_torneo
                 LEFT JOIN estado_inscripcion ei ON ei.id = ie.id_estado
@@ -64,13 +76,18 @@ class InscripcionEquipo
                        ie.id_torneo,
                        t.nombre AS torneo_nombre,
                        ie.nombre_equipo,
+                       ie.categoria,
+                       ie.nombre_delegado,
+                       ie.telefono_delegado,
+                       ie.email_delegado,
                        ie.id_estado,
                        ei.descripcion AS estado,
                        ie.id_usuario_web_solicitante,
                        uw.email AS email_solicitante,
                        ie.observacion_admin,
                        ie.fecha_creacion,
-                       ie.fecha_actualizacion
+                       ie.fecha_actualizacion,
+                       ie.fecha_actualizacion_estado
                 FROM {$this->table} ie
                 LEFT JOIN torneo t ON t.id = ie.id_torneo
                 LEFT JOIN estado_inscripcion ei ON ei.id = ie.id_estado
@@ -118,7 +135,8 @@ class InscripcionEquipo
         $sql = "UPDATE {$this->table}
                 SET id_estado = :id_estado,
                     observacion_admin = :observacion,
-                    fecha_actualizacion = NOW()
+                    fecha_actualizacion = NOW(),
+                    fecha_actualizacion_estado = NOW()
                 WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id_estado', $idEstado, PDO::PARAM_INT);

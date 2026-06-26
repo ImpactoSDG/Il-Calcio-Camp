@@ -15,7 +15,8 @@ class InscripcionJugador
     public function getByInscripcion(int $idInscripcionEquipo): array
     {
         $sql = "SELECT id, id_inscripcion_equipo, nombre, apellido, dni, fecha_nac,
-                       email, telefono, archivo_documentacion, estado_documentacion
+                       email, telefono, archivo_documentacion, estado_documentacion,
+                       fecha_actualizacion_documentacion
                 FROM {$this->table}
                 WHERE id_inscripcion_equipo = :id_inscripcion_equipo
                 ORDER BY apellido ASC, nombre ASC";
@@ -91,7 +92,10 @@ class InscripcionJugador
 
     public function setEstadoDocumentacion(int $id, string $estado): bool
     {
-        $sql = "UPDATE {$this->table} SET estado_documentacion = :estado WHERE id = :id";
+        $sql = "UPDATE {$this->table}
+                SET estado_documentacion = :estado,
+                    fecha_actualizacion_documentacion = NOW()
+                WHERE id = :id";
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':estado', $estado);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);

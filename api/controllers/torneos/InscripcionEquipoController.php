@@ -8,6 +8,10 @@ require_once __DIR__ . '/../../models/torneos/InscripcionJugador.php';
 require_once __DIR__ . '/../../models/torneos/Equipo.php';
 require_once __DIR__ . '/../../models/torneos/Jugador.php';
 require_once __DIR__ . '/../../models/auth/UsuarioWeb.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception as MailerException;
 
 class InscripcionEquipoController extends BaseController
 {
@@ -58,6 +62,8 @@ class InscripcionEquipoController extends BaseController
         try {
             $data = json_decode(file_get_contents('php://input'), true);
             $id = isset($data['id']) ? (int)$data['id'] : null;
+            $emailBody = isset($data['email_body']) ? trim((string)$data['email_body']) : '';
+
             if (!$id) {
                 $this->respond(400, ['message' => 'ID requerido.']);
             }
@@ -76,8 +82,6 @@ class InscripcionEquipoController extends BaseController
 
             // 1. Crear equipo
             $equipoModel = new Equipo($this->db);
-            // id_disciplina se puede extender en el futuro; por ahora se crea sin disciplina
-            // y el admin puede completarla luego desde el módulo de equipos
             $idEquipo = $equipoModel->create(
                 $inscripcion['nombre_equipo'],
                 (int)($data['id_disciplina'] ?? 1),
@@ -101,7 +105,6 @@ class InscripcionEquipoController extends BaseController
             $stmt->execute();
 
             // 2. Inscribir equipo en el torneo (equipo_torneo)
-            // id_estado_inscripcion=1 (pendiente/activo); ajustar si el torneo usa otro estado inicial
             $stmt = $this->db->prepare(
                 'INSERT INTO equipo_torneo (id_equipo, id_torneo, id_estado_inscripcion, fecha_inscripcion)
                  VALUES (:ie, :it, 1, CURDATE())'
@@ -115,13 +118,11 @@ class InscripcionEquipoController extends BaseController
             $usuarioWebModel = new UsuarioWeb($this->db);
 
             foreach ($jugadores as $ij) {
-                // Buscar jugador existente por DNI
                 $jugadorExistente = $jugadorModel->getByDni((string)$ij['dni']);
 
                 if ($jugadorExistente) {
                     $idJugador = (int)$jugadorExistente['id'];
                 } else {
-                    // Insertar directamente para no anidar transacciones (Jugador::create abre la suya)
                     $stmtJ = $this->db->prepare(
                         'INSERT INTO jugador (nombre, apellido, dni, fecha_nac, fecha_alta, activo)
                          VALUES (:nombre, :apellido, :dni, :fecha_nac, :fecha_alta, 1)'
@@ -138,7 +139,6 @@ class InscripcionEquipoController extends BaseController
                     $idJugador = (int)$this->db->lastInsertId();
                 }
 
-                // Asignar jugador al equipo
                 $stmt = $this->db->prepare(
                     'INSERT INTO jugador_equipo (id_jugador, id_equipo, fecha_desde) VALUES (:ij, :ie, NOW())'
                 );
@@ -146,14 +146,12 @@ class InscripcionEquipoController extends BaseController
                 $stmt->bindValue(':ie', $idEquipo, PDO::PARAM_INT);
                 $stmt->execute();
 
-                // 5. Vincular usuario_web ↔ jugador por email
                 $emailJugador = $ij['email'] ?? null;
                 if ($emailJugador) {
                     $uw = $usuarioWebModel->getByEmail((string)$emailJugador);
                     if ($uw) {
                         $usuarioWebModel->vincularJugador((int)$uw['id'], $idJugador);
                     } else {
-                        // Crear usuario_web con password temporal
                         $tempPassword = password_hash(bin2hex(random_bytes(8)), PASSWORD_DEFAULT);
                         $idNuevoUw = $usuarioWebModel->create((string)$emailJugador, $tempPassword);
                         if ($idNuevoUw) {
@@ -167,6 +165,15 @@ class InscripcionEquipoController extends BaseController
             $this->model->cambiarEstado((int)$id, InscripcionEquipo::ESTADO_APROBADA);
 
             $this->db->commit();
+
+            // Enviar email de aprobación si se provee el cuerpo
+            if ($emailBody !== '' && ($inscripcion['email_solicitante'] ?? null)) {
+                $this->enviarEmail(
+                    $inscripcion['email_solicitante'],
+                    'Inscripción aprobada - Il Calcio Camp',
+                    $emailBody
+                );
+            }
 
             $this->respond(200, [
                 'message' => 'Inscripción aprobada. Equipo, jugadores y equipo_torneo creados.',
@@ -186,6 +193,7 @@ class InscripcionEquipoController extends BaseController
             $data = json_decode(file_get_contents('php://input'), true);
             $id = isset($data['id']) ? (int)$data['id'] : null;
             $observacion = isset($data['observacion']) ? trim((string)$data['observacion']) : '';
+            $emailBody = isset($data['email_body']) ? trim((string)$data['email_body']) : '';
 
             if (!$id) {
                 $this->respond(400, ['message' => 'ID requerido.']);
@@ -202,8 +210,17 @@ class InscripcionEquipoController extends BaseController
                 $this->respond(409, ['message' => 'No se puede observar una inscripción ya ' . strtolower($inscripcion['estado']) . '.']);
             }
 
-            $this->model->cambiarEstado((int)$id, InscripcionEquipo::ESTADO_OBSERVADA, $observacion);
-            $this->enviarEmailEstado($inscripcion, 'observada', $observacion);
+            // Guardar el cuerpo completo del email en observacion_admin
+            $textoAGuardar = $emailBody !== '' ? $emailBody : $observacion;
+            $this->model->cambiarEstado((int)$id, InscripcionEquipo::ESTADO_OBSERVADA, $textoAGuardar);
+
+            if ($emailBody !== '' && ($inscripcion['email_solicitante'] ?? null)) {
+                $this->enviarEmail(
+                    $inscripcion['email_solicitante'],
+                    'Inscripción en revisión - Il Calcio Camp',
+                    $emailBody
+                );
+            }
 
             $this->respond(200, ['message' => 'Inscripción marcada como observada.']);
         } catch (Throwable $e) {
@@ -217,6 +234,7 @@ class InscripcionEquipoController extends BaseController
             $data = json_decode(file_get_contents('php://input'), true);
             $id = isset($data['id']) ? (int)$data['id'] : null;
             $observacion = isset($data['observacion']) ? trim((string)$data['observacion']) : '';
+            $emailBody = isset($data['email_body']) ? trim((string)$data['email_body']) : '';
 
             if (!$id) {
                 $this->respond(400, ['message' => 'ID requerido.']);
@@ -233,8 +251,17 @@ class InscripcionEquipoController extends BaseController
                 $this->respond(409, ['message' => 'No se puede rechazar una inscripción ya aprobada.']);
             }
 
-            $this->model->cambiarEstado((int)$id, InscripcionEquipo::ESTADO_RECHAZADA, $observacion);
-            $this->enviarEmailEstado($inscripcion, 'rechazada', $observacion);
+            // Guardar el cuerpo completo del email en observacion_admin
+            $textoAGuardar = $emailBody !== '' ? $emailBody : $observacion;
+            $this->model->cambiarEstado((int)$id, InscripcionEquipo::ESTADO_RECHAZADA, $textoAGuardar);
+
+            if ($emailBody !== '' && ($inscripcion['email_solicitante'] ?? null)) {
+                $this->enviarEmail(
+                    $inscripcion['email_solicitante'],
+                    'Estado de inscripción - Il Calcio Camp',
+                    $emailBody
+                );
+            }
 
             $this->respond(200, ['message' => 'Inscripción rechazada.']);
         } catch (Throwable $e) {
@@ -242,29 +269,26 @@ class InscripcionEquipoController extends BaseController
         }
     }
 
-    private function enviarEmailEstado(array $inscripcion, string $estado, string $observacion): void
+    private function enviarEmail(string $destinatario, string $asunto, string $cuerpo): void
     {
-        $email = $inscripcion['email_solicitante'] ?? null;
-        if (!$email) {
-            return;
+        try {
+            $mail = new PHPMailer(true);
+            $mail->isSMTP();
+            $mail->Host       = $_ENV['SMTP_HOST'] ?? 'mail.impactosdg.com';
+            $mail->SMTPAuth   = true;
+            $mail->Username   = $_ENV['SMTP_USER'] ?? 'ilcalciocamp@impactosdg.com';
+            $mail->Password   = $_ENV['SMTP_PASS'] ?? '';
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+            $mail->Port       = (int)($_ENV['SMTP_PORT'] ?? 465);
+            $mail->CharSet    = 'UTF-8';
+            $mail->setFrom($mail->Username, 'Il Calcio Camp');
+            $mail->addAddress($destinatario);
+            $mail->isHTML(false);
+            $mail->Subject = $asunto;
+            $mail->Body    = $cuerpo;
+            $mail->send();
+        } catch (Throwable $e) {
+            // No bloquear la respuesta HTTP si falla el envío
         }
-
-        $nombreEquipo = htmlspecialchars((string)$inscripcion['nombre_equipo']);
-        $torneo = htmlspecialchars((string)$inscripcion['torneo_nombre']);
-        $estadoLabel = $estado === 'observada' ? 'Observada' : 'Rechazada';
-        $observacionHtml = nl2br(htmlspecialchars($observacion));
-
-        $asunto = "Inscripción {$estadoLabel} - {$nombreEquipo} - {$torneo}";
-        $cuerpo = "
-            <p>Tu inscripción del equipo <strong>{$nombreEquipo}</strong> para el torneo <strong>{$torneo}</strong> fue marcada como <strong>{$estadoLabel}</strong>.</p>
-            <p><strong>Observación:</strong><br>{$observacionHtml}</p>
-            <p>Podés ingresar al portal para ver el detalle o realizar modificaciones si corresponde.</p>
-        ";
-
-        $headers = "MIME-Version: 1.0\r\n";
-        $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-        $headers .= "From: noreply@ilcalciocamp.com\r\n";
-
-        @mail($email, $asunto, $cuerpo, $headers);
     }
 }
