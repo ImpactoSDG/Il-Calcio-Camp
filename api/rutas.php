@@ -429,7 +429,10 @@ switch ($resource) {
         verifyAuth();
         switch ($method) {
             case 'GET':
-                if ($id) {
+                if ($id && isset($_GET['documentos'])) {
+                    $_GET['id'] = $id;
+                    $jugadorController->getDocumentos();
+                } elseif ($id) {
                     $_GET['id'] = $id;
                     $jugadorController->getById();
                 } else {

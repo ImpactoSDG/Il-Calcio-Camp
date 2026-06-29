@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../core/BaseController.php';
 require_once __DIR__ . '/../../models/torneos/Jugador.php';
+require_once __DIR__ . '/../../models/torneos/DocumentoJugador.php';
 
 class JugadorController extends BaseController
 {
     private Jugador $model;
+    private DocumentoJugador $documentoModel;
 
     public function __construct(PDO $db)
     {
         parent::__construct($db);
         $this->model = new Jugador($this->db);
+        $this->documentoModel = new DocumentoJugador($this->db);
     }
 
     /**
@@ -59,6 +62,29 @@ class JugadorController extends BaseController
     }
 
     /**
+     * Obtiene los documentos de un jugador por su ID
+     */
+    public function getDocumentos(): void
+    {
+        try {
+            $id = $_GET['id'] ?? null;
+            if (!$id) {
+                $this->respond(400, ['message' => 'ID requerido.']);
+            }
+
+            $jugador = $this->model->getById((int)$id);
+            if (!$jugador) {
+                $this->respond(404, ['message' => 'Jugador no encontrado.']);
+            }
+
+            $documentos = $this->documentoModel->getByJugador((int)$id);
+            $this->respond(200, $documentos);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al obtener documentos del jugador');
+        }
+    }
+
+    /**
      * Crea un nuevo jugador
      */
     public function store(): void
@@ -88,7 +114,9 @@ class JugadorController extends BaseController
                 isset($data['activo']) ? (bool)$data['activo'] : true,
                 !empty($data['id_equipo_actual']) ? (int)$data['id_equipo_actual'] : null,
                 isset($data['capitan']) ? (bool)$data['capitan'] : false,
-                isset($data['arquero']) ? (bool)$data['arquero'] : false
+                isset($data['arquero']) ? (bool)$data['arquero'] : false,
+                isset($data['email']) && $data['email'] !== '' ? trim((string)$data['email']) : null,
+                isset($data['telefono']) && $data['telefono'] !== '' ? trim((string)$data['telefono']) : null
             );
 
             if ($nuevoId !== false) {
@@ -128,7 +156,9 @@ class JugadorController extends BaseController
                 (bool)$data['activo'],
                 !empty($data['id_equipo_actual']) ? (int)$data['id_equipo_actual'] : null,
                 isset($data['capitan']) ? (bool)$data['capitan'] : false,
-                isset($data['arquero']) ? (bool)$data['arquero'] : false
+                isset($data['arquero']) ? (bool)$data['arquero'] : false,
+                isset($data['email']) && $data['email'] !== '' ? trim((string)$data['email']) : null,
+                isset($data['telefono']) && $data['telefono'] !== '' ? trim((string)$data['telefono']) : null
             )) {
                 $this->respond(200, ['message' => 'Jugador actualizado exitosamente.']);
             }

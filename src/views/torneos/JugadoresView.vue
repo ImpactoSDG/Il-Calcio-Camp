@@ -48,6 +48,10 @@
               </td>
               <td class="pe-4 text-end">
                 <div class="d-flex gap-1 justify-content-end flex-nowrap">
+                  <button @click="openDetalle(item)" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 px-2 py-1" title="Ver detalle">
+                    <i class="bi bi-eye fs-6"></i>
+                    <span class="small fw-bold">Ver</span>
+                  </button>
                   <button @click="openModal(item)" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 px-2 py-1" title="Editar">
                     <i class="bi bi-pencil fs-6"></i>
                     <span class="small fw-bold">Editar</span>
@@ -69,6 +73,128 @@
       </div>
     </div>
 
+    <!-- Modal de detalle del jugador -->
+    <Teleport to="body">
+      <div v-if="showDetalleModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);" @click.self="showDetalleModal = false">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">
+                <i class="bi bi-person-lines-fill me-2"></i>
+                {{ jugadorDetalle?.apellido }}, {{ jugadorDetalle?.nombre }}
+              </h5>
+              <button type="button" class="btn-close" @click="showDetalleModal = false"></button>
+            </div>
+            <div class="modal-body">
+
+              <!-- Datos del jugador -->
+              <h6 class="fw-bold text-secondary text-uppercase mb-3" style="font-size: 0.75rem; letter-spacing: 0.05em;">
+                <i class="bi bi-person me-1"></i> Datos personales
+              </h6>
+              <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                  <label class="form-label text-muted small mb-1">DNI</label>
+                  <div class="fw-medium">{{ jugadorDetalle?.dni || '-' }}</div>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label text-muted small mb-1">Fecha de nacimiento</label>
+                  <div class="fw-medium">{{ formatDate(jugadorDetalle?.fecha_nac) }}</div>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label text-muted small mb-1">Fecha de alta</label>
+                  <div class="fw-medium">{{ formatDate(jugadorDetalle?.fecha_alta) }}</div>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label text-muted small mb-1">Equipo actual</label>
+                  <div class="fw-medium">{{ jugadorDetalle?.equipo_nombre || 'Sin asignar' }}</div>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label text-muted small mb-1">Email</label>
+                  <div class="fw-medium">
+                    <a v-if="jugadorDetalle?.email" :href="`mailto:${jugadorDetalle.email}`" class="text-decoration-none text-dark">{{ jugadorDetalle.email }}</a>
+                    <span v-else class="text-muted">-</span>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label text-muted small mb-1">Teléfono</label>
+                  <div class="fw-medium">
+                    <a v-if="jugadorDetalle?.telefono" :href="`tel:${jugadorDetalle.telefono}`" class="text-decoration-none text-dark">{{ jugadorDetalle.telefono }}</a>
+                    <span v-else class="text-muted">-</span>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label text-muted small mb-1">Estado</label>
+                  <div>
+                    <span :class="jugadorDetalle?.activo ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary'" class="badge rounded-pill px-3">
+                      {{ jugadorDetalle?.activo ? 'Activo' : 'Inactivo' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <hr class="my-3" />
+
+              <!-- Historial de documentación -->
+              <h6 class="fw-bold text-secondary text-uppercase mb-3" style="font-size: 0.75rem; letter-spacing: 0.05em;">
+                <i class="bi bi-file-earmark-text me-1"></i> Historial de documentación
+              </h6>
+
+              <div v-if="loadingDocumentos" class="text-center py-4">
+                <div class="spinner-border spinner-border-sm text-primary-custom" role="status"></div>
+                <span class="ms-2 text-muted small">Cargando documentos...</span>
+              </div>
+
+              <div v-else-if="documentos.length === 0" class="text-center py-4 text-muted">
+                <i class="bi bi-inbox fs-4 d-block mb-2"></i>
+                No hay documentos cargados para este jugador.
+              </div>
+
+              <div v-else class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th class="ps-3 py-2 text-uppercase" style="font-size: 0.72rem; color: #6c757d;">#</th>
+                      <th class="py-2 text-uppercase" style="font-size: 0.72rem; color: #6c757d;">Archivo</th>
+                      <th v-if="columnasDocumento.includes('fecha_carga')" class="py-2 text-uppercase" style="font-size: 0.72rem; color: #6c757d;">Fecha carga</th>
+                      <th class="pe-3 py-2 text-end text-uppercase" style="font-size: 0.72rem; color: #6c757d;">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(doc, index) in documentos" :key="doc.id">
+                      <td class="ps-3 text-muted small">{{ index + 1 }}</td>
+                      <td>
+                        <div class="d-flex align-items-center gap-2">
+                          <i :class="iconoDocumento(doc.url)" class="fs-5 text-secondary"></i>
+                          <span class="small fw-medium text-truncate" style="max-width: 280px;" :title="doc.url">{{ doc.url }}</span>
+                        </div>
+                      </td>
+                      <td v-if="columnasDocumento.includes('fecha_carga')" class="text-muted small">
+                        {{ formatDate(doc.fecha_carga) }}
+                      </td>
+                      <td class="pe-3 text-end">
+                        <button @click="verDocumento(doc.url)" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 px-2 py-1">
+                          <i class="bi bi-eye fs-6"></i>
+                          <span class="small fw-bold">Ver</span>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+            <div class="modal-footer">
+              <button @click="openModal(jugadorDetalle)" type="button" class="btn btn-outline-success px-3">
+                <i class="bi bi-pencil me-1"></i> Editar
+              </button>
+              <button @click="showDetalleModal = false" type="button" class="btn btn-light px-4">Cerrar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Modal de formulario (crear/editar) -->
     <Teleport to="body">
       <div v-if="showFormModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
         <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -102,6 +228,14 @@
                   <div class="col-md-4">
                     <label class="form-label">Fecha de Alta</label>
                     <input v-model="form.fecha_alta" type="date" class="form-control" />
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Email</label>
+                    <input v-model.trim="form.email" type="email" class="form-control" placeholder="Ej: jugador@email.com" />
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Teléfono</label>
+                    <input v-model.trim="form.telefono" type="tel" class="form-control" placeholder="Ej: 3516001234" />
                   </div>
                   <div class="col-md-12">
                     <label class="form-label">Equipo actual</label>
@@ -155,19 +289,21 @@ import FuzzySearch from '@/components/FuzzySearch.vue';
 import SortableTableHead, { useSorting } from '@/components/SortableTableHead.vue';
 import datosMaestrosService from '@/services/datosMaestrosService';
 import { useToastStore } from '@/stores/toastStore';
+import { useUserStore } from '@/stores/userStore';
 
 const toast = useToastStore();
+const userStore = useUserStore();
 
 const { sortKey, sortDir, handleSort, sortItems } = useSorting();
 
 const columns = [
-  { key: 'apellido',   label: 'Jugador',            sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary' },
-  { key: 'dni',        label: 'DNI',                sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
-  { key: 'equipo_nombre', label: 'Equipo',          sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
-  { key: 'fecha_nac',  label: 'Fecha Nac.',         sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
-  { key: 'fecha_alta', label: 'Fecha Alta',         sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
-  { key: 'activo',     label: 'Estado',             sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width: 120px' },
-  { key: 'acciones',   label: 'Acciones',           sortable: false, thClass: 'pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary text-end' },
+  { key: 'apellido',      label: 'Jugador',     sortable: true,  thClass: 'ps-4 py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'dni',           label: 'DNI',         sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'equipo_nombre', label: 'Equipo',      sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'fecha_nac',     label: 'Fecha Nac.',  sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'fecha_alta',    label: 'Fecha Alta',  sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary' },
+  { key: 'activo',        label: 'Estado',      sortable: true,  thClass: 'py-3 text-uppercase fs-xs fw-bold text-secondary text-center', thStyle: 'width: 120px' },
+  { key: 'acciones',      label: 'Acciones',    sortable: false, thClass: 'pe-4 py-3 text-uppercase fs-xs fw-bold text-secondary text-end' },
 ];
 
 const jugadores = ref([]);
@@ -186,13 +322,23 @@ const jugadoresFiltrados = computed(() => {
   }
   return sortItems(items);
 });
+
 const loading = ref(false);
 const showFormModal = ref(false);
 const showDeleteModal = ref(false);
+const showDetalleModal = ref(false);
 const isEditing = ref(false);
 const isSaving = ref(false);
 const isDeleting = ref(false);
 const idToDelete = ref(null);
+const jugadorDetalle = ref(null);
+const documentos = ref([]);
+const loadingDocumentos = ref(false);
+
+const columnasDocumento = computed(() => {
+  if (!documentos.value.length) return [];
+  return Object.keys(documentos.value[0]);
+});
 
 const form = ref({
   id: null,
@@ -201,6 +347,8 @@ const form = ref({
   dni: '',
   fecha_nac: '',
   fecha_alta: '',
+  email: '',
+  telefono: '',
   id_equipo_actual: null,
   activo: true,
 });
@@ -218,6 +366,20 @@ const formatDate = (value) => {
 };
 
 const todayString = () => new Date().toISOString().slice(0, 10);
+
+const iconoDocumento = (url) => {
+  const ext = (url || '').split('.').pop().toLowerCase();
+  if (ext === 'pdf') return 'bi bi-file-earmark-pdf text-danger';
+  if (['jpg', 'jpeg', 'png'].includes(ext)) return 'bi bi-file-earmark-image text-primary';
+  return 'bi bi-file-earmark text-secondary';
+};
+
+const verDocumento = (nombreArchivo) => {
+  const apiUrl = import.meta.env.VITE_API_URL;
+  const token = userStore.token;
+  const url = `${apiUrl}/fichas/${encodeURIComponent(nombreArchivo)}?token=${encodeURIComponent(token)}`;
+  window.open(url, '_blank');
+};
 
 const fetchData = async () => {
   loading.value = true;
@@ -239,7 +401,22 @@ const fetchData = async () => {
   }
 };
 
+const openDetalle = async (item) => {
+  jugadorDetalle.value = item;
+  documentos.value = [];
+  showDetalleModal.value = true;
+  loadingDocumentos.value = true;
+  try {
+    documentos.value = await datosMaestrosService.getDocumentosJugador(item.id);
+  } catch {
+    toast.showToast({ message: 'Error al cargar los documentos del jugador.', type: 'danger' });
+  } finally {
+    loadingDocumentos.value = false;
+  }
+};
+
 const openModal = (item = null) => {
+  showDetalleModal.value = false;
   if (item) {
     isEditing.value = true;
     form.value = {
@@ -247,6 +424,8 @@ const openModal = (item = null) => {
       dni: item.dni ?? '',
       fecha_nac: normalizeDate(item.fecha_nac),
       fecha_alta: normalizeDate(item.fecha_alta),
+      email: item.email ?? '',
+      telefono: item.telefono ?? '',
       id_equipo_actual: item.id_equipo_actual ? Number(item.id_equipo_actual) : null,
       activo: Boolean(Number(item.activo)),
     };
@@ -260,6 +439,8 @@ const openModal = (item = null) => {
       dni: '',
       fecha_nac: '',
       fecha_alta: todayString(),
+      email: '',
+      telefono: '',
       id_equipo_actual: null,
       activo: true,
     };
@@ -274,6 +455,8 @@ const buildPayload = () => ({
   dni: form.value.dni?.trim() || null,
   fecha_nac: form.value.fecha_nac || null,
   fecha_alta: form.value.fecha_alta || null,
+  email: form.value.email?.trim() || null,
+  telefono: form.value.telefono?.trim() || null,
   id_equipo_actual: form.value.id_equipo_actual || null,
   activo: Boolean(form.value.activo),
 });
@@ -296,6 +479,8 @@ const save = async () => {
     dni: originalForm.value.dni || null,
     fecha_nac: originalForm.value.fecha_nac || null,
     fecha_alta: originalForm.value.fecha_alta || null,
+    email: originalForm.value.email?.trim() || null,
+    telefono: originalForm.value.telefono?.trim() || null,
     id_equipo_actual: originalForm.value.id_equipo_actual || null,
     activo: Boolean(originalForm.value.activo),
   })) {
