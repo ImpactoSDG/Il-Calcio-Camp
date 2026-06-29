@@ -2628,6 +2628,7 @@ class PlanTorneoController extends BaseController
                         AND LOWER(ev.tipo_evento) = 'partido'
                         AND ev.fecha_hora_inicio IS NOT NULL
                         AND ev.fecha_hora_inicio <= NOW()
+                        AND ev.id_estado_evento <> 1
                   )";
 
         $stmt = $this->db->prepare($sql);

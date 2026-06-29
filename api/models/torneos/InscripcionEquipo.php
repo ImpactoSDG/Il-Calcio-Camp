@@ -34,6 +34,18 @@ class InscripcionEquipo
                        t.nombre AS torneo_nombre,
                        ie.nombre_equipo,
                        ie.categoria,
+                       (SELECT CONCAT(ij2.nombre, ' ', ij2.apellido)
+                        FROM inscripcion_jugador ij2
+                        WHERE ij2.id_inscripcion_equipo = ie.id AND ij2.es_capitan = 1
+                        LIMIT 1) AS nombre_capitan,
+                       (SELECT ij2.telefono
+                        FROM inscripcion_jugador ij2
+                        WHERE ij2.id_inscripcion_equipo = ie.id AND ij2.es_capitan = 1
+                        LIMIT 1) AS telefono_capitan,
+                       (SELECT ij2.email
+                        FROM inscripcion_jugador ij2
+                        WHERE ij2.id_inscripcion_equipo = ie.id AND ij2.es_capitan = 1
+                        LIMIT 1) AS email_capitan,
                        ie.id_estado,
                        ei.descripcion AS estado,
                        ie.id_usuario_web_solicitante,
@@ -74,6 +86,18 @@ class InscripcionEquipo
                        t.nombre AS torneo_nombre,
                        ie.nombre_equipo,
                        ie.categoria,
+                       (SELECT CONCAT(ij2.nombre, ' ', ij2.apellido)
+                        FROM inscripcion_jugador ij2
+                        WHERE ij2.id_inscripcion_equipo = ie.id AND ij2.es_capitan = 1
+                        LIMIT 1) AS nombre_capitan,
+                       (SELECT ij2.telefono
+                        FROM inscripcion_jugador ij2
+                        WHERE ij2.id_inscripcion_equipo = ie.id AND ij2.es_capitan = 1
+                        LIMIT 1) AS telefono_capitan,
+                       (SELECT ij2.email
+                        FROM inscripcion_jugador ij2
+                        WHERE ij2.id_inscripcion_equipo = ie.id AND ij2.es_capitan = 1
+                        LIMIT 1) AS email_capitan,
                        ie.id_estado,
                        ei.descripcion AS estado,
                        ie.id_usuario_web_solicitante,
