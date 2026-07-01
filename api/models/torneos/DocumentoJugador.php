@@ -33,4 +33,13 @@ class DocumentoJugador
         $stmt->execute();
         return (bool)$stmt->fetch();
     }
+
+    public function getByJugador(int $idJugador): array
+    {
+        $sql = "SELECT * FROM {$this->table} WHERE id_jugador = :id_jugador ORDER BY id ASC";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':id_jugador', $idJugador, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }

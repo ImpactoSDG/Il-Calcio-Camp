@@ -26,6 +26,7 @@ class Jugador
     public function getAll(): array
     {
         $sql = "SELECT j.id, j.nombre, j.apellido, j.dni, j.fecha_nac, j.fecha_alta, j.activo,
+                   j.email, j.telefono,
                    je.id_equipo AS id_equipo_actual,
                    e.nombre AS equipo_nombre,
                    e.id_disciplina AS equipo_id_disciplina
@@ -44,6 +45,7 @@ class Jugador
     public function getActivos(): array
     {
         $sql = "SELECT j.id, j.nombre, j.apellido, j.dni, j.fecha_nac, j.fecha_alta, j.activo,
+                   j.email, j.telefono,
                    je.id_equipo AS id_equipo_actual,
                    e.nombre AS equipo_nombre,
                    e.id_disciplina AS equipo_id_disciplina
@@ -63,6 +65,7 @@ class Jugador
     public function getById(int $id): ?array
     {
         $sql = "SELECT j.id, j.nombre, j.apellido, j.dni, j.fecha_nac, j.fecha_alta, j.activo,
+                   j.email, j.telefono,
                    je.id_equipo AS id_equipo_actual,
                    e.nombre AS equipo_nombre,
                    e.id_disciplina AS equipo_id_disciplina
@@ -84,6 +87,7 @@ class Jugador
     public function getByDni(string $dni): ?array
     {
         $sql = "SELECT j.id, j.nombre, j.apellido, j.dni, j.fecha_nac, j.fecha_alta, j.activo,
+                   j.email, j.telefono,
                    je.id_equipo AS id_equipo_actual,
                    e.nombre AS equipo_nombre,
                    e.id_disciplina AS equipo_id_disciplina
@@ -140,13 +144,13 @@ class Jugador
     /**
      * Crea un nuevo jugador
      */
-    public function create(string $nombre, string $apellido, ?string $dni, ?string $fechaNac, ?string $fechaAlta, bool $activo = true, ?int $idEquipoActual = null, bool $capitan = false, bool $arquero = false): int|false
+    public function create(string $nombre, string $apellido, ?string $dni, ?string $fechaNac, ?string $fechaAlta, bool $activo = true, ?int $idEquipoActual = null, bool $capitan = false, bool $arquero = false, ?string $email = null, ?string $telefono = null): int|false
     {
         try {
             $this->conn->beginTransaction();
 
-            $sql = "INSERT INTO {$this->table} (nombre, apellido, dni, fecha_nac, fecha_alta, activo)
-                    VALUES (:nombre, :apellido, :dni, :fecha_nac, :fecha_alta, :activo)";
+            $sql = "INSERT INTO {$this->table} (nombre, apellido, dni, fecha_nac, fecha_alta, activo, email, telefono)
+                    VALUES (:nombre, :apellido, :dni, :fecha_nac, :fecha_alta, :activo, :email, :telefono)";
             $stmt = $this->conn->prepare($sql);
             $stmt->bindValue(':nombre', $nombre);
             $stmt->bindValue(':apellido', $apellido);
@@ -154,6 +158,8 @@ class Jugador
             $stmt->bindValue(':fecha_nac', $fechaNac);
             $stmt->bindValue(':fecha_alta', $fechaAlta);
             $stmt->bindValue(':activo', $activo ? 1 : 0, PDO::PARAM_INT);
+            $stmt->bindValue(':email', $email);
+            $stmt->bindValue(':telefono', $telefono);
 
             if (!$stmt->execute()) {
                 $this->conn->rollBack();
@@ -179,7 +185,7 @@ class Jugador
     /**
      * Actualiza un jugador
      */
-    public function update(int $id, string $nombre, string $apellido, ?string $dni, ?string $fechaNac, ?string $fechaAlta, bool $activo, ?int $idEquipoActual = null, bool $capitan = false, bool $arquero = false): bool
+    public function update(int $id, string $nombre, string $apellido, ?string $dni, ?string $fechaNac, ?string $fechaAlta, bool $activo, ?int $idEquipoActual = null, bool $capitan = false, bool $arquero = false, ?string $email = null, ?string $telefono = null): bool
     {
         try {
             $this->conn->beginTransaction();
@@ -190,7 +196,9 @@ class Jugador
                         dni = :dni,
                         fecha_nac = :fecha_nac,
                         fecha_alta = :fecha_alta,
-                        activo = :activo
+                        activo = :activo,
+                        email = :email,
+                        telefono = :telefono
                     WHERE id = :id";
             $stmt = $this->conn->prepare($sql);
             $stmt->bindValue(':nombre', $nombre);
@@ -199,6 +207,8 @@ class Jugador
             $stmt->bindValue(':fecha_nac', $fechaNac);
             $stmt->bindValue(':fecha_alta', $fechaAlta);
             $stmt->bindValue(':activo', $activo ? 1 : 0, PDO::PARAM_INT);
+            $stmt->bindValue(':email', $email);
+            $stmt->bindValue(':telefono', $telefono);
             $stmt->bindValue(':id', $id, PDO::PARAM_INT);
 
             if (!$stmt->execute()) {
