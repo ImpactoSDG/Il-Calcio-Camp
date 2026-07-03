@@ -497,8 +497,8 @@ import { ref, computed, onMounted, watch } from 'vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import FuzzySearch from '@/components/FuzzySearch.vue';
 import CustomNumberInput from '@/components/CustomNumberInput.vue';
-import articulosservice from '@/services/inventario/articulosservice';
-import datosMaestrosservice from '@/services/datosMaestrosservice';
+import articulosService from '@/services/inventario/articulosService';
+import datosMaestrosService from '@/services/datosMaestrosService';
 import { useToastStore } from '@/stores/toastStore';
 import { formatNumber } from '@/utils/formatters';
 
@@ -663,7 +663,7 @@ const aplicarBulk = async () => {
   calcularPrevisualizacion();
   isApplying.value = true;
   try {
-    const result = await articulosservice.bulkUpdatePrecios(bulkCampo.value, previsualizacionMap.value);
+    const result = await articulosService.bulkUpdatePrecios(bulkCampo.value, previsualizacionMap.value);
     toast.showToast({ message: result.message || 'Precios actualizados.', type: 'success' });
     closeBulkModal();
     limpiarSeleccion();
@@ -687,7 +687,7 @@ const openBulkStatusModal = (status) => {
 const executeBulkStatusUpdate = async () => {
   isApplyingStatus.value = true;
   try {
-    const result = await articulosservice.bulkUpdateStatus(seleccionados.value, targetStatus.value);
+    const result = await articulosService.bulkUpdateStatus(seleccionados.value, targetStatus.value);
     toast.showToast({ message: result.message || 'Estados actualizados.', type: 'success' });
     
     // Actualización optimista
@@ -737,8 +737,8 @@ const fetchData = async () => {
   loading.value = true;
   try {
     [articulos.value, categorias.value] = await Promise.all([
-      articulosservice.getArticulos(),
-      datosMaestrosservice.getCategorias(),
+      articulosService.getArticulos(),
+      datosMaestrosService.getCategorias(),
     ]);
   } catch {
     toast.showToast({ message: 'Error al cargar los artículos.', type: 'danger' });
@@ -780,18 +780,18 @@ const save = async () => {
   try {
     let savedArticulo = null;
     if (isEditing.value) {
-      await articulosservice.actualizarArticulo(form.value);
+      await articulosService.actualizarArticulo(form.value);
       savedArticulo = form.value;
       toast.showToast({ message: 'Artículo actualizado.', type: 'success' });
     } else {
-      const resp = await articulosservice.crearArticulo(form.value);
+      const resp = await articulosService.crearArticulo(form.value);
       savedArticulo = { ...form.value, id: resp.id };
       toast.showToast({ message: 'Artículo creado.', type: 'success' });
     }
 
     // Subir imagen si hay un archivo seleccionado
     if (fileToUpload.value && savedArticulo.id) {
-      await articulosservice.subirImagen(savedArticulo.id, savedArticulo.nombre, fileToUpload.value);
+      await articulosService.subirImagen(savedArticulo.id, savedArticulo.nombre, fileToUpload.value);
     }
     
     showFormModal.value = false;
@@ -811,7 +811,7 @@ const prepareDelete = (id) => { idToDelete.value = id; showDeleteModal.value = t
 const confirmDelete = async () => {
   isDeleting.value = true;
   try {
-    await articulosservice.eliminarArticulo(idToDelete.value);
+    await articulosService.eliminarArticulo(idToDelete.value);
     toast.showToast({ message: 'Artículo eliminado del sistema.', type: 'success' });
     showDeleteModal.value = false;
     fetchData();
