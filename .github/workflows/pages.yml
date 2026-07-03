@@ -25,7 +25,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      VITE_API_URL: https://ilcalciocamp.impactosdg.com/api
+      VITE_API_URL: https://il-calcio-camp.impactosdg.com/api
     steps:
       - name: Checkout
         uses: actions/checkout@v4
