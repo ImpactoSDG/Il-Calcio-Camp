@@ -454,6 +454,7 @@
 import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
 import { useToastStore } from '@/stores/toastStore';
 import { formatMoney } from '@/utils/formatters';
+import { resolverClienteRapido } from '@/utils/clienteRapido';
 import { VENTA_STATES } from '@/constants/states';
 import QuickClientModal from '@/components/venta/QuickClientModal.vue';
 import QuickAssignTeamModal from '@/components/venta/QuickAssignTeamModal.vue';
@@ -556,18 +557,11 @@ const openEditQuickClient = () => {
 };
 
 const handleQuickClientConfirm = (cliente) => {
-  if (cliente.id && !String(cliente.id).startsWith('temp-')) {
-    // Es una edición de un cliente real o ya persistido en esta sesión
-    emit('client-created', { ...cliente, isUpdate: true });
-  } else if (!cliente.id) {
-    // Es un nuevo cliente
-    cliente.isNew = true;
-    emit('client-created', cliente);
-  } else {
-    // Es un cliente temporal que se está editando
-    emit('client-created', { ...cliente, isUpdate: true, isTemp: true });
-  }
-  
+  // La decisión de tratar al cliente como nuevo o como edición vive en un helper
+  // puro (testeable) para evitar el bug de clasificación por formato de id.
+  const { payload } = resolverClienteRapido(cliente);
+  emit('client-created', payload);
+
   // Asignar a la venta inmediatamente
   form.value.id_cliente = cliente.id;
   queryCliente.value = cliente.nombre_cliente; // Sincronizar el buscador con el nombre

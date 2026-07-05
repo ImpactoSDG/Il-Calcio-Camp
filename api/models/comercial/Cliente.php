@@ -13,6 +13,22 @@ class Cliente
     }
 
     /**
+     * Normaliza el valor de cuit_dni para la columna entera de la base.
+     * Un string vacío (o null) se convierte en NULL para evitar el error de
+     * MySQL "Incorrect integer value: ''" al insertar/actualizar.
+     *
+     * @param int|string|null $valor
+     * @return int|null
+     */
+    public static function normalizarCuitDni($valor): ?int
+    {
+        if ($valor === null || $valor === '') {
+            return null;
+        }
+        return (int)$valor;
+    }
+
+    /**
      * Obtiene todos los clientes con información relacionada y saldo
      */
     public function getAll(): array
@@ -125,10 +141,12 @@ class Cliente
     {
         $sql = "INSERT INTO {$this->table} (id, nombre_cliente, cuit_dni, id_condicion_iva_receptor, direccion, id_provinica, telefono) 
                 VALUES (:id, :nombre_cliente, :cuit_dni, :id_condicion_iva_receptor, :direccion, :id_provinica, :telefono)";
+        $cuitDniLimpio = self::normalizarCuitDni($cuit_dni);
+
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':id', $id, $id ? PDO::PARAM_INT : PDO::PARAM_NULL);
         $stmt->bindValue(':nombre_cliente', $nombreCliente);
-        $stmt->bindValue(':cuit_dni', $cuit_dni);
+        $stmt->bindValue(':cuit_dni', $cuitDniLimpio, $cuitDniLimpio === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
         $stmt->bindValue(':id_condicion_iva_receptor', $idCondicionIvaReceptor, $idCondicionIvaReceptor ? PDO::PARAM_INT : PDO::PARAM_NULL);
         $stmt->bindValue(':direccion', $direccion);
         $stmt->bindValue(':id_provinica', $idProvincia, $idProvincia ? PDO::PARAM_INT : PDO::PARAM_NULL);
@@ -153,9 +171,11 @@ class Cliente
                     id_provinica = :id_provinica,
                     telefono = :telefono 
                 WHERE id = :id";
+        $cuitDniLimpio = self::normalizarCuitDni($cuit_dni);
+
         $stmt = $this->conn->prepare($sql);
         $stmt->bindValue(':nombre_cliente', $nombreCliente);
-        $stmt->bindValue(':cuit_dni', $cuit_dni);
+        $stmt->bindValue(':cuit_dni', $cuitDniLimpio, $cuitDniLimpio === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
         $stmt->bindValue(':id_condicion_iva_receptor', $idCondicionIvaReceptor, $idCondicionIvaReceptor !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
         $stmt->bindValue(':direccion', $direccion);
         $stmt->bindValue(':id_provinica', $idProvincia, $idProvincia !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
