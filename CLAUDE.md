@@ -13,9 +13,21 @@ npm install       # Install frontend dependencies
 npm run dev       # Start Vite dev server (localhost:5173)
 npm run build     # Build for production → dist/
 npm run preview   # Preview production build
+npm test          # Run frontend unit tests (Vitest, run-once)
+npm run test:watch # Run frontend tests in watch mode
 ```
 
 Backend is PHP/Apache — no build step. API changes take effect immediately.
+
+## Testing
+
+**Frontend (Vitest + @vue/test-utils):** Pure-logic tests live next to the source as `*.test.js` (e.g. `src/utils/*.test.js`). Prefer extracting decision logic into pure functions (`src/utils/`) and testing those instead of mounting whole components. Run with `npm test`.
+
+**Backend (PHPUnit):** Two suites under `api/tests/`:
+- `unit/` — pure tests, no database (fast). Run: `cd api && composer test:unit`.
+- `integration/` — hit a **local** MySQL test DB (`DatabaseTestCase` cleans up only the rows it creates, so it is safe on a copy of prod data). Run: `cd api && composer test:integration`. `composer test` runs both.
+
+Integration setup: copy `api/.env.testing.example` → `api/.env.testing`, create a dedicated DB whose name contains `test` (a safety check refuses any other name), and load the schema (e.g. a copy of production structure). Connection is lazy, so `unit` runs without any DB.
 
 ## Configuration
 

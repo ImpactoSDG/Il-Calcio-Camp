@@ -21,3 +21,8 @@ build/
 *.sql
 *.zip
 *.tar.gz
+
+# Testing
+/api/.env.testing
+/api/.phpunit.cache/
+coverage/
