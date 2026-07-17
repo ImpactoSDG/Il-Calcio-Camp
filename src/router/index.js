@@ -1,5 +1,6 @@
 ﻿import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { useTorneoGestionStore } from '@/stores/torneoGestionStore'
 
 // --- Auth ---
 import LoginView from '@/views/auth/LoginView.vue'
@@ -20,6 +21,8 @@ import ArbitrosView from '@/views/torneos/ArbitrosView.vue'
 import CalendarioTorneosView from '@/views/torneos/CalendarioTorneosView.vue'
 import EquiposView from '@/views/torneos/EquiposView.vue'
 import GestionTorneosView from '@/views/torneos/GestionTorneosView.vue'
+import InscripcionesPagosTorneoView from '@/views/torneos/InscripcionesPagosTorneoView.vue'
+import AsignacionesTorneoView from '@/views/torneos/AsignacionesTorneoView.vue'
 import JugadoresView from '@/views/torneos/JugadoresView.vue'
 import PlanTorneoView from '@/views/torneos/PlanTorneoView.vue'
 import RtadoPartidoView from '@/views/torneos/RtadoPartidoView.vue'
@@ -203,6 +206,18 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/torneos/inscripciones-pagos',
+      name: 'inscripciones-pagos-torneo',
+      component: InscripcionesPagosTorneoView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/torneos/asignaciones',
+      name: 'asignaciones-torneo',
+      component: AsignacionesTorneoView,
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/rtadopartido',
       name: 'rtadopartido',
       component: RtadoPartidoView,
@@ -284,6 +299,22 @@ router.beforeEach((to, from, next) => {
   }
 
   next()
+})
+
+// El torneo seleccionado en "Gestión de torneos" se comparte entre sus vistas
+// (inscripciones, asignaciones, calendario) mientras el usuario se mueve entre
+// ellas, y se olvida apenas navega a una vista fuera de ese grupo.
+const RUTAS_MODULO_GESTION_TORNEOS = [
+  'gestiontorneos',
+  'calendario-torneos',
+  'inscripciones-pagos-torneo',
+  'asignaciones-torneo',
+]
+
+router.afterEach((to) => {
+  if (!RUTAS_MODULO_GESTION_TORNEOS.includes(to.name)) {
+    useTorneoGestionStore().limpiar()
+  }
 })
 
 export default router

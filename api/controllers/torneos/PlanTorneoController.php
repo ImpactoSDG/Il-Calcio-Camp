@@ -384,6 +384,18 @@ class PlanTorneoController extends BaseController
                         $sqlInscriptos = "SELECT et.id, et.id_equipo, e.nombre AS equipo_nombre, e.escudo,
                                                                          et.id_estado_inscripcion, ei.descripcion AS estado_inscripcion,
                                                                          et.fecha_inscripcion,
+                                     (SELECT ie.id FROM inscripcion_equipo ie
+                                       WHERE ie.id_torneo = et.id_torneo AND ie.id_estado = 8
+                                         AND UPPER(TRIM(ie.nombre_equipo)) = UPPER(TRIM(e.nombre))
+                                       ORDER BY ie.fecha_actualizacion_estado DESC LIMIT 1) AS id_inscripcion_equipo,
+                                     (SELECT ie.comprobante_pago FROM inscripcion_equipo ie
+                                       WHERE ie.id_torneo = et.id_torneo AND ie.id_estado = 8
+                                         AND UPPER(TRIM(ie.nombre_equipo)) = UPPER(TRIM(e.nombre))
+                                       ORDER BY ie.fecha_actualizacion_estado DESC LIMIT 1) AS comprobante_pago,
+                                     (SELECT ie.fecha_actualizacion_comprobante_pago FROM inscripcion_equipo ie
+                                       WHERE ie.id_torneo = et.id_torneo AND ie.id_estado = 8
+                                         AND UPPER(TRIM(ie.nombre_equipo)) = UPPER(TRIM(e.nombre))
+                                       ORDER BY ie.fecha_actualizacion_estado DESC LIMIT 1) AS fecha_actualizacion_comprobante_pago,
                                      MAX(CASE WHEN gte.id IS NULL THEN 0 ELSE 1 END) AS asignado
                               FROM equipo_torneo et
                               INNER JOIN equipo e ON e.id = et.id_equipo

@@ -91,6 +91,16 @@
                 <i class="bi" :class="Number(modulo.favorito) === 1 ? 'bi-star-fill' : 'bi-star'"></i>
               </button>
 
+              <!-- Indicador de notificaciones solo para Gestionar Torneos -->
+              <div
+                v-if="esModuloGestionTorneos(modulo) && notificacionesStore.totalSolicitudesPendientes > 0"
+                class="notification-badge-menu position-absolute"
+                :title="`${notificacionesStore.totalSolicitudesPendientes} solicitud(es) pendiente(s)`"
+              >
+                <i class="bi bi-bell-fill"></i>
+                <span class="notification-count">{{ notificacionesStore.totalSolicitudesPendientes }}</span>
+              </div>
+
               <!-- Link Externo -->
               <a
                 v-if="modulo.ruta && (modulo.ruta.startsWith('http://') || modulo.ruta.startsWith('https://'))"
@@ -130,23 +140,30 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useUserStore } from '@/stores/userStore';
+import { useNotificacionesTorneoStore } from '@/stores/notificacionesTorneoStore';
 
 const userStore = useUserStore();
+const notificacionesStore = useNotificacionesTorneoStore();
 
 // ── Función para transformar rutas de submenu ──────────────────────────────
 const generarRuta = (modulo) => {
   if (!modulo.ruta) return '#';
-  
+
   // Si la ruta es /submenu/numero, transformar a /submenu/nombre
   const match = modulo.ruta.match(/^\/submenu\/\d+$/);
   if (match) {
     const nombreSubmenu = modulo.nombre.toLowerCase().replace(/\s+/g, '-');
     return `/submenu/${nombreSubmenu}`;
   }
-  
+
   return modulo.ruta;
+};
+
+// ── Detectar si es específicamente el módulo "Gestionar torneos" ──────────
+const esModuloGestionTorneos = (modulo) => {
+  return String(modulo.ruta || '').toLowerCase() === '/gestiontorneos';
 };
 
 // ── Orden fijo de categorías ───────────────────────────────────────────────
@@ -296,6 +313,10 @@ function onDrop(event, categoria, toIndex) {
   dragInfo.value = { categoria: null, fromIndex: null };
   draggingKey.value = null;
 }
+
+onMounted(() => {
+  notificacionesStore.cargarTorneos();
+});
 </script>
 
 <style scoped>
@@ -393,7 +414,7 @@ function onDrop(event, categoria, toIndex) {
 }
 
 .card-grid--favoritos {
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(160px, 160px));
   gap: 1rem;
 }
 
@@ -401,6 +422,11 @@ function onDrop(event, categoria, toIndex) {
   background-color: #fffbee;
   border-color: #fde68a;
   padding: 1.4rem 1rem;
+  height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .favorito-wrapper :deep(.action-card:hover) {
@@ -413,9 +439,57 @@ function onDrop(event, categoria, toIndex) {
   height: 48px;
   font-size: 1.5rem;
   margin-bottom: 0.9rem;
+  flex-shrink: 0;
 }
 
 .favorito-wrapper :deep(.card-label) {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  text-align: center;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-clamp: 2;
+  overflow: hidden;
+  word-break: break-word;
+  line-height: 1.2;
+}
+
+/* Indicador de notificaciones en módulos (lado opuesto a la estrella) */
+.notification-badge-menu {
+  top: 10px;
+  left: 10px;
+  z-index: 15;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffc107;
+  font-size: 1.15rem;
+}
+
+.notification-badge-menu i {
+  position: relative;
+  font-size: 1.15rem;
+}
+
+.notification-badge-menu .notification-count {
+  position: absolute;
+  bottom: -2px;
+  right: -6px;
+  background: #dc3545;
+  color: white;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  min-width: 18px;
+  padding: 0;
 }
 </style>

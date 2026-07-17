@@ -31,7 +31,7 @@
         </div>
       </div>
 
-      <div class="table-responsive">
+      <div class="table-responsive eventos-table-wrap">
         <table class="table table-hover align-middle mb-0">
           <SortableTableHead
             :columns="columns"
@@ -40,29 +40,65 @@
             @sort="handleSort"
           />
           <tbody class="bg-white">
-            <tr v-for="item in eventosFiltrados" :key="item.id">
-              <td class="fw-medium text-dark">{{ item.titulo }}</td>
-              <td class="text-muted text-capitalize">{{ item.tipo_evento }}</td>
-              <td class="text-muted">{{ item.estado_evento_descripcion || item.id_estado_evento }}</td>
-              <td class="text-muted">{{ formatDateTime(item.fecha_hora_inicio) }}</td>
-              <td class="text-muted">{{ formatTeams(item) }}</td>
-              <td class="text-muted">{{ formatResult(item) }}</td>
-              <td class="text-center">
-                <span class="badge rounded-pill px-3 bg-primary-subtle text-primary-custom">{{ item.numero_fecha || '-' }}</span>
-              </td>
-              <td class="pe-4 text-end">
-                <div class="d-flex gap-1 justify-content-end flex-nowrap">
-                  <button @click="openModal(item)" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 px-2 py-1" title="Editar">
-                    <i class="bi bi-pencil fs-6"></i>
-                    <span class="small fw-bold">Editar</span>
+            <template v-for="grupo in eventosAgrupadosPorTorneo" :key="grupo.key">
+              <tr class="torneo-group-row">
+                <td colspan="8" class="p-0">
+                  <button
+                    type="button"
+                    class="torneo-group-toggle px-4 py-3"
+                    :aria-expanded="isGrupoAbierto(grupo.key)"
+                    @click="toggleGrupo(grupo.key)"
+                  >
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 w-100">
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="torneo-group-icon">
+                        <i class="bi bi-trophy"></i>
+                      </span>
+                      <div>
+                        <div class="fw-bold text-dark">{{ grupo.nombre }}</div>
+                      </div>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 justify-content-md-end">
+                      <span class="badge rounded-pill bg-white text-secondary border">{{ grupo.items.length }} evento{{ grupo.items.length === 1 ? '' : 's' }}</span>
+                      <span v-if="grupo.rangoFechas" class="badge rounded-pill bg-white text-secondary border">{{ grupo.rangoFechas }}</span>
+                      <span class="torneo-group-chevron">
+                        <i class="bi" :class="isGrupoAbierto(grupo.key) ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+                      </span>
+                    </div>
+                    </div>
                   </button>
-                  <button @click="prepareDelete(item.id)" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1" title="Eliminar">
-                    <i class="bi bi-trash3 fs-6"></i>
-                    <span class="small fw-bold">Eliminar</span>
-                  </button>
-                </div>
-              </td>
-            </tr>
+                </td>
+              </tr>
+              <template v-if="isGrupoAbierto(grupo.key)">
+                <tr v-for="item in grupo.items" :key="item.id">
+                  <td class="fw-medium text-dark ps-4">{{ item.titulo }}</td>
+                  <td class="text-muted text-capitalize">{{ item.tipo_evento }}</td>
+                  <td class="text-muted">{{ item.estado_evento_descripcion || item.id_estado_evento }}</td>
+                  <td class="text-muted">{{ formatDateTime(item.fecha_hora_inicio) }}</td>
+                  <td class="text-muted">{{ formatTeams(item) }}</td>
+                  <td class="text-muted">{{ formatResult(item) }}</td>
+                  <td class="text-center">
+                    <span class="badge rounded-pill px-3 bg-primary-subtle text-primary-custom">{{ item.numero_fecha || '-' }}</span>
+                  </td>
+                  <td class="pe-4 text-end">
+                    <div class="d-flex gap-1 justify-content-end flex-nowrap">
+                      <button @click="openDetalleEvento(item)" class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 px-2 py-1" title="Ver detalle">
+                        <i class="bi bi-eye fs-6"></i>
+                        <span class="small fw-bold">Ver</span>
+                      </button>
+                      <button @click="openModal(item)" class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 px-2 py-1" title="Editar">
+                        <i class="bi bi-pencil fs-6"></i>
+                        <span class="small fw-bold">Editar</span>
+                      </button>
+                      <button @click="prepareDelete(item.id)" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 px-2 py-1" title="Eliminar">
+                        <i class="bi bi-trash3 fs-6"></i>
+                        <span class="small fw-bold">Eliminar</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </template>
             <tr v-if="eventosFiltrados.length === 0 && !loading">
               <td colspan="8" class="text-center py-5 text-muted">
                 No hay eventos que coincidan con la búsqueda.
@@ -155,7 +191,7 @@
                   </div>
                   <div class="col-md-4">
                     <label class="form-label">Tipo partido</label>
-                    <div class="form-text mt-2">Los equipos y resultados aplican sobre todo a eventos de tipo partido.</div>
+                    <div class="form-text mt-2">Los equipos aplican sobre todo a eventos de tipo partido.</div>
                   </div>
 
                   <div class="col-md-6">
@@ -177,21 +213,11 @@
                     </select>
                   </div>
 
-                  <div class="col-md-3">
-                    <label class="form-label">Resultado local</label>
-                    <input v-model.number="form.resultado_local" type="number" class="form-control" min="0" placeholder="Opcional" />
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label">Resultado visitante</label>
-                    <input v-model.number="form.resultado_visitante" type="number" class="form-control" min="0" placeholder="Opcional" />
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label">Penales local</label>
-                    <input v-model.number="form.resultado_penales_local" type="number" class="form-control" min="0" placeholder="Opcional" />
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label">Penales visitante</label>
-                    <input v-model.number="form.resultado_penales_visitante" type="number" class="form-control" min="0" placeholder="Opcional" />
+                  <div v-if="isEditing && (form.resultado_local !== null || form.resultado_visitante !== null)" class="col-12">
+                    <div class="alert alert-info py-2 mb-0">
+                      Resultado actual: {{ form.resultado_local ?? '-' }} - {{ form.resultado_visitante ?? '-' }}.
+                      Se modifica desde Resultado de Partido.
+                    </div>
                   </div>
                 </div>
               </div>
@@ -203,6 +229,110 @@
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div v-if="showDetalleModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">
+                <i class="bi bi-eye me-2"></i>
+                Detalle del evento
+              </h5>
+              <button type="button" class="btn-close" @click="showDetalleModal = false"></button>
+            </div>
+            <div class="modal-body">
+              <div v-if="detalleEvento" class="row g-3 mb-4">
+                <div class="col-12 col-lg-6">
+                  <div class="detalle-box h-100">
+                    <div class="small text-muted">Evento</div>
+                    <div class="fw-bold text-dark">{{ detalleEvento.titulo }}</div>
+                    <div class="text-muted small mt-1">{{ detalleEvento.descripcion || 'Sin descripcion' }}</div>
+                  </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                  <div class="detalle-box h-100">
+                    <div class="small text-muted">Torneo</div>
+                    <div class="fw-semibold">{{ detalleEvento.torneo_nombre || 'Sin torneo' }}</div>
+                  </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                  <div class="detalle-box h-100">
+                    <div class="small text-muted">Estado</div>
+                    <div class="fw-semibold">{{ detalleEvento.estado_evento_descripcion || detalleEvento.id_estado_evento || '-' }}</div>
+                  </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                  <div class="detalle-box h-100">
+                    <div class="small text-muted">Inicio</div>
+                    <div class="fw-semibold">{{ formatDateTime(detalleEvento.fecha_hora_inicio) }}</div>
+                  </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                  <div class="detalle-box h-100">
+                    <div class="small text-muted">Cancha</div>
+                    <div class="fw-semibold">{{ detalleEvento.cancha_nombre || 'Sin cancha' }}</div>
+                  </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                  <div class="detalle-box h-100">
+                    <div class="small text-muted">Equipos</div>
+                    <div class="fw-semibold">{{ formatTeams(detalleEvento) }}</div>
+                  </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                  <div class="detalle-box h-100">
+                    <div class="small text-muted">Resultado</div>
+                    <div class="fw-bold fs-5">{{ formatResult(detalleEvento) }}</div>
+                    <div class="small text-muted">Penales: {{ formatPenales(detalleEvento) }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold text-secondary mb-0">Detalle</h6>
+                <span class="badge rounded-pill bg-light text-secondary border">{{ detalleIncidencias.length }} incidencia{{ detalleIncidencias.length === 1 ? '' : 's' }}</span>
+              </div>
+
+              <div v-if="detalleLoading" class="text-center py-4">
+                <div class="spinner-border text-primary-custom" role="status">
+                  <span class="visually-hidden">Cargando...</span>
+                </div>
+              </div>
+
+              <div v-else class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Tipo</th>
+                      <th>Equipo</th>
+                      <th>Jugador</th>
+                      <th>Minuto</th>
+                      <th>Observacion</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="incidencia in detalleIncidencias" :key="incidencia.id">
+                      <td class="fw-semibold">{{ incidencia.tipo_evento_partido_descripcion || '-' }}</td>
+                      <td>{{ incidencia.equipo_nombre || '-' }}</td>
+                      <td>{{ formatJugadorIncidencia(incidencia) }}</td>
+                      <td>{{ incidencia.minuto ?? '-' }}</td>
+                      <td>{{ incidencia.observacion || '-' }}</td>
+                    </tr>
+                    <tr v-if="detalleIncidencias.length === 0">
+                      <td colspan="5" class="text-center text-muted py-4">Sin incidencias registradas.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-light px-4" @click="showDetalleModal = false">Cerrar</button>
+            </div>
           </div>
         </div>
       </div>
@@ -252,13 +382,18 @@ const estadosEvento = ref([]);
 const torneos = ref([]);
 const canchas = ref([]);
 const searchQuery = ref('');
+const gruposAbiertos = ref([]);
 const loading = ref(false);
 const showFormModal = ref(false);
+const showDetalleModal = ref(false);
 const showDeleteModal = ref(false);
 const isEditing = ref(false);
 const isSaving = ref(false);
 const isDeleting = ref(false);
+const detalleLoading = ref(false);
 const idToDelete = ref(null);
+const detalleEvento = ref(null);
+const detalleIncidencias = ref([]);
 
 const emptyForm = () => ({
   id: null,
@@ -294,6 +429,12 @@ const formatDateTime = (value) => {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('es-AR');
 };
 
+const formatDateShort = (value) => {
+  if (!value) return null;
+  const date = new Date(String(value).replace(' ', 'T'));
+  return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString('es-AR');
+};
+
 const formatTeams = (item) => {
   if (!item.id_equipo_local && !item.id_equipo_visitante) return '-';
   return `${item.equipo_local_nombre || 'Local'} vs ${item.equipo_visitante_nombre || 'Visitante'}`;
@@ -304,6 +445,20 @@ const formatResult = (item) => {
   const visitante = item.resultado_visitante;
   if (local == null && visitante == null) return '-';
   return `${local ?? '-'} - ${visitante ?? '-'}`;
+};
+
+const formatPenales = (item) => {
+  const local = item?.resultado_penales_local;
+  const visitante = item?.resultado_penales_visitante;
+  if (local == null && visitante == null) return '-';
+  return `${local ?? '-'} - ${visitante ?? '-'}`;
+};
+
+const formatJugadorIncidencia = (incidencia) => {
+  const nombre = incidencia?.jugador_nombre || '';
+  const apellido = incidencia?.jugador_apellido || '';
+  if (!nombre && !apellido) return '-';
+  return apellido ? `${apellido}${nombre ? `, ${nombre}` : ''}` : nombre;
 };
 
 const eventosFiltrados = computed(() => {
@@ -323,6 +478,63 @@ const eventosFiltrados = computed(() => {
   }
   return sortItems(items);
 });
+
+const getTorneoNombre = (item) => {
+  if (item.torneo_nombre) return item.torneo_nombre;
+  if (item.id_torneo) return `Torneo ${item.id_torneo}`;
+  return 'Sin torneo';
+};
+
+const eventosAgrupadosPorTorneo = computed(() => {
+  const grupos = new Map();
+
+  eventosFiltrados.value.forEach((item) => {
+    const key = item.id_torneo ? `torneo-${item.id_torneo}` : 'sin-torneo';
+    if (!grupos.has(key)) {
+      grupos.set(key, {
+        key,
+        nombre: getTorneoNombre(item),
+        items: [],
+      });
+    }
+    grupos.get(key).items.push(item);
+  });
+
+  return Array.from(grupos.values()).map((grupo) => {
+    const fechas = grupo.items
+      .map(item => ({
+        raw: item.fecha_hora_inicio,
+        time: new Date(String(item.fecha_hora_inicio || '').replace(' ', 'T')).getTime(),
+      }))
+      .filter(item => !Number.isNaN(item.time))
+      .sort((a, b) => a.time - b.time);
+
+    const primeraFecha = fechas[0]?.raw ? formatDateShort(fechas[0].raw) : null;
+    const ultimaFecha = fechas[fechas.length - 1]?.raw ? formatDateShort(fechas[fechas.length - 1].raw) : null;
+    const rangoFechas = primeraFecha && ultimaFecha
+      ? primeraFecha === ultimaFecha ? primeraFecha : `${primeraFecha} - ${ultimaFecha}`
+      : '';
+
+    return {
+      ...grupo,
+      rangoFechas,
+    };
+  });
+});
+
+const isGrupoAbierto = (key) => {
+  if (searchQuery.value.trim()) return true;
+  return gruposAbiertos.value.includes(key);
+};
+
+const toggleGrupo = (key) => {
+  if (gruposAbiertos.value.includes(key)) {
+    gruposAbiertos.value = gruposAbiertos.value.filter(item => item !== key);
+    return;
+  }
+
+  gruposAbiertos.value = [...gruposAbiertos.value, key];
+};
 
 const getApiMessage = (error, fallback) => error?.response?.data?.message || fallback;
 
@@ -372,12 +584,28 @@ const openModal = (item = null) => {
       resultado_penales_local: item.resultado_penales_local ?? null,
       resultado_penales_visitante: item.resultado_penales_visitante ?? null,
     };
-    originalForm.value = { ...form.value };
+    originalForm.value = buildPayload();
   } else {
     isEditing.value = false;
     form.value = emptyForm();
   }
   showFormModal.value = true;
+};
+
+const openDetalleEvento = async (item) => {
+  detalleEvento.value = item;
+  detalleIncidencias.value = [];
+  showDetalleModal.value = true;
+  detalleLoading.value = true;
+
+  try {
+    const data = await eventosService.getEventosPartido(item.id);
+    detalleIncidencias.value = Array.isArray(data) ? data : [];
+  } catch (error) {
+    toast.showToast({ message: getApiMessage(error, 'No se pudieron cargar las incidencias del evento.'), type: 'danger' });
+  } finally {
+    detalleLoading.value = false;
+  }
 };
 
 const buildPayload = () => ({
@@ -394,10 +622,6 @@ const buildPayload = () => ({
   id_arbitro: form.value.id_arbitro || null,
   id_equipo_local: form.value.id_equipo_local || null,
   id_equipo_visitante: form.value.id_equipo_visitante || null,
-  resultado_local: form.value.resultado_local ?? null,
-  resultado_visitante: form.value.resultado_visitante ?? null,
-  resultado_penales_local: form.value.resultado_penales_local ?? null,
-  resultado_penales_visitante: form.value.resultado_penales_visitante ?? null,
 });
 
 const save = async () => {
@@ -465,6 +689,63 @@ onMounted(fetchData);
 <style scoped>
 .fs-xs { font-size: 0.75rem; }
 .btn-link { text-decoration: none; }
+.detalle-box {
+  border: 1px solid #dfe7f0;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  padding: 0.85rem 1rem;
+}
+.eventos-table-wrap {
+  max-height: calc(100vh - 220px);
+  overflow: auto;
+}
+.eventos-table-wrap :deep(thead th) {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: #f8f9fa;
+  box-shadow: 0 1px 0 #dfe7f0;
+}
+.torneo-group-row td {
+  background: #f4f7fb;
+  border-top: 1px solid #dfe7f0;
+  border-bottom: 1px solid #dfe7f0;
+}
+.torneo-group-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+.torneo-group-toggle:hover {
+  background: #eef4fb;
+}
+.torneo-group-toggle:focus-visible {
+  outline: 2px solid #86b7fe;
+  outline-offset: -2px;
+}
+.torneo-group-icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #0d6efd;
+  background: #e8f1ff;
+  flex: 0 0 auto;
+}
+.torneo-group-chevron {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef3f8;
+  color: #5f7285;
+}
 .loading-overlay-local {
   position: absolute;
   top: 0; left: 0; width: 100%; height: 100%;

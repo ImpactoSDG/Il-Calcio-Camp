@@ -53,6 +53,43 @@ class TorneoController extends BaseController
         }
     }
 
+    public function update(): void
+    {
+        try {
+            $data = json_decode(file_get_contents('php://input'), true);
+
+            $id = isset($data['id']) ? (int)$data['id'] : 0;
+            if ($id <= 0 || empty($data['nombre'])) {
+                $this->respond(400, ['message' => 'ID y nombre del torneo son requeridos.']);
+            }
+
+            if (!$this->model->exists($id, true)) {
+                $this->respond(404, ['message' => 'Torneo no encontrado.']);
+            }
+
+            $idEstadoTorneo = isset($data['id_estado_torneo']) && $data['id_estado_torneo'] !== ''
+                ? (int)$data['id_estado_torneo']
+                : null;
+            $fechaInicio = isset($data['fecha_inicio']) && $data['fecha_inicio'] !== ''
+                ? (string)$data['fecha_inicio']
+                : null;
+            $descripcion = isset($data['descripcion']) && $data['descripcion'] !== ''
+                ? (string)$data['descripcion']
+                : null;
+            $valorInscripcion = isset($data['valor_inscripcion']) && $data['valor_inscripcion'] !== ''
+                ? (float)$data['valor_inscripcion']
+                : null;
+
+            if ($this->model->actualizar($id, trim((string)$data['nombre']), $idEstadoTorneo, $fechaInicio, $descripcion, $valorInscripcion)) {
+                $this->respond(200, ['message' => 'Torneo actualizado correctamente.']);
+            }
+
+            $this->respond(500, ['message' => 'Error al actualizar torneo.']);
+        } catch (Throwable $e) {
+            $this->handleError($e, 'Error al actualizar torneo');
+        }
+    }
+
     public function delete(): void
     {
         try {

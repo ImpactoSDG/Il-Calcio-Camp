@@ -1028,27 +1028,28 @@ const guardarTodo = async () => {
   if (!validarGolesVsMarcador()) return
 
   const payloadResultado = buildResultadoPayload()
+  const incidenciasCrear = incidenciasPendientes.value.map(item => ({
+    id_tipo_evento_partido: Number(item.id_tipo_evento_partido),
+    minuto: parseNullableInt(item.minuto),
+    observacion: item.observacion || null,
+    id_jugador: parseNullableInt(item.id_jugador),
+    id_equipo: Number(item.id_equipo),
+  }))
   const cantidadNuevas = incidenciasPendientes.value.length
   const cantidadEliminadas = incidenciasEliminadasIds.value.length
 
   savingTodo.value = true
   try {
-    await eventosService.actualizarEvento(payloadResultado)
-
-    for (const id of incidenciasEliminadasIds.value) {
-      await eventosService.eliminarEventoPartido(id)
-    }
-
-    for (const item of incidenciasPendientes.value) {
-      await eventosService.crearEventoPartido({
-        id_evento: Number(partido.id),
-        id_tipo_evento_partido: Number(item.id_tipo_evento_partido),
-        minuto: parseNullableInt(item.minuto),
-        observacion: item.observacion || null,
-        id_jugador: parseNullableInt(item.id_jugador),
-        id_equipo: Number(item.id_equipo),
-      })
-    }
+    await eventosService.reportarResultadoPartido({
+      id_evento: Number(partido.id),
+      id_estado_evento: payloadResultado.id_estado_evento,
+      resultado_local: payloadResultado.resultado_local,
+      resultado_visitante: payloadResultado.resultado_visitante,
+      resultado_penales_local: payloadResultado.resultado_penales_local,
+      resultado_penales_visitante: payloadResultado.resultado_penales_visitante,
+      incidencias_eliminar_ids: incidenciasEliminadasIds.value.map(id => Number(id)),
+      incidencias_crear: incidenciasCrear,
+    })
 
     incidencias.value = await eventosService.getEventosPartido(partido.id)
     incidenciasPendientes.value = []

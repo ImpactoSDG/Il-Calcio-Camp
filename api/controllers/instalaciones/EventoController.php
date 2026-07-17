@@ -67,12 +67,17 @@ class EventoController extends BaseController
     {
         try {
             $data = json_decode(file_get_contents('php://input'), true);
+            if (!is_array($data)) {
+                $this->respond(400, ['message' => 'Datos invalidos.']);
+            }
             $id = $data['id'] ?? null;
             if (!$id) {
                 $this->respond(400, ['message' => 'ID requerido.']);
             }
 
+            $actualizaResultado = $this->hasAnyResultadoField($data);
             $payload = $this->validateAndNormalize($data, true);
+            $payload = $this->preserveMissingResultadoFields((int)$id, $payload, $data);
             $this->db->beginTransaction();
 
             if (!$this->model->update((int)$id, $payload)) {
@@ -82,8 +87,8 @@ class EventoController extends BaseController
                 $this->respond(500, ['message' => 'Error al actualizar evento.']);
             }
 
-            $idGanador = $this->resolveWinnerTeamId($payload);
             $asignacionesAplicadas = 0;
+            $idGanador = $actualizaResultado ? $this->resolveWinnerTeamId($payload) : null;
             if ($idGanador !== null) {
                 $asignacionesAplicadas = $this->propagarGanadorCruce((int)$id, $idGanador);
             }
@@ -101,6 +106,57 @@ class EventoController extends BaseController
             }
             $this->handleError($e, 'Error al actualizar evento');
         }
+    }
+
+    private function hasAnyResultadoField(array $data): bool
+    {
+        foreach ([
+            'resultado_local',
+            'resultado_visitante',
+            'resultado_penales_local',
+            'resultado_penales_visitante',
+        ] as $field) {
+            if (array_key_exists($field, $data)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function preserveMissingResultadoFields(int $idEvento, array $payload, array $data): array
+    {
+        $fields = [
+            'resultado_local',
+            'resultado_visitante',
+            'resultado_penales_local',
+            'resultado_penales_visitante',
+        ];
+
+        $missing = array_filter($fields, fn ($field) => !array_key_exists($field, $data));
+        if (empty($missing)) {
+            return $payload;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT resultado_local, resultado_visitante, resultado_penales_local, resultado_penales_visitante
+             FROM evento
+             WHERE id = :id
+             LIMIT 1'
+        );
+        $stmt->bindValue(':id', $idEvento, PDO::PARAM_INT);
+        $stmt->execute();
+        $actual = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$actual) {
+            return $payload;
+        }
+
+        foreach ($missing as $field) {
+            $payload[$field] = $this->nullableInt($actual[$field] ?? null);
+        }
+
+        return $payload;
     }
 
     private function resolveWinnerTeamId(array $payload): ?int

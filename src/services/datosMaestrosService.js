@@ -31,14 +31,18 @@ const datosMaestrosService = {
   actualizarCancha: (data) => api.put('/canchas', data).then(r => r.data),
   eliminarCancha: (id) => api.delete('/canchas', { data: { id } }).then(r => r.data),
 
-  // --- Torneos (/torneos) --- solo lectura
+  // --- Torneos (/torneos) ---
   getTorneos: () => api.get('/torneos').then(r => r.data),
+  actualizarTorneo: (data) => api.put('/torneos', data).then(r => r.data),
   eliminarTorneo: (id, motivoBaja = null) => api.delete('/torneos', {
     data: {
       id,
       motivo_baja: motivoBaja,
     },
   }).then(r => r.data),
+
+  // --- Estados de Torneo (/estados-torneo) --- solo lectura
+  getEstadosTorneo: () => api.get('/estados-torneo').then(r => r.data),
 
   // --- Equipos (/equipos) ---
   getEquipos: () => api.get('/equipos').then(r => r.data),

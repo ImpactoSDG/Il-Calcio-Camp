@@ -10,6 +10,7 @@ const eventosService = {
   getEventosPartido: (idEvento) => api.get('/eventos-partido', { params: { id_evento: idEvento } }).then(r => r.data),
   getEventosPartidoByTorneo: (idTorneo) => api.get('/eventos-partido', { params: { id_torneo: idTorneo } }).then(r => r.data),
   crearEventoPartido: (data) => api.post('/eventos-partido', data).then(r => r.data),
+  reportarResultadoPartido: (data) => api.post('/eventos-partido/reportar-resultado', data).then(r => r.data),
   eliminarEventoPartido: (id) => api.delete('/eventos-partido', { data: { id } }).then(r => r.data),
 };
 

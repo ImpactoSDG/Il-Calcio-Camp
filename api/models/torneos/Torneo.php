@@ -30,7 +30,7 @@ class Torneo
                 LEFT JOIN (
                     SELECT id_torneo, COUNT(*) AS solicitudes_pendientes
                     FROM inscripcion_equipo
-                    WHERE id_estado = 1
+                    WHERE id_estado IN (1, 2, 3, 7)
                     GROUP BY id_torneo
                 ) ie ON ie.id_torneo = t.id
                 WHERE COALESCE(t.activo, 1) = 1
@@ -477,6 +477,44 @@ class Torneo
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
         $stmt->execute();
         return (bool)$stmt->fetchColumn();
+    }
+
+    public function actualizar(
+        int $id,
+        string $nombre,
+        ?int $idEstadoTorneo,
+        ?string $fechaInicio,
+        ?string $descripcion = null,
+        ?float $valorInscripcion = null
+    ): bool {
+        $sql = "UPDATE {$this->table}
+                SET nombre = :nombre,
+                    id_estado_torneo = :id_estado_torneo,
+                    fecha_inicio = :fecha_inicio,
+                    descripcion = :descripcion,
+                    valor_inscripcion = :valor_inscripcion
+                WHERE id = :id
+                  AND COALESCE(activo, 1) = 1";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':nombre', $nombre);
+        if ($idEstadoTorneo !== null) {
+            $stmt->bindValue(':id_estado_torneo', $idEstadoTorneo, PDO::PARAM_INT);
+        } else {
+            $stmt->bindValue(':id_estado_torneo', null, PDO::PARAM_NULL);
+        }
+        if ($fechaInicio !== null && trim($fechaInicio) !== '') {
+            $stmt->bindValue(':fecha_inicio', $fechaInicio);
+        } else {
+            $stmt->bindValue(':fecha_inicio', null, PDO::PARAM_NULL);
+        }
+        if ($descripcion !== null && trim($descripcion) !== '') {
+            $stmt->bindValue(':descripcion', trim($descripcion));
+        } else {
+            $stmt->bindValue(':descripcion', null, PDO::PARAM_NULL);
+        }
+        $stmt->bindValue(':valor_inscripcion', $valorInscripcion ?? 0.0);
+        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+        return $stmt->execute();
     }
 
     public function softDelete(int $idTorneo, ?int $deletedBy = null, ?string $motivo = null): bool

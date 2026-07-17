@@ -85,6 +85,9 @@ const props = defineProps({
   },
 })
 
+const currentMonth = defineModel({ default: () => new Date(new Date().getFullYear(), new Date().getMonth(), 1) })
+const today = new Date()
+
 const weekDays = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom']
 
 const getDateKey = (dt) => {
@@ -132,8 +135,6 @@ const getEstadoEventoDotClass = (ev) => {
   return 'calendar-mini-dot-otro'
 }
 
-const today = new Date()
-const currentMonth = ref(new Date(today.getFullYear(), today.getMonth(), 1))
 const selectedDateKey = ref(getDateKey(today))
 
 const normalizedEvents = computed(() => {

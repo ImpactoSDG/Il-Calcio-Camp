@@ -23,6 +23,7 @@ require_once __DIR__ . '/controllers/torneos/InscripcionJugadorController.php';
 require_once __DIR__ . '/controllers/torneos/EquipoController.php';
 require_once __DIR__ . '/controllers/torneos/JugadorController.php';
 require_once __DIR__ . '/controllers/torneos/TorneoController.php';
+require_once __DIR__ . '/controllers/torneos/EstadoTorneoController.php';
 require_once __DIR__ . '/controllers/torneos/PlanTorneoController.php';
 require_once __DIR__ . '/controllers/torneos/ClienteEquipoController.php';
 require_once __DIR__ . '/controllers/torneos/TipoEventoPartidoController.php';
@@ -93,6 +94,7 @@ $eventoController = new EventoController($db);
 $estadoEventoController = new EstadoEventoController($db);
 $canchaController = new CanchaController($db);
 $torneoController = new TorneoController($db);
+$estadoTorneoController = new EstadoTorneoController($db);
 $planTorneoController = new PlanTorneoController($db);
 $clienteEquipoController = new ClienteEquipoController($db);
 $articuloVentaIngresoArticuloController = new ArticuloVentaIngresoArticuloController($db);
@@ -535,11 +537,22 @@ switch ($resource) {
             } else {
                 $torneoController->getAll();
             }
+        } elseif ($method === 'PUT') {
+            $torneoController->update();
         } elseif ($method === 'DELETE') {
             if ($id) {
                 $_GET['id'] = $id;
             }
             $torneoController->delete();
+        } else {
+            http_response_code(405);
+        }
+        break;
+
+    case 'estados-torneo':
+        verifyAuth();
+        if ($method === 'GET') {
+            $estadoTorneoController->getAll();
         } else {
             http_response_code(405);
         }
@@ -642,7 +655,11 @@ switch ($resource) {
                 }
                 break;
             case 'POST':
-                $eventoPartidoController->store();
+                if ($id === 'reportar-resultado') {
+                    $eventoPartidoController->reportarResultado();
+                } else {
+                    $eventoPartidoController->store();
+                }
                 break;
             case 'PUT':
                 $eventoPartidoController->update();

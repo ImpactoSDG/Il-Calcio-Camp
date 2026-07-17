@@ -1,71 +1,53 @@
 <template>
-  <div class="mt-4 pt-3 border-top">
-    <!-- Encabezado -->
-    <div class="mb-3">
-      <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
-        <div>
-          <h3 class="h6 fw-bold text-secondary mb-1">Solicitudes del portal web</h3>
-          <p class="small text-muted mb-0">Inscripciones enviadas por delegados. Revisá y gestioná cada una.</p>
+  <div class="d-flex flex-column gap-3 mb-4">
+    <!-- Pendientes de aprobación -->
+    <div class="seccion-solicitudes seccion-pendientes">
+      <div class="seccion-header d-flex align-items-center justify-content-between gap-2 p-3">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-hourglass-split text-warning fs-5"></i>
+          <div>
+            <div class="fw-bold">Pendientes de aprobación</div>
+            <div class="small text-muted">Inscripciones enviadas por delegados que todavía no fueron aprobadas ni rechazadas.</div>
+          </div>
         </div>
-        <div class="d-flex gap-2 align-items-center flex-shrink-0">
-          <select v-model="filtroEstado" class="form-select form-select-sm" style="min-width:150px">
-            <option :value="null">Todos los estados</option>
-            <option :value="1">Pendiente</option>
-            <option :value="7">Observada</option>
-            <option :value="8">Aprobada</option>
-            <option :value="5">Rechazada</option>
-          </select>
-          <button class="btn btn-sm btn-outline-secondary" @click="cargar" :disabled="loading">
-            <span v-if="loading" class="spinner-border spinner-border-sm"></span>
-            <i v-else class="bi bi-arrow-clockwise"></i>
-          </button>
+        <div v-if="solicitudesPendientes.length > 0" class="position-relative" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">
+          <i class="bi bi-bell-fill text-warning" style="font-size: 1.4rem;"></i>
+          <span class="badge rounded-pill bg-danger text-white position-absolute" style="bottom: -4px; right: -6px; padding: 0.2rem 0.35rem; font-size: 0.6rem; min-width: 18px; display: flex; align-items: center; justify-content: center;">
+            {{ solicitudesPendientes.length }}
+          </span>
+        </div>
+        <span v-else class="badge rounded-pill bg-light text-muted">Sin pendientes</span>
+      </div>
+
+      <div v-if="loading" class="text-center py-3 text-muted border-top">
+        <span class="spinner-border spinner-border-sm me-2"></span>Cargando solicitudes...
+      </div>
+      <div v-else-if="!solicitudesPendientes.length" class="text-center text-muted small py-3 border-top">
+        No hay solicitudes pendientes de aprobación.
+      </div>
+      <div v-else class="border-top">
+        <div v-for="sol in solicitudesPendientes" :key="sol.id" class="solicitud-row d-flex flex-wrap align-items-center justify-content-between gap-2 p-3">
+          <div>
+            <div class="fw-semibold">{{ sol.nombre_equipo }}</div>
+            <div class="small text-muted">
+              <i class="bi bi-envelope me-1"></i>{{ sol.email_solicitante }}
+              <span class="mx-1">·</span>
+              <i class="bi bi-calendar3 me-1"></i>Recibido: {{ formatFecha(sol.fecha_creacion) }}
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge rounded-pill" :class="badgeEstado(sol.estado)">{{ sol.estado }}</span>
+            <span
+              v-if="Number(sol.id_estado) === 7 && sol.tiene_docs_nuevas"
+              class="badge bg-primary-subtle text-primary rounded-pill"
+              title="El delegado actualizó documentación desde la última revisión"
+            >Doc. a revisar</span>
+            <button class="btn btn-sm btn-outline-warning" @click="abrirVisualizar(sol)">
+              <i class="bi bi-eye me-1"></i>Revisar
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-
-    <!-- Estado de carga -->
-    <div v-if="loading" class="text-center py-3 text-muted">
-      <span class="spinner-border spinner-border-sm me-2"></span>Cargando solicitudes...
-    </div>
-
-    <!-- Sin resultados -->
-    <div v-else-if="solicitudesFiltradas.length === 0" class="alert alert-light border mb-0 small">
-      No hay solicitudes del portal para este torneo<span v-if="filtroEstado"> con ese estado</span>.
-    </div>
-
-    <!-- Tabla -->
-    <div v-else class="table-responsive">
-      <table class="table table-sm align-middle mb-0">
-        <thead>
-          <tr>
-            <th>Equipo</th>
-            <th>Solicitante</th>
-            <th>Estado</th>
-            <th>Fecha</th>
-            <th class="text-end">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="sol in solicitudesFiltradas" :key="sol.id">
-            <td class="fw-semibold">{{ sol.nombre_equipo }}</td>
-            <td class="small text-muted">{{ sol.email_solicitante }}</td>
-            <td>
-              <span class="badge rounded-pill" :class="badgeEstado(sol.estado)">{{ sol.estado }}</span>
-              <span
-                v-if="Number(sol.id_estado) === 7 && sol.tiene_docs_nuevas"
-                class="badge bg-primary-subtle text-primary rounded-pill ms-1"
-                title="El delegado actualizó documentación desde la última revisión"
-              >Documentación a revisar</span>
-            </td>
-            <td class="small text-muted">{{ formatFecha(sol.fecha_creacion) }}</td>
-            <td class="text-end">
-              <button class="btn btn-sm btn-outline-secondary" @click="abrirVisualizar(sol)">
-                <i class="bi bi-eye me-1"></i>Visualizar
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
     </div>
   </div>
 
@@ -124,6 +106,39 @@
                   <span class="text-muted">Email cuenta web:</span><br>
                   {{ solicitudActual.email_solicitante }}
                 </div>
+              </div>
+
+              <!-- Comprobante de pago: destacado para que salte a la vista -->
+              <div
+                class="d-flex flex-wrap align-items-center justify-content-between gap-2 p-3 rounded border mt-3"
+                :class="solicitudActual?.comprobante_pago ? 'bg-success-subtle border-success-subtle' : 'bg-warning-subtle border-warning-subtle'"
+              >
+                <div class="d-flex align-items-center gap-2">
+                  <i
+                    class="bi fs-3"
+                    :class="solicitudActual?.comprobante_pago ? 'bi-file-earmark-check-fill text-success' : 'bi-exclamation-triangle-fill text-warning'"
+                  ></i>
+                  <div>
+                    <div class="fw-bold">Comprobante de pago</div>
+                    <div class="small" :class="solicitudActual?.comprobante_pago ? 'text-success-emphasis' : 'text-warning-emphasis'">
+                      <template v-if="solicitudActual?.comprobante_pago">
+                        Cargado{{ solicitudActual?.fecha_actualizacion_comprobante_pago ? ` el ${formatFecha(solicitudActual.fecha_actualizacion_comprobante_pago)}` : '' }}
+                      </template>
+                      <template v-else>
+                        El delegado todavía no subió el comprobante de pago.
+                      </template>
+                    </div>
+                  </div>
+                </div>
+                <a
+                  v-if="solicitudActual?.comprobante_pago"
+                  :href="resolveComprobantePagoUrl(solicitudActual.comprobante_pago)"
+                  target="_blank"
+                  rel="noopener"
+                  class="btn btn-success"
+                >
+                  <i class="bi bi-eye me-1"></i>Ver comprobante
+                </a>
               </div>
 
               <!-- Mensaje previo enviado al delegado -->
@@ -233,44 +248,55 @@
               <!-- Acciones disponibles -->
               <template v-else>
                 <!-- Selector de acción -->
-                <div v-if="!accionSeleccionada" class="d-flex gap-2 flex-wrap">
-                  <button
+                <div v-if="!accionSeleccionada" class="d-flex flex-column gap-2">
+                  <div
                     v-if="Number(solicitudActual?.id_estado) !== 8"
-                    class="btn btn-sm btn-outline-success"
-                    @click="accionSeleccionada = 'aprobar'"
+                    class="d-flex align-items-center gap-3 p-2 border rounded"
                   >
-                    <i class="bi bi-check-lg me-1"></i>Aprobar
-                  </button>
-                  <button
-                    class="btn btn-sm btn-outline-warning"
-                    @click="abrirInformarPorMail"
-                  >
-                    <i class="bi bi-envelope me-1"></i>Informar por mail
-                  </button>
-                  <button
+                    <button
+                      class="btn btn-sm btn-success flex-shrink-0"
+                      style="min-width:130px"
+                      @click="continuarAprobar"
+                    >
+                      <i class="bi bi-check-lg me-1"></i>Aprobar
+                    </button>
+                    <span class="small text-muted">
+                      Aprueba la inscripción: crea el equipo y los jugadores en el sistema y le avisa por mail al delegado que quedó confirmada.
+                    </span>
+                  </div>
+
+                  <div class="d-flex align-items-center gap-3 p-2 border rounded">
+                    <button
+                      class="btn btn-sm btn-warning flex-shrink-0"
+                      style="min-width:130px"
+                      @click="abrirInformarPorMail"
+                    >
+                      <i class="bi bi-envelope me-1"></i>Informar
+                    </button>
+                    <span class="small text-muted">
+                      Le manda un mail al delegado (por ejemplo para pedirle que corrija algo o suba un comprobante) sin aprobar ni rechazar todavía. La solicitud queda como "Observada".
+                    </span>
+                  </div>
+
+                  <div
                     v-if="Number(solicitudActual?.id_estado) !== 5"
-                    class="btn btn-sm btn-outline-danger"
-                    @click="accionSeleccionada = 'rechazar'"
+                    class="d-flex align-items-center gap-3 p-2 border rounded"
                   >
-                    <i class="bi bi-x-lg me-1"></i>Rechazar
-                  </button>
-                  <button v-if="desbloqueado" class="btn btn-sm btn-outline-secondary" @click="desbloqueado = false">
+                    <button
+                      class="btn btn-sm btn-danger flex-shrink-0"
+                      style="min-width:130px"
+                      @click="accionSeleccionada = 'rechazar'"
+                    >
+                      <i class="bi bi-x-lg me-1"></i>Rechazar
+                    </button>
+                    <span class="small text-muted">
+                      Rechaza definitivamente la inscripción y le avisa por mail al delegado el motivo. El delegado no podrá volver a editarla.
+                    </span>
+                  </div>
+
+                  <button v-if="desbloqueado" class="btn btn-sm btn-outline-secondary align-self-start" @click="desbloqueado = false">
                     <i class="bi bi-x me-1"></i>Cancelar
                   </button>
-                </div>
-
-                <!-- Formulario: Aprobar -->
-                <div v-if="accionSeleccionada === 'aprobar'" class="mt-2">
-                  <label class="form-label small fw-semibold">Disciplina del equipo</label>
-                  <div class="d-flex gap-2 align-items-center flex-wrap">
-                    <select v-model="idDisciplina" class="form-select form-select-sm" style="max-width:240px">
-                      <option v-for="d in disciplinas" :key="d.id" :value="d.id">{{ d.nombre }}</option>
-                    </select>
-                    <button class="btn btn-sm btn-success" :disabled="!idDisciplina" @click="continuarAprobar">
-                      Continuar
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary" @click="accionSeleccionada = null">Volver</button>
-                  </div>
                 </div>
 
                 <!-- Formulario: Rechazar -->
@@ -338,35 +364,33 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import inscripcionesService from '@/services/torneos/inscripcionesService'
-import datosMaestrosService from '@/services/datosMaestrosService'
 import { useToastStore } from '@/stores/toastStore'
+import { resolveComprobantePagoUrl } from '@/utils/comprobantesPago'
 
 const props = defineProps({
   idTorneo: { type: Number, required: true },
-  idDisciplinaDefault: { type: Number, default: null },
 })
 
-const emit = defineEmits(['aprobada'])
+// 'rechazadas' se emite para que la vista padre pueda mostrar esa sección
+// más abajo en la página (después de "Equipos confirmados").
+const emit = defineEmits(['aprobada', 'rechazadas'])
 
 const toast = useToastStore()
 
 // --- Estado de lista ---
 const solicitudes = ref([])
 const loading = ref(false)
-const filtroEstado = ref(null)
 
 // --- Modal visualizar ---
 const showVisualizarModal = ref(false)
 const solicitudActual = ref(null)
 const jugadores = ref([])
 const loadingJugadores = ref(false)
-const disciplinas = ref([])
 const desbloqueado = ref(false)
 const accionSeleccionada = ref(null) // 'aprobar' | 'observar' | 'rechazar' | null
 const textoAccion = ref('')
-const idDisciplina = ref(null)
 const saving = ref(false)
 
 // --- Estado doc dropdown ---
@@ -388,10 +412,16 @@ const estadosDoc = [
 // Helpers
 // -------------------------------------------------------
 
-const solicitudesFiltradas = computed(() => {
-  if (filtroEstado.value === null) return solicitudes.value
-  return solicitudes.value.filter(s => Number(s.id_estado) === filtroEstado.value)
-})
+// Pendientes: cualquier estado que todavía no sea un cierre definitivo (aprobada/rechazada).
+const solicitudesPendientes = computed(() =>
+  solicitudes.value.filter(s => ![5, 8].includes(Number(s.id_estado)))
+)
+
+const solicitudesRechazadas = computed(() =>
+  solicitudes.value.filter(s => Number(s.id_estado) === 5)
+)
+
+watch(solicitudesRechazadas, (val) => emit('rechazadas', val), { immediate: true })
 
 const formatFecha = (value) => {
   if (!value) return '-'
@@ -422,6 +452,8 @@ const calcularEdad = (fechaNac) => {
 const badgeEstado = (estado) => {
   const key = String(estado || '').toUpperCase()
   if (key === 'PENDIENTE') return 'bg-warning-subtle text-warning'
+  if (key === 'PENDIENTE_PAGO') return 'bg-warning-subtle text-warning'
+  if (key === 'PAGO_EN_REVISION') return 'bg-primary-subtle text-primary'
   if (key === 'OBSERVADA')  return 'bg-info-subtle text-info'
   if (key === 'APROBADA')   return 'bg-success-subtle text-success'
   if (key === 'RECHAZADA')  return 'bg-danger-subtle text-danger'
@@ -537,7 +569,6 @@ const abrirVisualizar = async (sol) => {
   desbloqueado.value = false
   accionSeleccionada.value = null
   textoAccion.value = ''
-  idDisciplina.value = props.idDisciplinaDefault
   jugadores.value = []
   dropdownAbierto.value = null
   showVisualizarModal.value = true
@@ -549,6 +580,18 @@ const abrirVisualizar = async (sol) => {
     toast.error('Error al cargar jugadores')
   } finally {
     loadingJugadores.value = false
+  }
+}
+
+// Usado desde "Equipos confirmados": ahí solo se tiene el id de la solicitud
+// original, hay que traerla antes de poder abrir el modal.
+const abrirVisualizarPorId = async (id) => {
+  if (!id) return
+  try {
+    const sol = await inscripcionesService.getById(id)
+    await abrirVisualizar(sol)
+  } catch {
+    toast.error('No se pudo cargar el detalle de la inscripción')
   }
 }
 
@@ -608,7 +651,7 @@ const confirmarConEmail = async () => {
   saving.value = true
   try {
     if (accionPendiente.value === 'aprobar') {
-      await inscripcionesService.aprobar(solicitudActual.value.id, idDisciplina.value, emailBody.value)
+      await inscripcionesService.aprobar(solicitudActual.value.id, emailBody.value)
       toast.success('Solicitud aprobada. Equipo y jugadores creados.')
       actualizarEstadoLocal(8, 'Aprobada', null)
       emit('aprobada')
@@ -646,8 +689,11 @@ const actualizarEstadoLocal = (idEstado, estadoTexto, observacion) => {
 
 onMounted(async () => {
   await cargar()
-  datosMaestrosService.getDisciplinas().then(d => { disciplinas.value = d }).catch(() => {})
 })
+
+// Permite que la vista padre abra el modal de una solicitud rechazada
+// (esa sección se renderiza más abajo en la página, fuera de este componente).
+defineExpose({ abrirVisualizar, abrirVisualizarPorId })
 </script>
 
 <style scoped>
@@ -698,5 +744,24 @@ onMounted(async () => {
 
 .estado-doc-item.active {
   background: #f0f0f0;
+}
+
+.seccion-solicitudes {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.seccion-pendientes {
+  border-left: 4px solid #f59e0b;
+}
+
+.solicitud-row + .solicitud-row {
+  border-top: 1px solid #f1f5f9;
+}
+
+.solicitud-row:hover {
+  background: #f8fafc;
 }
 </style>

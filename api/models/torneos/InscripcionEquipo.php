@@ -8,10 +8,12 @@ class InscripcionEquipo
     public string $table = 'inscripcion_equipo';
 
     // IDs de estado_inscripcion usados por el flujo del portal
-    public const ESTADO_PENDIENTE  = 1;
-    public const ESTADO_RECHAZADA  = 5;
-    public const ESTADO_OBSERVADA  = 7;
-    public const ESTADO_APROBADA   = 8;
+    public const ESTADO_PENDIENTE          = 1;
+    public const ESTADO_PENDIENTE_PAGO     = 2;
+    public const ESTADO_PAGO_EN_REVISION   = 3;
+    public const ESTADO_RECHAZADA          = 5;
+    public const ESTADO_OBSERVADA          = 7;
+    public const ESTADO_APROBADA           = 8;
 
     public function __construct(PDO $db)
     {
@@ -51,6 +53,8 @@ class InscripcionEquipo
                        ie.id_usuario_web_solicitante,
                        uw.email AS email_solicitante,
                        ie.observacion_admin,
+                       ie.comprobante_pago,
+                       ie.fecha_actualizacion_comprobante_pago,
                        ie.fecha_creacion,
                        ie.fecha_actualizacion,
                        ie.fecha_actualizacion_estado,
@@ -103,6 +107,8 @@ class InscripcionEquipo
                        ie.id_usuario_web_solicitante,
                        uw.email AS email_solicitante,
                        ie.observacion_admin,
+                       ie.comprobante_pago,
+                       ie.fecha_actualizacion_comprobante_pago,
                        ie.fecha_creacion,
                        ie.fecha_actualizacion,
                        ie.fecha_actualizacion_estado
