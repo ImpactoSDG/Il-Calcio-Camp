@@ -2,6 +2,11 @@ RewriteEngine On
 RewriteBase /Il-Calcio-Camp/api/
 # RewriteBase /api/ ->produccion
 
+# Reenvía la cabecera Authorization a PHP (algunos hostings con PHP-FPM/CGI la eliminan por defecto)
+CGIPassAuth On
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
 # Si el archivo o directorio existe, no redirige
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d

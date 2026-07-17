@@ -116,6 +116,12 @@ function verifyAuth(): array {
     $headers = getallheaders();
     $authHeader = $headers['Authorization'] ?? '';
 
+    // Algunos hostings con PHP-FPM/CGI no exponen la cabecera vía getallheaders();
+    // en esos casos Apache la deja en $_SERVER con estos nombres.
+    if (empty($authHeader)) {
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+    }
+
     // Si no hay cabecera Authorization, buscamos el token en los parámetros GET (para previsualización de PDFs en iframes)
     if (empty($authHeader) && !empty($_GET['token'])) {
         $authHeader = 'Bearer ' . $_GET['token'];
