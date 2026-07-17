@@ -203,6 +203,46 @@ class Venta
     }
 
     /**
+     * Crea el cliente enviado como "nuevo_cliente" en el payload de una venta.
+     * Se usa para el flujo de "cliente rápido": el cliente se crea dentro de la
+     * misma transacción de la venta. Debe invocarse con una transacción ya abierta.
+     *
+     * @return int|null ID del cliente creado, o null si el payload no traía cliente nuevo.
+     */
+    private function crearClienteNuevoSiCorresponde(?array $nuevoCliente): ?int
+    {
+        if (!$nuevoCliente || empty($nuevoCliente['nombre_cliente'])) {
+            return null;
+        }
+
+        require_once __DIR__ . '/Cliente.php';
+        $clienteModel = new Cliente($this->conn);
+        $idClienteNuevo = $clienteModel->create(
+            null,
+            $nuevoCliente['nombre_cliente'],
+            $nuevoCliente['id_condicion_iva_receptor'] ?? 2,
+            $nuevoCliente['direccion'] ?? null,
+            isset($nuevoCliente['id_provincia']) ? (int)$nuevoCliente['id_provincia'] : null,
+            $nuevoCliente['cuit_dni'] ?? null,
+            $nuevoCliente['telefono'] ?? null
+        );
+        if (!$idClienteNuevo) {
+            throw new Exception('No se pudo crear el cliente.');
+        }
+
+        // Asociar equipo si corresponde
+        if (!empty($nuevoCliente['id_equipo'])) {
+            $sqlCE = "INSERT INTO cliente_equipo (id_cliente, id_equipo) VALUES (:id_cliente, :id_equipo)";
+            $stmtCE = $this->conn->prepare($sqlCE);
+            $stmtCE->bindValue(':id_cliente', $idClienteNuevo, PDO::PARAM_INT);
+            $stmtCE->bindValue(':id_equipo', (int)$nuevoCliente['id_equipo'], PDO::PARAM_INT);
+            $stmtCE->execute();
+        }
+
+        return (int)$idClienteNuevo;
+    }
+
+    /**
      * Crea una nueva venta y sus artículos asociados con descuento de stock (Transaccional)
      */
     public function createWithDetails(array $data, array $articulos, ?int $idUsuario = null): array
@@ -211,28 +251,8 @@ class Venta
             $this->conn->beginTransaction();
 
             // 1. Crear cliente si viene como nuevo_cliente en el payload (dentro de la transacción)
-            $nuevoCliente = $data['nuevo_cliente'] ?? null;
-            if ($nuevoCliente && !empty($nuevoCliente['nombre_cliente'])) {
-                require_once __DIR__ . '/Cliente.php';
-                $clienteModel = new Cliente($this->conn);
-                $idClienteNuevo = $clienteModel->create(
-                    null,
-                    $nuevoCliente['nombre_cliente'],
-                    $nuevoCliente['id_condicion_iva_receptor'] ?? 2,
-                    $nuevoCliente['direccion'] ?? null,
-                    isset($nuevoCliente['id_provincia']) ? (int)$nuevoCliente['id_provincia'] : null
-                );
-                if (!$idClienteNuevo) {
-                    throw new Exception('No se pudo crear el cliente.');
-                }
-                // Asociar equipo si corresponde
-                if (!empty($nuevoCliente['id_equipo'])) {
-                    $sqlCE = "INSERT INTO cliente_equipo (id_cliente, id_equipo) VALUES (:id_cliente, :id_equipo)";
-                    $stmtCE = $this->conn->prepare($sqlCE);
-                    $stmtCE->bindValue(':id_cliente', $idClienteNuevo, PDO::PARAM_INT);
-                    $stmtCE->bindValue(':id_equipo', (int)$nuevoCliente['id_equipo'], PDO::PARAM_INT);
-                    $stmtCE->execute();
-                }
+            $idClienteNuevo = $this->crearClienteNuevoSiCorresponde($data['nuevo_cliente'] ?? null);
+            if ($idClienteNuevo !== null) {
                 $data['id_cliente'] = $idClienteNuevo;
             }
 
@@ -459,6 +479,13 @@ class Venta
         try {
             $this->conn->beginTransaction();
             $idVenta = (int)$data['id'];
+
+            // Crear cliente si viene como nuevo_cliente en el payload (dentro de la transacción).
+            // Ocurre cuando se agrega un cliente rápido mientras se edita una venta existente.
+            $idClienteNuevo = $this->crearClienteNuevoSiCorresponde($data['nuevo_cliente'] ?? null);
+            if ($idClienteNuevo !== null) {
+                $data['id_cliente'] = $idClienteNuevo;
+            }
 
             // 1. Actualizar la cabecera de la venta
             // Recuperamos el estado actual antes de actualizar
