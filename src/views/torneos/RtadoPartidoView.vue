@@ -61,108 +61,108 @@
 
     <div v-if="partidoSeleccionado" class="card shadow-sm border-0 rounded-lg">
       <div class="card-body p-4">
-        <div class="row g-4">
-          <div class="col-12 col-lg-6">
-            <h2 class="h6 fw-bold text-secondary mb-3">Resultado del partido</h2>
+        <div class="resultado-partido-section mb-4">
+          <h2 class="h6 fw-bold text-secondary mb-3">Resultado del partido</h2>
 
-            <div class="match-summary mb-3">
-              <div class="small text-muted">Partido seleccionado</div>
-              <div class="fw-semibold">
-                {{ partidoSeleccionado.equipo_local_nombre || 'Local' }} vs {{ partidoSeleccionado.equipo_visitante_nombre || 'Visitante' }}
-              </div>
-              <div class="small text-muted">
-                Estado actual: {{ partidoSeleccionado.estado_evento_descripcion || `Estado ${partidoSeleccionado.id_estado_evento}` }}
-              </div>
+          <div class="match-summary mb-3">
+            <div class="small text-muted">Partido seleccionado</div>
+            <div class="fw-semibold">
+              {{ partidoSeleccionado.equipo_local_nombre || 'Local' }} vs {{ partidoSeleccionado.equipo_visitante_nombre || 'Visitante' }}
             </div>
-
-            <div class="row g-3">
-                <div class="col-6">
-                  <label class="form-label score-team-label">
-                    <img
-                      v-if="equipoLocalPartido.escudo"
-                      :src="resolveEscudoUrl(equipoLocalPartido.escudo)"
-                      alt="escudo equipo local"
-                      class="escudo-thumb"
-                    />
-                    <span v-else class="escudo-thumb escudo-placeholder" aria-hidden="true">
-                      <i class="bi bi-shield"></i>
-                    </span>
-                    <span class="text-truncate">{{ equipoLocalPartido.nombre }}</span>
-                  </label>
-                  <input v-model.number="resultadoForm.resultado_local" type="number" min="0" class="form-control" />
-                </div>
-                <div class="col-6">
-                  <label class="form-label score-team-label">
-                    <img
-                      v-if="equipoVisitantePartido.escudo"
-                      :src="resolveEscudoUrl(equipoVisitantePartido.escudo)"
-                      alt="escudo equipo visitante"
-                      class="escudo-thumb"
-                    />
-                    <span v-else class="escudo-thumb escudo-placeholder" aria-hidden="true">
-                      <i class="bi bi-shield"></i>
-                    </span>
-                    <span class="text-truncate">{{ equipoVisitantePartido.nombre }}</span>
-                  </label>
-                  <input v-model.number="resultadoForm.resultado_visitante" type="number" min="0" class="form-control" />
-                </div>
-
-                <div class="col-12">
-                  <div class="form-check mt-1">
-                    <input id="chkPenales" v-model="resultadoForm.hubo_penales" type="checkbox" class="form-check-input" />
-                    <label for="chkPenales" class="form-check-label">Definición por penales (fase eliminatoria)</label>
-                  </div>
-                </div>
-
-                <template v-if="resultadoForm.hubo_penales">
-                  <div class="col-6">
-                    <label class="form-label score-team-label">
-                      <img
-                        v-if="equipoLocalPartido.escudo"
-                        :src="resolveEscudoUrl(equipoLocalPartido.escudo)"
-                        alt="escudo equipo local"
-                        class="escudo-thumb"
-                      />
-                      <span v-else class="escudo-thumb escudo-placeholder" aria-hidden="true">
-                        <i class="bi bi-shield"></i>
-                      </span>
-                      <span class="text-truncate">Penales {{ equipoLocalPartido.nombre }}</span>
-                    </label>
-                    <input v-model.number="resultadoForm.resultado_penales_local" type="number" min="0" class="form-control" />
-                  </div>
-                  <div class="col-6">
-                    <label class="form-label score-team-label">
-                      <img
-                        v-if="equipoVisitantePartido.escudo"
-                        :src="resolveEscudoUrl(equipoVisitantePartido.escudo)"
-                        alt="escudo equipo visitante"
-                        class="escudo-thumb"
-                      />
-                      <span v-else class="escudo-thumb escudo-placeholder" aria-hidden="true">
-                        <i class="bi bi-shield"></i>
-                      </span>
-                      <span class="text-truncate">Penales {{ equipoVisitantePartido.nombre }}</span>
-                    </label>
-                    <input v-model.number="resultadoForm.resultado_penales_visitante" type="number" min="0" class="form-control" />
-                  </div>
-                </template>
-
+            <div class="small text-muted">
+              Estado actual: {{ partidoSeleccionado.estado_evento_descripcion || `Estado ${partidoSeleccionado.id_estado_evento}` }}
             </div>
           </div>
 
-          <div class="col-12 col-lg-6">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h2 class="h6 fw-bold text-secondary mb-0">Incidencias del partido</h2>
-              <button class="btn btn-outline-primary btn-sm" :disabled="!tiposEventoPartidoActivos.length" @click="openIncidenciaModal">
-                <i class="bi bi-plus-circle me-1"></i> Agregar incidencia
-              </button>
-            </div>
+          <div class="row g-3">
+              <div class="col-12">
+                <div class="form-check mb-1">
+                  <input id="chkPenales" v-model="resultadoForm.hubo_penales" type="checkbox" class="form-check-input" />
+                  <label for="chkPenales" class="form-check-label">Definición por penales (fase eliminatoria)</label>
+                </div>
+              </div>
 
-            <div v-if="!tiposEventoPartidoActivos.length" class="alert alert-warning py-2">
-              No hay tipos de incidencia activos en el catálogo.
-            </div>
+              <div class="col-6 col-md-3">
+                <label class="form-label score-team-label">
+                  <img
+                    v-if="equipoLocalPartido.escudo"
+                    :src="resolveEscudoUrl(equipoLocalPartido.escudo)"
+                    alt="escudo equipo local"
+                    class="escudo-thumb"
+                  />
+                  <span v-else class="escudo-thumb escudo-placeholder" aria-hidden="true">
+                    <i class="bi bi-shield"></i>
+                  </span>
+                  <span class="text-truncate">Goles de <strong>{{ equipoLocalPartido.nombre }}</strong></span>
+                </label>
+                <input v-model.number="resultadoForm.resultado_local" type="number" min="0" class="form-control" />
+              </div>
 
-            <div class="table-responsive">
+              <div class="col-6 col-md-3">
+                <label class="form-label score-team-label">
+                  <img
+                    v-if="equipoVisitantePartido.escudo"
+                    :src="resolveEscudoUrl(equipoVisitantePartido.escudo)"
+                    alt="escudo equipo visitante"
+                    class="escudo-thumb"
+                  />
+                  <span v-else class="escudo-thumb escudo-placeholder" aria-hidden="true">
+                    <i class="bi bi-shield"></i>
+                  </span>
+                  <span class="text-truncate">Goles de <strong>{{ equipoVisitantePartido.nombre }}</strong></span>
+                </label>
+                <input v-model.number="resultadoForm.resultado_visitante" type="number" min="0" class="form-control" />
+              </div>
+
+              <div v-if="resultadoForm.hubo_penales" class="col-6 col-md-3">
+                <label class="form-label score-team-label">
+                  <img
+                    v-if="equipoLocalPartido.escudo"
+                    :src="resolveEscudoUrl(equipoLocalPartido.escudo)"
+                    alt="escudo equipo local"
+                    class="escudo-thumb"
+                  />
+                  <span v-else class="escudo-thumb escudo-placeholder" aria-hidden="true">
+                    <i class="bi bi-shield"></i>
+                  </span>
+                  <span class="text-truncate">Penales de <strong>{{ equipoLocalPartido.nombre }}</strong></span>
+                </label>
+                <input v-model.number="resultadoForm.resultado_penales_local" type="number" min="0" class="form-control" />
+              </div>
+
+              <div v-if="resultadoForm.hubo_penales" class="col-6 col-md-3">
+                <label class="form-label score-team-label">
+                  <img
+                    v-if="equipoVisitantePartido.escudo"
+                    :src="resolveEscudoUrl(equipoVisitantePartido.escudo)"
+                    alt="escudo equipo visitante"
+                    class="escudo-thumb"
+                  />
+                  <span v-else class="escudo-thumb escudo-placeholder" aria-hidden="true">
+                    <i class="bi bi-shield"></i>
+                  </span>
+                  <span class="text-truncate">Penales de <strong>{{ equipoVisitantePartido.nombre }}</strong></span>
+                </label>
+                <input v-model.number="resultadoForm.resultado_penales_visitante" type="number" min="0" class="form-control" />
+              </div>
+          </div>
+        </div>
+
+        <hr class="my-4" />
+
+        <div class="incidencias-partido-section">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h6 fw-bold text-secondary mb-0">Incidencias del partido</h2>
+            <button class="btn btn-outline-primary btn-sm" :disabled="!tiposEventoPartidoActivos.length" @click="openIncidenciaModal">
+              <i class="bi bi-plus-circle me-1"></i> Agregar incidencia
+            </button>
+          </div>
+
+          <div v-if="!tiposEventoPartidoActivos.length" class="alert alert-warning py-2">
+            No hay tipos de incidencia activos en el catálogo.
+          </div>
+
+          <div class="incidencias-table-wrap">
               <table class="table table-sm align-middle mb-0">
                 <thead>
                   <tr>
@@ -170,7 +170,7 @@
                     <th>Equipo</th>
                     <th>Jugador</th>
                     <th>Tipo</th>
-                    <th style="width: 72px">Min</th>
+                    <th style="width: 96px">Min</th>
                     <th>Observación</th>
                     <th class="text-end" style="width: 80px"></th>
                   </tr>
@@ -253,7 +253,7 @@
                         min="0"
                         max="120"
                         placeholder="Min"
-                        style="width: 64px"
+                        style="width: 92px"
                       />
                       <span v-else>{{ incidencia.minuto ?? '-' }}</span>
                     </td>
@@ -279,7 +279,6 @@
                   </tr>
                 </tbody>
               </table>
-            </div>
           </div>
         </div>
       </div>
@@ -321,7 +320,7 @@
               <div class="modal-body">
                 <div class="row g-3">
                   <div class="col-12">
-                    <label class="form-label">Equipo</label>
+                    <label class="form-label">Equipo <span class="fw-normal text-muted">(elegí uno)</span></label>
                     <div class="equipo-options">
                       <button
                         v-for="equipo in equiposPartido"
@@ -331,6 +330,11 @@
                         :class="{ active: Number(incidenciaForm.id_equipo) === Number(equipo.id) }"
                         @click="setEquipoIncidencia(Number(equipo.id))"
                       >
+                        <i
+                          class="bi equipo-option-radio"
+                          :class="Number(incidenciaForm.id_equipo) === Number(equipo.id) ? 'bi-check-circle-fill' : 'bi-circle'"
+                          aria-hidden="true"
+                        ></i>
                         <img
                           v-if="equipo.escudo"
                           :src="resolveEscudoUrl(equipo.escudo)"
@@ -423,6 +427,15 @@
         </div>
       </div>
     </Teleport>
+
+    <ConfirmModal
+      v-model="showEliminarIncidenciaModal"
+      title="Quitar incidencia"
+      message="¿Quitar esta incidencia? Se eliminará al guardar todo."
+      confirm-button-text="Quitar"
+      variant="warning"
+      @confirm="confirmarEliminarIncidencia"
+    />
   </div>
 </template>
 
@@ -433,6 +446,7 @@ import datosMaestrosService from '@/services/datosMaestrosService'
 import eventosService from '@/services/instalaciones/eventosService'
 import { useToastStore } from '@/stores/toastStore'
 import { getIncidenciaVisualMeta } from '@/utils/incidencias'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 
 const toast = useToastStore()
 
@@ -1090,13 +1104,22 @@ const guardarTodo = async () => {
   }
 }
 
+const showEliminarIncidenciaModal = ref(false)
+const incidenciaAEliminar = ref(null)
+
 const eliminarIncidencia = (incidencia) => {
   if (incidencia.esPendiente) {
     incidenciasPendientes.value = incidenciasPendientes.value.filter(item => item.id !== incidencia.id)
     return
   }
 
-  if (!window.confirm('¿Quitar esta incidencia? Se eliminará al guardar todo.')) return
+  incidenciaAEliminar.value = incidencia
+  showEliminarIncidenciaModal.value = true
+}
+
+const confirmarEliminarIncidencia = () => {
+  const incidencia = incidenciaAEliminar.value
+  if (!incidencia) return
   if (!incidenciasEliminadasIds.value.some(id => Number(id) === Number(incidencia.id))) {
     incidenciasEliminadasIds.value.push(Number(incidencia.id))
   }
@@ -1123,6 +1146,10 @@ onMounted(() => {
   border: 1px solid #e2e8f0;
   border-radius: 0.75rem;
   padding: 0.85rem 1rem;
+}
+
+.incidencias-table-wrap table {
+  min-width: 760px;
 }
 
 .score-team-label {
@@ -1153,15 +1180,28 @@ onMounted(() => {
   align-items: center;
   gap: 0.6rem;
   transition: all 0.15s ease;
+  cursor: pointer;
 }
 
 .equipo-option.active {
   border-color: #0d6efd;
+  border-width: 2px;
   background: #e9f2ff;
+  box-shadow: 0 0 0 1px rgba(13, 110, 253, 0.15);
 }
 
 .equipo-option:hover {
   border-color: #9fc1f3;
+}
+
+.equipo-option-radio {
+  font-size: 1.05rem;
+  color: #b6c2d1;
+  flex-shrink: 0;
+}
+
+.equipo-option.active .equipo-option-radio {
+  color: #0d6efd;
 }
 
 .escudo-thumb {

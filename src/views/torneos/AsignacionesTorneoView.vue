@@ -441,6 +441,16 @@
         </template><!-- end v-else (no zonas tab) -->
       </div>
     </div>
+
+    <ConfirmModal
+      v-model="showEliminarAsignacionesModal"
+      title="Eliminar asignaciones"
+      message="¿Eliminar todas las asignaciones de grupos de este torneo? Esta acción es reversible siempre que no haya partidos finalizados."
+      confirm-button-text="Eliminar"
+      variant="danger"
+      :is-loading="savingEliminarAsignaciones"
+      @confirm="confirmarEliminarAsignaciones"
+    />
   </div>
 </template>
 
@@ -450,6 +460,7 @@ import { useRoute } from 'vue-router'
 import planTorneoService from '@/services/torneos/planTorneoService'
 import { useToastStore } from '@/stores/toastStore'
 import { useTorneoGestionStore } from '@/stores/torneoGestionStore'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 
 const toast = useToastStore()
 const route = useRoute()
@@ -978,13 +989,14 @@ const guardarAsignacionCruceManual = async (evento) => {
   }
 }
 
-const eliminarAsignaciones = async () => {
-  if (!idTorneoSeleccionado.value) return
-  const ok = window.confirm(
-    '¿Eliminar todas las asignaciones de grupos de este torneo?\n\nEsta acción es reversible siempre que no haya partidos finalizados.',
-  )
-  if (!ok) return
+const showEliminarAsignacionesModal = ref(false)
 
+const eliminarAsignaciones = () => {
+  if (!idTorneoSeleccionado.value) return
+  showEliminarAsignacionesModal.value = true
+}
+
+const confirmarEliminarAsignaciones = async () => {
   savingEliminarAsignaciones.value = true
   try {
     await planTorneoService.eliminarAsignaciones({ id_torneo: idTorneoSeleccionado.value })

@@ -122,101 +122,119 @@
             </div>
             <form @submit.prevent="save">
               <div class="modal-body">
-                <div class="row g-3">
-                  <div class="col-md-4">
-                    <label class="form-label">Tipo de evento</label>
-                    <select v-model="form.tipo_evento" class="form-select" required>
-                      <option v-for="tipo in tiposEvento" :key="tipo" :value="tipo">{{ tipo }}</option>
-                    </select>
+                <div class="form-section">
+                  <div class="form-section-title">
+                    <span class="form-section-icon"><i class="bi bi-info-circle-fill"></i></span>
+                    <span>Información general</span>
                   </div>
-                  <div class="col-md-4">
-                    <label class="form-label">Estado del evento</label>
-                    <select v-model.number="form.id_estado_evento" class="form-select" required>
-                      <option :value="null">Seleccionar estado</option>
-                      <option v-for="estado in estadosEvento" :key="estado.id" :value="Number(estado.id)">
-                        {{ estado.descripcion }}
-                      </option>
-                    </select>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label">Torneo</label>
-                    <select v-model.number="form.id_torneo" class="form-select">
-                      <option :value="null">Sin torneo</option>
-                      <option v-for="torneo in torneos" :key="torneo.id" :value="Number(torneo.id)">
-                        {{ torneo.nombre }}
-                      </option>
-                    </select>
-                  </div>
+                  <div class="row g-3">
+                    <div class="col-md-4">
+                      <label class="form-label">Tipo de evento</label>
+                      <select v-model="form.tipo_evento" class="form-select" required>
+                        <option v-for="tipo in tiposEvento" :key="tipo" :value="tipo">{{ tipo }}</option>
+                      </select>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label">Estado del evento</label>
+                      <select v-model.number="form.id_estado_evento" class="form-select" required>
+                        <option :value="null">Seleccionar estado</option>
+                        <option v-for="estado in estadosEvento" :key="estado.id" :value="Number(estado.id)">
+                          {{ estado.descripcion }}
+                        </option>
+                      </select>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label">Torneo</label>
+                      <select v-model.number="form.id_torneo" class="form-select">
+                        <option :value="null">Sin torneo</option>
+                        <option v-for="torneo in torneos" :key="torneo.id" :value="Number(torneo.id)">
+                          {{ torneo.nombre }}
+                        </option>
+                      </select>
+                    </div>
 
-                  <div class="col-md-8">
-                    <label class="form-label">Titulo</label>
-                    <input v-model.trim="form.titulo" type="text" class="form-control" placeholder="Ej: Fecha 1 - Partido inaugural" required />
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label">Numero de fecha</label>
-                    <input v-model.number="form.numero_fecha" type="number" class="form-control" min="1" placeholder="Opcional" />
-                  </div>
+                    <div class="col-md-8">
+                      <label class="form-label">Titulo</label>
+                      <input v-model.trim="form.titulo" type="text" class="form-control" placeholder="Ej: Fecha 1 - Partido inaugural" required />
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label">Numero de fecha</label>
+                      <input v-model.number="form.numero_fecha" type="number" class="form-control" min="1" placeholder="Opcional" />
+                    </div>
 
-                  <div class="col-md-12">
-                    <label class="form-label">Descripcion</label>
-                    <textarea v-model.trim="form.descripcion" class="form-control" rows="2" placeholder="Detalle del evento"></textarea>
+                    <div class="col-12">
+                      <label class="form-label">Descripcion</label>
+                      <textarea v-model.trim="form.descripcion" class="form-control" rows="2" placeholder="Detalle del evento"></textarea>
+                    </div>
                   </div>
+                </div>
 
-                  <div class="col-md-6">
-                    <label class="form-label">Fecha/Hora Inicio</label>
-                    <input v-model="form.fecha_hora_inicio" type="datetime-local" class="form-control" required />
+                <div class="form-section">
+                  <div class="form-section-title">
+                    <span class="form-section-icon"><i class="bi bi-calendar-week-fill"></i></span>
+                    <span>Fecha y ubicación</span>
                   </div>
-                  <div class="col-md-6">
-                    <label class="form-label">Fecha/Hora Fin</label>
-                    <input v-model="form.fecha_hora_fin" type="datetime-local" class="form-control" />
-                  </div>
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label">Fecha/Hora Inicio</label>
+                      <input v-model="form.fecha_hora_inicio" type="datetime-local" class="form-control" required />
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">Fecha/Hora Fin</label>
+                      <input v-model="form.fecha_hora_fin" type="datetime-local" class="form-control" />
+                    </div>
 
-                  <div class="col-md-4">
-                    <label class="form-label">Cancha</label>
-                    <select v-model.number="form.id_cancha" class="form-select">
-                      <option :value="null">Sin cancha</option>
-                      <option v-for="cancha in canchas" :key="cancha.id" :value="Number(cancha.id)">
-                        {{ cancha.nombre }}
-                      </option>
-                    </select>
+                    <div class="col-md-6">
+                      <label class="form-label">Cancha</label>
+                      <select v-model.number="form.id_cancha" class="form-select">
+                        <option :value="null">Sin cancha</option>
+                        <option v-for="cancha in canchas" :key="cancha.id" :value="Number(cancha.id)">
+                          {{ cancha.nombre }}
+                        </option>
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">Arbitro</label>
+                      <select v-model.number="form.id_arbitro" class="form-select">
+                        <option :value="null">Sin asignar</option>
+                        <option v-for="arbitro in arbitros" :key="arbitro.id" :value="Number(arbitro.id)">
+                          {{ arbitro.apellido }}, {{ arbitro.nombre }}
+                        </option>
+                      </select>
+                    </div>
                   </div>
-                  <div class="col-md-4">
-                    <label class="form-label">Arbitro</label>
-                    <select v-model.number="form.id_arbitro" class="form-select">
-                      <option :value="null">Sin asignar</option>
-                      <option v-for="arbitro in arbitros" :key="arbitro.id" :value="Number(arbitro.id)">
-                        {{ arbitro.apellido }}, {{ arbitro.nombre }}
-                      </option>
-                    </select>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label">Tipo partido</label>
-                    <div class="form-text mt-2">Los equipos aplican sobre todo a eventos de tipo partido.</div>
-                  </div>
+                </div>
 
-                  <div class="col-md-6">
-                    <label class="form-label">Equipo local</label>
-                    <select v-model.number="form.id_equipo_local" class="form-select">
-                      <option :value="null">Sin asignar</option>
-                      <option v-for="equipo in equipos" :key="equipo.id" :value="Number(equipo.id)">
-                        {{ equipo.nombre }}
-                      </option>
-                    </select>
+                <div class="form-section">
+                  <div class="form-section-title">
+                    <span class="form-section-icon"><i class="bi bi-people-fill"></i></span>
+                    <span>Equipos</span>
                   </div>
-                  <div class="col-md-6">
-                    <label class="form-label">Equipo visitante</label>
-                    <select v-model.number="form.id_equipo_visitante" class="form-select">
-                      <option :value="null">Sin asignar</option>
-                      <option v-for="equipo in equipos" :key="equipo.id" :value="Number(equipo.id)">
-                        {{ equipo.nombre }}
-                      </option>
-                    </select>
-                  </div>
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label">Equipo local</label>
+                      <select v-model.number="form.id_equipo_local" class="form-select">
+                        <option :value="null">Sin asignar</option>
+                        <option v-for="equipo in equipos" :key="equipo.id" :value="Number(equipo.id)">
+                          {{ equipo.nombre }}
+                        </option>
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">Equipo visitante</label>
+                      <select v-model.number="form.id_equipo_visitante" class="form-select">
+                        <option :value="null">Sin asignar</option>
+                        <option v-for="equipo in equipos" :key="equipo.id" :value="Number(equipo.id)">
+                          {{ equipo.nombre }}
+                        </option>
+                      </select>
+                    </div>
 
-                  <div v-if="isEditing && (form.resultado_local !== null || form.resultado_visitante !== null)" class="col-12">
-                    <div class="alert alert-info py-2 mb-0">
-                      Resultado actual: {{ form.resultado_local ?? '-' }} - {{ form.resultado_visitante ?? '-' }}.
-                      Se modifica desde Resultado de Partido.
+                    <div v-if="isEditing && (form.resultado_local !== null || form.resultado_visitante !== null)" class="col-12">
+                      <div class="alert alert-info py-2 mb-0">
+                        Resultado actual: {{ form.resultado_local ?? '-' }} - {{ form.resultado_visitante ?? '-' }}.
+                        Se modifica desde Resultado de Partido.
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -689,6 +707,32 @@ onMounted(fetchData);
 <style scoped>
 .fs-xs { font-size: 0.75rem; }
 .btn-link { text-decoration: none; }
+.form-section + .form-section {
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+.form-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 1.1rem;
+}
+.form-section-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #e8f1ff;
+  color: #0d6efd;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
 .detalle-box {
   border: 1px solid #dfe7f0;
   border-radius: 0.5rem;

@@ -145,6 +145,15 @@
         </div>
       </div>
     </template>
+
+    <ConfirmModal
+      v-model="showEliminarInscripcionModal"
+      title="Eliminar inscripción"
+      :message="`¿Eliminar la inscripción de ${nombreEquipoAEliminarInscripcion}?`"
+      confirm-button-text="Eliminar"
+      variant="danger"
+      @confirm="confirmarEliminarInscripcion"
+    />
   </div>
 </template>
 
@@ -156,6 +165,7 @@ import { useToastStore } from '@/stores/toastStore'
 import { useTorneoGestionStore } from '@/stores/torneoGestionStore'
 import { resolveComprobantePagoUrl } from '@/utils/comprobantesPago'
 import InscripcionesPortalSection from '@/components/torneos/InscripcionesPortalSection.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 
 const toast = useToastStore()
 const route = useRoute()
@@ -258,10 +268,19 @@ const cuposVisual = computed(() => {
   return [...inscriptos, ...vacios]
 })
 
-const eliminarInscripcion = async (item) => {
-  const nombre = item?.equipo_nombre || 'este equipo'
-  const ok = window.confirm(`¿Eliminar la inscripción de ${nombre}?`)
-  if (!ok) return
+const showEliminarInscripcionModal = ref(false)
+const equipoAEliminarInscripcion = ref(null)
+
+const nombreEquipoAEliminarInscripcion = computed(() => equipoAEliminarInscripcion.value?.equipo_nombre || 'este equipo')
+
+const eliminarInscripcion = (item) => {
+  equipoAEliminarInscripcion.value = item
+  showEliminarInscripcionModal.value = true
+}
+
+const confirmarEliminarInscripcion = async () => {
+  const item = equipoAEliminarInscripcion.value
+  if (!item) return
 
   try {
     await planTorneoService.eliminarInscripcion({

@@ -391,6 +391,7 @@ const calendarMonthLabel = computed(() => {
 const eventCountsByDate = computed(() => {
   const map = {}
   eventos.value.forEach(ev => {
+    if (!ev.id_cancha) return
     const dateStr = String(ev.fecha_hora_inicio || '').substring(0, 10)
     if (!dateStr) return
     map[dateStr] = (map[dateStr] || 0) + 1

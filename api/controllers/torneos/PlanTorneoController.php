@@ -333,7 +333,7 @@ class PlanTorneoController extends BaseController
 
             $sqlTorneo = "SELECT t.id, t.nombre, t.descripcion, t.id_disciplina, t.id_estado_torneo,
                                  t.fecha_inicio, t.fecha_fin, t.cupo_equipos, t.valor_inscripcion,
-                                 t.formato_manual, d.nombre AS disciplina_nombre, et.descripcion AS estado_nombre
+                                 t.formato_manual, d.nombre AS disciplina_nombre, et.descripcion AS estado_torneo_descripcion
                           FROM torneo t
                           LEFT JOIN disciplina d ON d.id = t.id_disciplina
                           LEFT JOIN estado_torneo et ON et.id = t.id_estado_torneo
@@ -2641,6 +2641,10 @@ class PlanTorneoController extends BaseController
                         AND ev.fecha_hora_inicio IS NOT NULL
                         AND ev.fecha_hora_inicio <= NOW()
                         AND ev.id_estado_evento <> 1
+                        AND ev.fecha_hora_inicio > COALESCE(
+                            (SELECT MAX(eth.fecha_cambio) FROM estado_torneo_hist eth WHERE eth.id_torneo = t.id),
+                            '1970-01-01'
+                        )
                   )";
 
         $stmt = $this->db->prepare($sql);

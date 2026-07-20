@@ -85,11 +85,13 @@
     </div>
 
     <template v-if="detalle">
-      <div class="card shadow-sm border-0 rounded-lg mb-4">
+      <div class="card shadow-sm border-0 rounded-lg mb-4 torneo-info-card">
         <div class="card-body p-4">
           <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
             <div>
-              <h2 class="h5 fw-bold text-secondary mb-1">{{ detalle.torneo.nombre }}</h2>
+              <h2 class="h4 fw-bold text-secondary mb-2">
+                <i class="bi bi-trophy-fill me-2 torneo-info-icon"></i>{{ detalle.torneo.nombre }}
+              </h2>
               <div class="d-flex flex-wrap align-items-center gap-2">
                 <span
                   class="badge rounded-pill torneo-estado-pill"
@@ -101,8 +103,15 @@
                 <span v-if="detalle.torneo.formato_manual" class="small text-muted">· {{ detalle.torneo.formato_manual }}</span>
                 <span class="small text-muted">· Inicio: {{ detalle.torneo.fecha_inicio ? new Date(detalle.torneo.fecha_inicio).toLocaleDateString('es-AR') : '-' }}</span>
               </div>
-              <div class="small text-muted mt-1">
-                {{ detalle.inscripciones?.total || 0 }} inscriptos · {{ detalle.eventos?.programados || 0 }}/{{ detalle.eventos?.total || 0 }} partidos programados
+              <div class="d-flex flex-wrap gap-2 mt-3">
+                <span class="info-stat-chip">
+                  <i class="bi bi-people-fill"></i>
+                  {{ detalle.inscripciones?.total || 0 }} inscriptos
+                </span>
+                <span class="info-stat-chip">
+                  <i class="bi bi-calendar-check-fill"></i>
+                  {{ detalle.eventos?.programados || 0 }}/{{ detalle.eventos?.total || 0 }} partidos programados
+                </span>
               </div>
             </div>
 
@@ -122,11 +131,16 @@
       <div class="row g-3 mb-4">
         <div class="col-12 col-md-4">
           <button type="button" class="nav-module-card position-relative" @click="irAInscripcionesPagos">
-            <div>
-              <div class="fw-semibold text-secondary"><i class="bi bi-clipboard-check me-2"></i>Inscripciones y pagos</div>
-              <div class="small text-muted mt-1">
-                {{ detalle.inscripciones?.total || 0 }} inscriptos
-                <span v-if="Number(detalle.inscripciones?.solicitudes_activas) > 0"> · {{ detalle.inscripciones.solicitudes_activas }} solicitud(es) pendiente(s)</span>
+            <div class="d-flex align-items-center gap-3">
+              <div class="nav-module-icon nav-module-icon-warning">
+                <i class="bi bi-clipboard-check"></i>
+              </div>
+              <div>
+                <div class="fw-semibold text-secondary">Inscripciones y pagos</div>
+                <div class="small text-muted mt-1">
+                  {{ detalle.inscripciones?.total || 0 }} inscriptos
+                  <span v-if="Number(detalle.inscripciones?.solicitudes_activas) > 0"> · {{ detalle.inscripciones.solicitudes_activas }} solicitud(es) pendiente(s)</span>
+                </div>
               </div>
             </div>
             <div class="d-flex align-items-center gap-3">
@@ -142,18 +156,28 @@
         </div>
         <div class="col-12 col-md-4">
           <button type="button" class="nav-module-card" @click="irAAsignaciones">
-            <div>
-              <div class="fw-semibold text-secondary"><i class="bi bi-diagram-3 me-2"></i>Asignaciones de equipos</div>
-              <div class="small text-muted mt-1">{{ detalle.inscripciones?.asignadas || 0 }} equipos asignados</div>
+            <div class="d-flex align-items-center gap-3">
+              <div class="nav-module-icon nav-module-icon-info">
+                <i class="bi bi-diagram-3"></i>
+              </div>
+              <div>
+                <div class="fw-semibold text-secondary">Asignaciones de equipos</div>
+                <div class="small text-muted mt-1">{{ detalle.inscripciones?.asignadas || 0 }} equipos asignados</div>
+              </div>
             </div>
             <i class="bi bi-chevron-right text-muted"></i>
           </button>
         </div>
         <div class="col-12 col-md-4">
           <button type="button" class="nav-module-card" @click="irAProgramacionCalendario">
-            <div>
-              <div class="fw-semibold text-secondary"><i class="bi bi-calendar3 me-2"></i>Programación y calendario</div>
-              <div class="small text-muted mt-1">{{ detalle.eventos?.programados || 0 }}/{{ detalle.eventos?.total || 0 }} partidos programados</div>
+            <div class="d-flex align-items-center gap-3">
+              <div class="nav-module-icon nav-module-icon-success">
+                <i class="bi bi-calendar3"></i>
+              </div>
+              <div>
+                <div class="fw-semibold text-secondary">Programación y calendario</div>
+                <div class="small text-muted mt-1">{{ detalle.eventos?.programados || 0 }}/{{ detalle.eventos?.total || 0 }} partidos programados</div>
+              </div>
             </div>
             <i class="bi bi-chevron-right text-muted"></i>
           </button>
@@ -466,6 +490,33 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.torneo-info-card {
+  border-left: 4px solid #0ea5e9 !important;
+  background: #f0f9ff;
+}
+
+.torneo-info-icon {
+  color: #f59e0b;
+}
+
+.info-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #dbeafe;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.info-stat-chip i {
+  color: #0ea5e9;
+  font-size: 0.95rem;
+}
+
 .nav-module-card {
   width: 100%;
   display: flex;
@@ -474,7 +525,7 @@ onMounted(async () => {
   gap: 12px;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  padding: 14px 16px;
+  padding: 16px;
   background: #fff;
   text-align: left;
   transition: all 0.2s ease;
@@ -482,8 +533,35 @@ onMounted(async () => {
 
 .nav-module-card:hover {
   border-color: #94a3b8;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
   background: #f8fafc;
+  transform: translateY(-2px);
+}
+
+.nav-module-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.nav-module-icon-warning {
+  background: #fff3d6;
+  color: #8a5700;
+}
+
+.nav-module-icon-info {
+  background: #e0ecff;
+  color: #0b4fbb;
+}
+
+.nav-module-icon-success {
+  background: #dcf7e7;
+  color: #0f6a38;
 }
 
 .torneo-grid {

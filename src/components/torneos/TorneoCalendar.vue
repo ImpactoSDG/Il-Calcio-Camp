@@ -85,6 +85,8 @@ const props = defineProps({
   },
 })
 
+const emit = defineEmits(['dia-seleccionado'])
+
 const currentMonth = defineModel({ default: () => new Date(new Date().getFullYear(), new Date().getMonth(), 1) })
 const today = new Date()
 
@@ -222,6 +224,7 @@ const calendarCells = computed(() => {
 
 const selectDate = (dateKey) => {
   selectedDateKey.value = dateKey
+  emit('dia-seleccionado', { dateKey, eventos: eventsByDate.value[dateKey] || [] })
 }
 
 const goPrevMonth = () => {

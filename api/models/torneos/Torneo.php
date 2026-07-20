@@ -79,6 +79,10 @@ class Torneo
                         AND ev.fecha_hora_inicio IS NOT NULL
                         AND ev.fecha_hora_inicio <= NOW()
                         AND ev.id_estado_evento <> 1
+                        AND ev.fecha_hora_inicio > COALESCE(
+                            (SELECT MAX(eth.fecha_cambio) FROM estado_torneo_hist eth WHERE eth.id_torneo = t.id),
+                            '1970-01-01'
+                        )
                   )";
 
         $stmt = $this->conn->prepare($sql);
@@ -514,7 +518,27 @@ class Torneo
         }
         $stmt->bindValue(':valor_inscripcion', $valorInscripcion ?? 0.0);
         $stmt->bindValue(':id', $id, PDO::PARAM_INT);
-        return $stmt->execute();
+        $ok = $stmt->execute();
+
+        // Registramos el cambio manual para que el auto-ajuste a "En curso" no lo
+        // pise en la próxima lectura (solo debe reaccionar a partidos que arranquen
+        // después de esta edición, no a partidos ya pasados).
+        if ($ok && $idEstadoTorneo !== null) {
+            $this->registrarCambioEstadoManual($id, $idEstadoTorneo);
+        }
+
+        return $ok;
+    }
+
+    private function registrarCambioEstadoManual(int $idTorneo, int $idEstadoTorneo): void
+    {
+        $stmt = $this->conn->prepare(
+            "INSERT INTO estado_torneo_hist (id_torneo, id_estado_torneo, fecha_cambio, observacion)
+             VALUES (:id_torneo, :id_estado_torneo, NOW(), 'Cambio manual desde Editar torneo')"
+        );
+        $stmt->bindValue(':id_torneo', $idTorneo, PDO::PARAM_INT);
+        $stmt->bindValue(':id_estado_torneo', $idEstadoTorneo, PDO::PARAM_INT);
+        $stmt->execute();
     }
 
     public function softDelete(int $idTorneo, ?int $deletedBy = null, ?string $motivo = null): bool

@@ -131,6 +131,7 @@
               :eventos="eventosCalendario"
               :torneo-nombre="torneoNombreCalendario"
               :show-title="false"
+              @dia-seleccionado="abrirModalDia"
             />
           </div>
         </div>
@@ -142,13 +143,6 @@
           </div>
 
           <template v-else>
-            <div class="alert alert-info small mb-3">
-              Acá ves todos los partidos del torneo. Los que todavía no tienen fecha/cancha/árbitro definidos aparecen como
-              <span class="badge rounded-pill estado-badge estado-pendiente">Programación pendiente</span>.
-              Tildá los que querés programar y usá <strong>"Programar seleccionados"</strong> para que el sistema les busque
-              horario automáticamente, o usá <strong>"Editar"</strong> en la fila de un partido para definirlo vos a mano, uno por uno.
-            </div>
-
             <div class="d-flex justify-content-between align-items-center mb-3">
               <div class="small text-muted">
                 Total partidos: <strong>{{ programacionEventos.length }}</strong> · Seleccionados: <strong>{{ selectedProgramacionIds.length }}</strong>
@@ -374,20 +368,6 @@
                   </div>
                 </div>
               </div>
-
-              <div class="alert alert-light border mt-3 mb-0 small">
-                <strong>Resumen:</strong> {{ resumenProgramacion }}
-              </div>
-
-              <div class="alert alert-warning small mt-2 mb-0 d-flex gap-2">
-                <i class="bi bi-exclamation-triangle-fill mt-1"></i>
-                <div>
-                  <strong>Ojo:</strong> si no hay suficientes horarios libres con estas condiciones (pocos días, pocas canchas o pocos árbitros),
-                  algunos partidos van a quedar <strong>sin programar</strong> y te lo va a avisar al terminar. En ese caso podés ampliar el rango
-                  de fechas, sumar canchas/árbitros o volver a intentarlo. Si un partido queda en un horario que no te sirve, lo podés corregir
-                  a mano después con el botón <strong>"Editar"</strong> de la tabla, o revertirlo con <strong>"Deshacer programación seleccionados"</strong>.
-                </div>
-              </div>
             </div>
 
             <div class="modal-footer">
@@ -401,6 +381,58 @@
         </div>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div v-if="showDiaModal" class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);" @click.self="showDiaModal = false">
+        <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title text-capitalize">
+                <i class="bi bi-calendar-event me-2"></i>{{ diaSeleccionadoLabel }}
+              </h5>
+              <button type="button" class="btn-close" @click="showDiaModal = false"></button>
+            </div>
+
+            <div class="modal-body">
+              <div v-if="!eventosDiaSeleccionado.length" class="alert alert-light border mb-0 text-center">
+                No hay partidos programados para este día.
+              </div>
+
+              <div v-else class="d-flex flex-column gap-2">
+                <div v-for="ev in eventosDiaSeleccionado" :key="`dia-evento-${ev.id}`" class="evento-lista-item">
+                  <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+                    <div class="fw-bold">{{ ev.timeLabel }} hs</div>
+                    <span class="badge rounded-pill" :class="getEstadoEventoBadgeClass(ev)">{{ ev.estado_evento_descripcion || 'Sin estado' }}</span>
+                  </div>
+                  <div class="fw-semibold mt-1">
+                    {{ ev.equipo_local_nombre || 'Por definir' }} vs {{ ev.equipo_visitante_nombre || 'Por definir' }}
+                  </div>
+                  <div class="small text-muted mt-1">
+                    <span v-if="ev.torneo_nombre">Torneo: {{ ev.torneo_nombre }}</span>
+                    <span v-if="ev.cancha_nombre"> · Cancha: {{ ev.cancha_nombre }}</span>
+                    <span v-if="ev.arbitro_nombre_completo"> · Árbitro: {{ ev.arbitro_nombre_completo }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" @click="showDiaModal = false">Cerrar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <ConfirmModal
+      v-model="showDeshacerProgramacionModal"
+      title="Deshacer programación"
+      :message="mensajeDeshacerProgramacion"
+      confirm-button-text="Deshacer"
+      variant="warning"
+      :is-loading="savingProgramacion"
+      @confirm="confirmarDeshacerProgramacion"
+    />
   </div>
 </template>
 
@@ -411,6 +443,7 @@ import datosMaestrosService from '@/services/datosMaestrosService'
 import planTorneoService from '@/services/torneos/planTorneoService'
 import { useToastStore } from '@/stores/toastStore'
 import TorneoCalendar from '@/components/torneos/TorneoCalendar.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 
 const route = useRoute()
 const toast = useToastStore()
@@ -424,6 +457,23 @@ const errorMensaje = ref('')
 const pestanaActiva = ref('calendario')
 const busquedaLista = ref('')
 const ordenLista = ref('asc')
+
+const showDiaModal = ref(false)
+const diaSeleccionadoKey = ref('')
+const eventosDiaSeleccionado = ref([])
+
+const diaSeleccionadoLabel = computed(() => {
+  if (!diaSeleccionadoKey.value) return ''
+  const dt = new Date(`${diaSeleccionadoKey.value}T00:00:00`)
+  if (Number.isNaN(dt.getTime())) return ''
+  return dt.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+})
+
+const abrirModalDia = ({ dateKey, eventos }) => {
+  diaSeleccionadoKey.value = dateKey
+  eventosDiaSeleccionado.value = [...(eventos || [])].sort((a, b) => a.eventDate.getTime() - b.eventDate.getTime())
+  showDiaModal.value = true
+}
 
 const getApiMessage = (error, fallback) => error?.response?.data?.message || fallback
 
@@ -750,25 +800,6 @@ const formatearFechaCorta = (fechaYmd) => {
   return dt.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-const resumenProgramacion = computed(() => {
-  const franjasActivas = (programacionForm.value.franjas || []).filter(f => f.activa)
-  const diasTexto = franjasActivas.length
-    ? franjasActivas.map(f => f.nombre).join(', ')
-    : 'ningún día seleccionado todavía'
-
-  const cantCanchas = (programacionForm.value.id_canchas || []).length
-  const cantArbitros = (programacionForm.value.id_arbitros || []).length
-
-  const fechaInicioTexto = formatearFechaCorta(programacionForm.value.fecha_inicio) || 'hoy'
-  const fechaHastaTexto = programacionForm.value.fecha_hasta
-    ? `hasta el ${formatearFechaCorta(programacionForm.value.fecha_hasta)}`
-    : 'sin fecha límite (busca hasta 1 año hacia adelante)'
-
-  return `Se va a intentar programar ${selectedProgramacionIds.value.length} partido(s), buscando horarios libres desde el `
-    + `${fechaInicioTexto} ${fechaHastaTexto}, los días ${diasTexto}, usando ${cantCanchas} cancha(s) y ${cantArbitros} árbitro(s) `
-    + `disponibles. Cada partido va a ocupar ${programacionForm.value.duracion_minutos || 0} minutos de cancha.`
-})
-
 const abrirModalProgramacionSeleccionados = () => {
   if (!selectedProgramacionIds.value.length) {
     toast.showToast({ message: 'Selecciona al menos un partido.', type: 'warning' })
@@ -849,7 +880,14 @@ const programarSeleccionados = async () => {
   showProgramacionModal.value = false
 }
 
-const deshacerProgramacion = async () => {
+const showDeshacerProgramacionModal = ref(false)
+
+const mensajeDeshacerProgramacion = computed(() =>
+  `Se deshará la programación de ${selectedProgramacionIds.value.length} partido(s) seleccionados en estado Programado. `
+  + 'Esto limpiará fecha/hora, cancha y árbitro, y los devolverá a Programación pendiente.'
+)
+
+const deshacerProgramacion = () => {
   if (!idTorneoSeleccionado.value) return
 
   if (!selectedProgramacionIds.value.length) {
@@ -857,13 +895,10 @@ const deshacerProgramacion = async () => {
     return
   }
 
-  const ok = window.confirm(
-    `Se deshará la programación de ${selectedProgramacionIds.value.length} partido(s) seleccionados en estado Programado.\n` +
-      'Esto limpiará fecha/hora, cancha y árbitro, y los devolverá a Programación pendiente.\n\n' +
-      '¿Deseas continuar?'
-  )
-  if (!ok) return
+  showDeshacerProgramacionModal.value = true
+}
 
+const confirmarDeshacerProgramacion = async () => {
   savingProgramacion.value = true
   try {
     const resp = await planTorneoService.deshacerProgramacion({
