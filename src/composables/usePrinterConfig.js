@@ -567,7 +567,7 @@ export async function imprimirTicketDetalleFactura({ venta, articulos, factura, 
     importe: total,
     moneda: 'PES',
     ctz: 1,
-    tipoDocRec: 96,
+    tipoDocRec: tipoLetra === 'A' ? 80 : 96, // Factura A exige CUIT (80) del receptor, no DNI (96)
     nroDocRec: parseInt(String(factura?.cuit_dni_receptor || '0').replace(/\D/g, ''), 10),
     tipoCodAut: 'E',
     codAut: parseInt(factura?.cae || 0, 10),
@@ -659,7 +659,7 @@ export function generarHtmlDetalleFactura({ factura, articulos }) {
     importe: parseFloat(factura.importe_total || 0),
     moneda: 'PES',
     ctz: 1,
-    tipoDocRec: 96,
+    tipoDocRec: tipoLetra === 'A' ? 80 : 96, // Factura A exige CUIT (80) del receptor, no DNI (96)
     nroDocRec: parseInt(String(factura.cuit_dni_receptor || '0').replace(/\D/g, ''), 10),
     tipoCodAut: 'E',
     codAut: parseInt(factura.cae || 0, 10),

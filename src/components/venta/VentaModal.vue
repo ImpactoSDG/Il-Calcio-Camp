@@ -860,6 +860,21 @@ const mensajeFacturacion = computed(() => {
   return '';
 });
 
+// Con Transferencia o Mercado Pago, la facturación AFIP se tilda por defecto (Factura B)
+const medioPagoRequiereFacturacionAutomatica = (idMedioCobro) => {
+  const medio = props.mediosCobro?.find(m => Number(m.id) === Number(idMedioCobro));
+  const descripcion = (medio?.descripcion || '').toLowerCase();
+  return descripcion.includes('transferencia') || descripcion.includes('mercado pago');
+};
+
+watch(() => form.value.id_medio_cobro, (nuevoIdMedio) => {
+  if (!puedeFacturar.value) return;
+  if (props.isEditing && form.value.estado_factura) return;
+  if (medioPagoRequiereFacturacionAutomatica(nuevoIdMedio)) {
+    facturar.value = true;
+  }
+});
+
 const onQueryArticulo = () => {
   indexSeleccionado.value = -1;
   if (!queryArticulo.value.trim()) {
